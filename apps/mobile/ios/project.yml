@@ -1,0 +1,28 @@
+name: Tchat
+options:
+  minimumXcodeGenVersion: 2.38.0
+settings:
+  SWIFT_VERSION: 5.9
+configs:
+  Debug: debug
+  Release: release
+targets:
+  Tchat:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    settings:
+      SUPPORTED_PLATFORMS: [iphoneos, iphonesimulator]
+      PRODUCT_BUNDLE_IDENTIFIER: dev.tchat.app
+      INFOPLIST_FILE: Sources/TchatApp/Info.plist
+    sources:
+      - path: Sources/TchatApp
+    resources:
+      - path: Resources
+schemes:
+  Tchat:
+    build:
+      targets:
+        Tchat: all
+    run:
+      config: Debug

@@ -1,0 +1,37 @@
+# General
+.DS_Store
+*.log
+logs/
+.tmp/
+.env
+.env.*
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.vercel/
+
+# Go
+bin/
+coverage.out
+
+# Android
+**/build/
+.cxx/
+local.properties
+.gradle/
+.idea/
+*.iml
+
+# iOS / Xcode
+DerivedData/
+*.xcworkspace/
+*.xcuserdata/
+
+# Swift Package Manager
+.build/
+
+# CI artifacts
+dist/
+coverage/

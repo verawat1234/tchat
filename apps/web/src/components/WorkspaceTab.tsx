@@ -1,0 +1,517 @@
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Briefcase, MessageCircle, Receipt, BarChart3, Users, Clock, 
+  Star, Zap, Globe, FileText, Calendar, Settings, Crown, 
+  ArrowRight, CheckCircle, TrendingUp, Bell, Calculator, 
+  PieChart, FileSpreadsheet, Building2, Target, Workflow,
+  Bot, Megaphone, Hash, Phone, Video, MessageSquare,
+  DollarSign, Activity, Database, BookOpen, AlertCircle
+} from 'lucide-react';
+import { Button } from './ui/button';
+import { Badge } from './ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Progress } from './ui/progress';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { Separator } from './ui/separator';
+import { toast } from "sonner";
+
+interface WorkspaceTabProps {
+  user: any;
+  onBack?: () => void;
+}
+
+export function WorkspaceTab({ user, onBack }: WorkspaceTabProps) {
+  const [selectedFeature, setSelectedFeature] = useState<string | null>(null);
+
+  // Animation variants
+  const containerVariants = {
+    initial: { opacity: 0 },
+    animate: { 
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.2
+      }
+    }
+  };
+
+  const itemVariants = {
+    initial: { opacity: 0, y: 20 },
+    animate: { 
+      opacity: 1, 
+      y: 0,
+      transition: {
+        duration: 0.5,
+        ease: [0.22, 1, 0.36, 1]
+      }
+    }
+  };
+
+  const featureVariants = {
+    initial: { scale: 1 },
+    hover: { 
+      scale: 1.02,
+      transition: { duration: 0.2 }
+    },
+    tap: { scale: 0.98 }
+  };
+
+  // Featured upcoming work features
+  const upcomingFeatures = [
+    {
+      id: 'business-chat',
+      title: 'Business Chat',
+      description: 'Advanced messaging with rich formatting, file sharing, and team collaboration tools',
+      icon: MessageCircle,
+      color: 'chart-1',
+      status: 'Beta Testing',
+      progress: 85,
+      features: [
+        'Rich text formatting with Markdown support',
+        'Advanced file sharing with version control',
+        'Team channels and direct messaging',
+        'Message threading and reactions',
+        'Voice and video calls integration',
+        'Smart notifications and mentions'
+      ],
+      launchDate: 'Q2 2024'
+    },
+    {
+      id: 'invoicing',
+      title: 'Rich Invoicing',
+      description: 'Professional invoicing system with multi-currency support and automated workflows',
+      icon: Receipt,
+      color: 'chart-2',
+      status: 'Development',
+      progress: 60,
+      features: [
+        'Multi-currency invoicing (THB, SGD, IDR, etc.)',
+        'Automated invoice generation and scheduling',
+        'Payment tracking and reminders',
+        'Tax calculations for SEA markets',
+        'Professional invoice templates',
+        'Integration with QR payment systems'
+      ],
+      launchDate: 'Q3 2024'
+    },
+    {
+      id: 'polls-surveys',
+      title: 'Polls & Surveys',
+      description: 'Interactive polling system for team decisions and customer feedback',
+      icon: BarChart3,
+      color: 'chart-3',
+      status: 'Planning',
+      progress: 30,
+      features: [
+        'Real-time polling with instant results',
+        'Survey creation with custom questions',
+        'Anonymous voting options',
+        'Results analytics and reporting',
+        'Integration with business chat',
+        'Scheduled polls and deadlines'
+      ],
+      launchDate: 'Q4 2024'
+    },
+    {
+      id: 'project-management',
+      title: 'Project Management',
+      description: 'Comprehensive project tracking with Kanban boards and time tracking',
+      icon: Target,
+      color: 'chart-4',
+      status: 'Design Phase',
+      progress: 15,
+      features: [
+        'Kanban boards and task management',
+        'Time tracking and productivity metrics',
+        'Project templates for common workflows',
+        'Team workload balancing',
+        'Deadline tracking and notifications',
+        'Progress reporting and analytics'
+      ],
+      launchDate: 'Q1 2025'
+    },
+    {
+      id: 'ai-assistant',
+      title: 'AI Business Assistant',
+      description: 'Smart AI assistant for automating business tasks and providing insights',
+      icon: Bot,
+      color: 'chart-5',
+      status: 'Research',
+      progress: 10,
+      features: [
+        'Smart task automation and scheduling',
+        'Business insights and analytics',
+        'Document summarization and analysis',
+        'Meeting transcription and notes',
+        'Expense tracking and categorization',
+        'SEA market insights and trends'
+      ],
+      launchDate: 'Q2 2025'
+    }
+  ];
+
+  // Quick stats for the coming soon features
+  const workStats = {
+    totalFeatures: upcomingFeatures.length,
+    inDevelopment: upcomingFeatures.filter(f => f.status === 'Development' || f.status === 'Beta Testing').length,
+    averageProgress: Math.round(upcomingFeatures.reduce((acc, f) => acc + f.progress, 0) / upcomingFeatures.length),
+    betaUsers: 1250,
+    expectedLaunch: 'Q2 2024'
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Beta Testing': return 'bg-green-100 text-green-800 border-green-200';
+      case 'Development': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'Planning': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'Design Phase': return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'Research': return 'bg-gray-100 text-gray-800 border-gray-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const handleFeatureClick = (featureId: string) => {
+    setSelectedFeature(selectedFeature === featureId ? null : featureId);
+    const feature = upcomingFeatures.find(f => f.id === featureId);
+    if (feature?.status === 'Beta Testing') {
+      toast.success(`${feature.title} beta access available soon!`);
+    } else {
+      toast.success(`${feature?.title} is in ${feature?.status.toLowerCase()}.`);
+    }
+  };
+
+  const handleNotifyMe = (featureTitle: string) => {
+    toast.success(`You'll be notified when ${featureTitle} launches!`);
+  };
+
+  return (
+    <div className="h-full flex flex-col bg-background overflow-y-auto mobile-scroll scrollbar-hide">
+      {/* Hero Header */}
+      <motion.div 
+        className="relative bg-gradient-to-br from-chart-1/10 via-chart-2/10 to-chart-3/10 border-b border-border"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
+        
+        <div className="relative p-6 md:p-8">
+          <div className="max-w-4xl mx-auto">
+            <motion.div 
+              className="flex items-center justify-between mb-6"
+              variants={itemVariants}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-chart-1 to-chart-2 rounded-2xl flex items-center justify-center">
+                  <Briefcase className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold">Work Features</h1>
+                  <p className="text-muted-foreground">Business tools coming soon</p>
+                </div>
+              </div>
+              
+              <Badge variant="outline" className="bg-gradient-to-r from-chart-1 to-chart-2 text-white border-0 px-4 py-2">
+                <Zap className="w-4 h-4 mr-2" />
+                Preview
+              </Badge>
+            </motion.div>
+
+            <motion.div 
+              className="bg-card/50 backdrop-blur-sm rounded-2xl p-6 border"
+              variants={itemVariants}
+            >
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-chart-1">{workStats.totalFeatures}</div>
+                  <div className="text-sm text-muted-foreground">New Features</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-chart-2">{workStats.inDevelopment}</div>
+                  <div className="text-sm text-muted-foreground">In Development</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-chart-3">{workStats.averageProgress}%</div>
+                  <div className="text-sm text-muted-foreground">Avg Progress</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-chart-4">{workStats.betaUsers}</div>
+                  <div className="text-sm text-muted-foreground">Beta Users</div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Main Content */}
+      <div className="flex-1 p-4 md:p-6">
+        <div className="max-w-4xl mx-auto space-y-8">
+          
+          {/* Featured Announcement */}
+          <motion.div
+            variants={containerVariants}
+            initial="initial"
+            animate="animate"
+          >
+            <motion.div variants={itemVariants}>
+              <Card className="border-chart-1/20 bg-gradient-to-r from-chart-1/5 to-transparent relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-chart-1/10 to-transparent"></div>
+                <CardContent className="relative p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 bg-chart-1/20 rounded-full flex items-center justify-center flex-shrink-0">
+                      <Megaphone className="w-6 h-6 text-chart-1" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold mb-2">
+                        Business Chat with Rich Invoicing, Polls, and More!
+                      </h3>
+                      <p className="text-muted-foreground mb-4">
+                        We're building the most comprehensive business communication platform for Southeast Asia. 
+                        Get ready for advanced messaging, professional invoicing, interactive polls, and AI-powered insights.
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <Button size="sm" className="bg-chart-1 hover:bg-chart-1/90">
+                          <Bell className="w-4 h-4 mr-2" />
+                          Notify Me
+                        </Button>
+                        <Badge variant="outline" className="text-chart-1 border-chart-1/30">
+                          First beta: {workStats.expectedLaunch}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
+
+          {/* Upcoming Features Grid */}
+          <motion.div
+            variants={containerVariants}
+            initial="initial"
+            animate="animate"
+            className="space-y-6"
+          >
+            <motion.div variants={itemVariants}>
+              <h2 className="text-xl font-semibold mb-2">Coming Soon</h2>
+              <p className="text-muted-foreground">
+                Powerful business tools designed specifically for Southeast Asian markets
+              </p>
+            </motion.div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              {upcomingFeatures.map((feature, index) => {
+                const Icon = feature.icon;
+                const isExpanded = selectedFeature === feature.id;
+                
+                return (
+                  <motion.div
+                    key={feature.id}
+                    variants={itemVariants}
+                    custom={index}
+                  >
+                    <motion.div
+                      variants={featureVariants}
+                      initial="initial"
+                      whileHover="hover"
+                      whileTap="tap"
+                    >
+                      <Card 
+                        className={`cursor-pointer transition-all duration-300 ${
+                          isExpanded ? 'ring-2 ring-' + feature.color + '/20 shadow-lg' : 'hover:shadow-md'
+                        }`}
+                        onClick={() => handleFeatureClick(feature.id)}
+                      >
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 bg-${feature.color}/10 rounded-xl flex items-center justify-center`}>
+                                <Icon className={`w-5 h-5 text-${feature.color}`} />
+                              </div>
+                              <div>
+                                <CardTitle className="text-base">{feature.title}</CardTitle>
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs mt-1 ${getStatusColor(feature.status)}`}
+                                >
+                                  {feature.status}
+                                </Badge>
+                              </div>
+                            </div>
+                            <motion.div
+                              animate={{ rotate: isExpanded ? 90 : 0 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                            </motion.div>
+                          </div>
+                          
+                          <p className="text-sm text-muted-foreground mt-2">
+                            {feature.description}
+                          </p>
+                          
+                          <div className="mt-3">
+                            <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                              <span>Development Progress</span>
+                              <span>{feature.progress}%</span>
+                            </div>
+                            <Progress value={feature.progress} className="h-1.5" />
+                          </div>
+                        </CardHeader>
+
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                            >
+                              <CardContent className="pt-0">
+                                <Separator className="mb-4" />
+                                
+                                <div className="space-y-4">
+                                  <div>
+                                    <h4 className="font-medium text-sm mb-2">Key Features</h4>
+                                    <ul className="space-y-1">
+                                      {feature.features.map((item, idx) => (
+                                        <li key={idx} className="flex items-start gap-2 text-sm">
+                                          <CheckCircle className="w-3 h-3 text-green-500 mt-0.5 flex-shrink-0" />
+                                          <span className="text-muted-foreground">{item}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                  
+                                  <div className="flex items-center justify-between pt-2">
+                                    <div className="text-sm">
+                                      <span className="text-muted-foreground">Expected: </span>
+                                      <span className="font-medium">{feature.launchDate}</span>
+                                    </div>
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleNotifyMe(feature.title);
+                                      }}
+                                    >
+                                      <Bell className="w-3 h-3 mr-1" />
+                                      Notify Me
+                                    </Button>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </Card>
+                    </motion.div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </motion.div>
+
+          {/* Beta Program CTA */}
+          <motion.div
+            variants={containerVariants}
+            initial="initial"
+            animate="animate"
+          >
+            <motion.div variants={itemVariants}>
+              <Card className="bg-gradient-to-r from-chart-2/10 to-chart-3/10 border-chart-2/20">
+                <CardContent className="p-6 text-center">
+                  <div className="w-16 h-16 bg-gradient-to-br from-chart-2 to-chart-3 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Star className="w-8 h-8 text-white" />
+                  </div>
+                  
+                  <h3 className="text-xl font-semibold mb-2">Join the Beta Program</h3>
+                  <p className="text-muted-foreground mb-4 max-w-md mx-auto">
+                    Be among the first to test our new business features and help shape the future of 
+                    work communication in Southeast Asia.
+                  </p>
+                  
+                  <div className="flex items-center justify-center gap-3">
+                    <Button size="lg" className="bg-gradient-to-r from-chart-2 to-chart-3 hover:opacity-90">
+                      <Users className="w-4 h-4 mr-2" />
+                      Request Beta Access
+                    </Button>
+                    <Button variant="outline" size="lg">
+                      <FileText className="w-4 h-4 mr-2" />
+                      Learn More
+                    </Button>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-border/50">
+                    <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                        Early Access
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                        Priority Support
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                        Influence Development
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
+
+          {/* SEA Market Focus */}
+          <motion.div
+            variants={containerVariants}
+            initial="initial"
+            animate="animate"
+          >
+            <motion.div variants={itemVariants}>
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <Globe className="w-6 h-6 text-chart-4" />
+                    <div>
+                      <CardTitle>Built for Southeast Asia</CardTitle>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Designed with local business needs and cultural nuances in mind
+                      </p>
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center p-3 bg-muted/30 rounded-lg">
+                      <div className="text-lg font-semibold">🇹🇭 🇮🇩</div>
+                      <div className="text-xs text-muted-foreground">Multi-language</div>
+                    </div>
+                    <div className="text-center p-3 bg-muted/30 rounded-lg">
+                      <div className="text-lg font-semibold">฿ $ ₫</div>
+                      <div className="text-xs text-muted-foreground">Multi-currency</div>
+                    </div>
+                    <div className="text-center p-3 bg-muted/30 rounded-lg">
+                      <div className="text-lg font-semibold">📱💻</div>
+                      <div className="text-xs text-muted-foreground">Cross-platform</div>
+                    </div>
+                    <div className="text-center p-3 bg-muted/30 rounded-lg">
+                      <div className="text-lg font-semibold">⚡📊</div>
+                      <div className="text-xs text-muted-foreground">Fast & Analytics</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
