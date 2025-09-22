@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageCircle, Store, Users, Bell, Settings, Search, Plus, QrCode, Wallet, Globe, CreditCard, Play, Heart, User, TrendingUp, Briefcase, ShoppingCart, Languages, Banknote, ArrowDown, Zap } from 'lucide-react';
+import { useSelector, useDispatch } from 'react-redux';
+import { MessageCircle, Store, Users, Bell, Settings, Search, Plus, QrCode, Wallet, Globe, CreditCard, Play, Heart, User, TrendingUp, Briefcase, ShoppingCart, Languages, Banknote, ArrowDown, Zap, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
@@ -28,8 +29,28 @@ import { CartScreen } from './components/CartScreen';
 import { ShareDialog } from './components/ShareDialog';
 import { FullscreenVideoPlayer } from './components/FullscreenVideoPlayer';
 import { NotificationsScreen } from './components/NotificationsScreen';
+import { ContentErrorBoundary } from './components/ContentErrorBoundary';
 import { Toaster } from './components/ui/sonner';
 import { toast } from "sonner";
+import { RootState, AppDispatch } from './store';
+import {
+  selectSyncStatus,
+  selectSelectedLanguage,
+  selectFallbackMode,
+  selectFallbackContentCount,
+  setSelectedLanguage,
+  setSyncStatus
+} from './features/contentSlice';
+import { useGetContentCategoriesQuery, useSyncContentQuery } from './services/contentApi';
+import {
+  useTabNavigationContent,
+  useHeaderNavigationContent,
+  useSettingsNavigationContent,
+  useNotificationsNavigationContent,
+  useQuickActionsContent,
+  useSEAFeaturesContent,
+  NAVIGATION_CONTENT_IDS
+} from './hooks/useNavigationContent';
 
 type Screen = 'chat' | 'store' | 'social' | 'video' | 'work' | 'more' | 'settings' | 'wallet' | 'cart' | 'qr-scanner' | 'search' | 'video-call' | 'voice-call' | 'new-chat' | 'shop' | 'product' | 'live-stream' | 'notifications' | 'shop-chat';
 
@@ -45,12 +66,69 @@ interface Notification {
 }
 
 export default function App() {
+  // Redux state and dispatch
+  const dispatch = useDispatch<AppDispatch>();
+  const syncStatus = useSelector(selectSyncStatus);
+  const contentLanguage = useSelector(selectSelectedLanguage);
+  const fallbackMode = useSelector(selectFallbackMode);
+  const fallbackContentCount = useSelector(selectFallbackContentCount);
+
+  // Dynamic navigation content
+  const tabContent = useTabNavigationContent();
+  const headerContent = useHeaderNavigationContent();
+  const settingsContent = useSettingsNavigationContent();
+  const notificationsContent = useNotificationsNavigationContent();
+  const quickActionsContent = useQuickActionsContent();
+  const seaFeaturesContent = useSEAFeaturesContent();
+
+  // Check loading state for any content
+  const isNavigationContentLoading = Object.values(tabContent).some(item => item.isLoading) ||
+    Object.values(headerContent).some(item => item.isLoading) ||
+    Object.values(settingsContent).some(item => item.isLoading) ||
+    Object.values(notificationsContent).some(item => item.isLoading) ||
+    Object.values(quickActionsContent).some(item => item.isLoading) ||
+    Object.values(seaFeaturesContent).some(item => item.isLoading);
+
+  // Check for any content errors
+  const hasNavigationContentError = Object.values(tabContent).some(item => item.isError) ||
+    Object.values(headerContent).some(item => item.isError) ||
+    Object.values(settingsContent).some(item => item.isError) ||
+    Object.values(notificationsContent).some(item => item.isError) ||
+    Object.values(quickActionsContent).some(item => item.isError) ||
+    Object.values(seaFeaturesContent).some(item => item.isError);
+
+  // Count navigation fallback content
+  const navigationFallbackCount = Object.values(tabContent).filter(item => item.isFallback).length +
+    Object.values(headerContent).filter(item => item.isFallback).length +
+    Object.values(settingsContent).filter(item => item.isFallback).length +
+    Object.values(notificationsContent).filter(item => item.isFallback).length +
+    Object.values(quickActionsContent).filter(item => item.isFallback).length +
+    Object.values(seaFeaturesContent).filter(item => item.isFallback).length;
+
+  // Component state
   const [currentScreen, setCurrentScreen] = useState<Screen>('chat');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [currentLanguage, setCurrentLanguage] = useState('th');
   const [currentCurrency, setCurrentCurrency] = useState('THB');
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Content system queries
+  const {
+    data: contentCategories,
+    error: categoriesError,
+    isLoading: categoriesLoading
+  } = useGetContentCategoriesQuery();
+
+  // Sync content on app initialization and periodically
+  const {
+    refetch: triggerContentSync,
+    isLoading: isSyncing,
+    error: syncError
+  } = useSyncContentQuery({ categories: [] }, {
+    skip: !isAuthenticated, // Only sync when authenticated
+    refetchOnMountOrArgChange: 30, // Refetch every 30 seconds
+  });
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>('golden-mango-shop');
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number>(0);
@@ -250,19 +328,30 @@ export default function App() {
     touchStartY.current = 0;
   }, [currentTabIndex, isRefreshing]);
 
-  // Pull to refresh functionality
+  // Enhanced pull to refresh with content sync
   const handlePullToRefresh = useCallback(async () => {
     if (isRefreshing) return;
-    
+
     setIsRefreshing(true);
     if (navigator.vibrate) navigator.vibrate(100);
-    
-    // Simulate refresh delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    toast.success('Content refreshed!');
-    setIsRefreshing(false);
-  }, [isRefreshing]);
+
+    try {
+      // Trigger content sync if authenticated
+      if (isAuthenticated) {
+        await triggerContentSync();
+        toast.success('Content refreshed!');
+      } else {
+        // Simulate refresh delay for non-authenticated users
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        toast.success('Content refreshed!');
+      }
+    } catch (error) {
+      console.error('Refresh failed:', error);
+      toast.error('Refresh failed. Please try again.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [isRefreshing, isAuthenticated, triggerContentSync]);
 
   // Animation variants for screen transitions
   const screenVariants = {
@@ -362,12 +451,22 @@ export default function App() {
     }
   };
 
-  // Language switching
+  // Enhanced language switching with content system integration
   const handleLanguageSwitch = useCallback((langCode: string) => {
     setCurrentLanguage(langCode);
+    // Update content language in Redux store
+    dispatch(setSelectedLanguage(langCode));
+    // Persist language preference
+    localStorage.setItem('telegram-sea-language', langCode);
+
     const lang = languages.find(l => l.code === langCode);
     toast.success(`Language switched to ${lang?.name}`);
-  }, []);
+
+    // Trigger content sync for new language if authenticated
+    if (isAuthenticated) {
+      triggerContentSync();
+    }
+  }, [dispatch, isAuthenticated, triggerContentSync]);
 
   // Currency switching  
   const handleCurrencySwitch = useCallback((currencyCode: string) => {
@@ -376,7 +475,7 @@ export default function App() {
     toast.success(`Currency changed to ${currency?.name}`);
   }, []);
 
-  // Simulate checking auth state
+  // Initialize content system and check auth state
   useEffect(() => {
     const savedAuth = localStorage.getItem('telegram-sea-auth');
     if (savedAuth) {
@@ -384,7 +483,82 @@ export default function App() {
       setIsAuthenticated(true);
       setUser(authData.user);
     }
-  }, []);
+
+    // Initialize content language from local storage or browser locale
+    const savedLanguage = localStorage.getItem('telegram-sea-language');
+    if (savedLanguage && savedLanguage !== contentLanguage) {
+      dispatch(setSelectedLanguage(savedLanguage));
+      setCurrentLanguage(savedLanguage);
+    } else if (!savedLanguage && navigator.language) {
+      // Use browser locale if no saved preference
+      const browserLang = navigator.language.split('-')[0];
+      const supportedLang = languages.find(l => l.code === browserLang);
+      if (supportedLang) {
+        dispatch(setSelectedLanguage(browserLang));
+        setCurrentLanguage(browserLang);
+        localStorage.setItem('telegram-sea-language', browserLang);
+      }
+    }
+  }, [dispatch, contentLanguage]);
+
+  // Content system error handling
+  useEffect(() => {
+    if (categoriesError) {
+      console.error('Failed to load content categories:', categoriesError);
+      toast.error('Failed to load content categories. Using offline mode.');
+    }
+
+    if (syncError) {
+      console.error('Content sync failed:', syncError);
+      if (fallbackContentCount > 0) {
+        toast.warning(`Content sync failed. Using cached content (${fallbackContentCount} items).`);
+      } else {
+        toast.error('Content sync failed and no cached content available.');
+      }
+    }
+  }, [categoriesError, syncError, fallbackContentCount]);
+
+  // Navigation content error handling
+  useEffect(() => {
+    if (hasNavigationContentError) {
+      console.warn('Navigation content loading errors detected, using fallback content');
+      if (navigationFallbackCount > 0) {
+        toast.warning(`Navigation content errors detected. Using fallback content (${navigationFallbackCount} items).`);
+      } else {
+        toast.error('Navigation content errors detected and no fallback content available.');
+      }
+    }
+  }, [hasNavigationContentError, navigationFallbackCount]);
+
+  // Navigation content loading success
+  useEffect(() => {
+    if (!isNavigationContentLoading && !hasNavigationContentError && navigationFallbackCount === 0) {
+      // All navigation content loaded successfully
+      console.log('Navigation content loaded successfully');
+    }
+  }, [isNavigationContentLoading, hasNavigationContentError, navigationFallbackCount]);
+
+  // Sync status monitoring
+  useEffect(() => {
+    if (isSyncing && syncStatus !== 'syncing') {
+      dispatch(setSyncStatus({ status: 'syncing' }));
+    } else if (!isSyncing && syncStatus === 'syncing') {
+      dispatch(setSyncStatus({ status: 'idle' }));
+    }
+  }, [isSyncing, syncStatus, dispatch]);
+
+  // Periodic content sync when authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const syncInterval = setInterval(() => {
+      if (syncStatus !== 'syncing') {
+        triggerContentSync();
+      }
+    }, 5 * 60 * 1000); // Sync every 5 minutes
+
+    return () => clearInterval(syncInterval);
+  }, [isAuthenticated, syncStatus, triggerContentSync]);
 
   // Enhanced keyboard visibility for mobile layout optimization
   useEffect(() => {
@@ -990,25 +1164,62 @@ export default function App() {
         {/* Pull to refresh indicator */}
         <AnimatePresence>
           {isRefreshing && (
-            <motion.div 
+            <motion.div
               className="absolute top-0 left-0 right-0 h-1 bg-primary/20 z-50"
               initial={{ scaleX: 0 }}
               animate={{ scaleX: 1 }}
               exit={{ scaleX: 0, transition: { duration: 0.2 } }}
               style={{ originX: 0 }}
             >
-              <motion.div 
+              <motion.div
                 className="h-full bg-primary"
-                animate={{ 
+                animate={{
                   x: ['-100%', '100%'],
-                  transition: { 
-                    repeat: Infinity, 
-                    duration: 1, 
-                    ease: 'linear' 
+                  transition: {
+                    repeat: Infinity,
+                    duration: 1,
+                    ease: 'linear'
                   }
                 }}
               />
             </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Navigation content loading indicator */}
+        <AnimatePresence>
+          {isNavigationContentLoading && (
+            <motion.div
+              className="absolute top-0 left-0 right-0 h-0.5 bg-blue-200 z-40"
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              exit={{ scaleX: 0, transition: { duration: 0.2 } }}
+              style={{ originX: 0 }}
+            >
+              <motion.div
+                className="h-full bg-blue-500"
+                animate={{
+                  x: ['-100%', '100%'],
+                  transition: {
+                    repeat: Infinity,
+                    duration: 1.5,
+                    ease: 'linear'
+                  }
+                }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Navigation content error indicator */}
+        <AnimatePresence>
+          {hasNavigationContentError && (
+            <motion.div
+              className="absolute top-0 left-0 right-0 h-0.5 bg-red-500 z-40"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.2 } }}
+            />
           )}
         </AnimatePresence>
         
@@ -1019,7 +1230,9 @@ export default function App() {
             <div className="w-7 h-7 sm:w-8 sm:h-8 lg:w-9 lg:h-9 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
               <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 lg:w-5 lg:h-5 text-primary-foreground" />
             </div>
-            <span className="font-medium text-sm sm:text-base lg:text-lg truncate">Telegram SEA</span>
+            <span className="font-medium text-sm sm:text-base lg:text-lg truncate">
+              {headerContent[NAVIGATION_CONTENT_IDS.HEADER.APP_TITLE]?.text}
+            </span>
           </div>
           
           {/* Workspace Switcher - Show on Chat and Work screens */}
@@ -1052,7 +1265,7 @@ export default function App() {
               <DropdownMenuContent align="start" className="w-48 z-[1000]" sideOffset={8}>
                 <DropdownMenuLabel className="flex items-center gap-2">
                   <Languages className="w-4 h-4" />
-                  Language
+                  {settingsContent[NAVIGATION_CONTENT_IDS.SETTINGS.LANGUAGE]?.text}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {languages.map((lang) => (
@@ -1081,7 +1294,7 @@ export default function App() {
               <DropdownMenuContent align="start" className="w-48 z-[1000]" sideOffset={8}>
                 <DropdownMenuLabel className="flex items-center gap-2">
                   <Banknote className="w-4 h-4" />
-                  Currency
+                  {settingsContent[NAVIGATION_CONTENT_IDS.SETTINGS.CURRENCY]?.text}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {currencies.map((currency) => (
@@ -1136,9 +1349,9 @@ export default function App() {
 
           {/* Cart Button */}
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               className="relative w-8 h-8 sm:w-9 sm:h-9 touch-manipulation transition-all duration-200"
               onClick={() => setCurrentScreen('cart')}
             >
@@ -1159,6 +1372,52 @@ export default function App() {
               </AnimatePresence>
             </Button>
           </motion.div>
+
+          {/* Content System Status Indicator */}
+          {isAuthenticated && (
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative w-8 h-8 sm:w-9 sm:h-9 touch-manipulation transition-all duration-200"
+                onClick={() => {
+                  if (syncStatus === 'syncing') {
+                    toast.info('Content sync in progress...');
+                  } else if (fallbackMode) {
+                    toast.warning(`Offline mode - ${fallbackContentCount} cached items available`);
+                    triggerContentSync();
+                  } else {
+                    toast.success('Content system online');
+                  }
+                }}
+                title={
+                  syncStatus === 'syncing'
+                    ? 'Content syncing...'
+                    : fallbackMode
+                    ? `Offline mode (${fallbackContentCount} cached)`
+                    : 'Content system online'
+                }
+              >
+                {syncStatus === 'syncing' ? (
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  >
+                    <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+                  </motion.div>
+                ) : fallbackMode ? (
+                  <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
+                ) : (
+                  <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
+                )}
+                {fallbackMode && fallbackContentCount > 0 && (
+                  <Badge className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 text-[10px] sm:text-xs p-0 flex items-center justify-center bg-amber-500">
+                    {fallbackContentCount > 99 ? '99+' : fallbackContentCount}
+                  </Badge>
+                )}
+              </Button>
+            </motion.div>
+          )}
           
           {/* Notifications */}
           <DropdownMenu>
@@ -1174,10 +1433,12 @@ export default function App() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80 sm:w-96 z-[1000] max-h-[80vh]" sideOffset={8}>
               <div className="flex items-center justify-between p-3">
-                <DropdownMenuLabel className="p-0">Notifications</DropdownMenuLabel>
+                <DropdownMenuLabel className="p-0">
+                  {notificationsContent[NAVIGATION_CONTENT_IDS.NOTIFICATIONS.TITLE]?.text}
+                </DropdownMenuLabel>
                 {unreadCount > 0 && (
                   <Button variant="ghost" size="sm" onClick={markAllAsRead} className="text-xs h-auto p-1">
-                    Mark all read
+                    {notificationsContent[NAVIGATION_CONTENT_IDS.NOTIFICATIONS.MARK_ALL_READ]?.text}
                   </Button>
                 )}
               </div>
@@ -1238,7 +1499,9 @@ export default function App() {
                 ) : (
                   <div className="text-center py-8">
                     <Bell className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-sm text-muted-foreground">No notifications</p>
+                    <p className="text-sm text-muted-foreground">
+                      {notificationsContent[NAVIGATION_CONTENT_IDS.NOTIFICATIONS.NO_NOTIFICATIONS]?.text}
+                    </p>
                   </div>
                 )}
               </ScrollArea>
@@ -1246,12 +1509,12 @@ export default function App() {
               {notifications.length > 0 && (
                 <>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     className="justify-center p-3 touch-manipulation"
                     onClick={() => setCurrentScreen('notifications')}
                   >
                     <Button variant="ghost" size="sm" className="w-full">
-                      View All Notifications
+                      {notificationsContent[NAVIGATION_CONTENT_IDS.NOTIFICATIONS.VIEW_ALL]?.text}
                     </Button>
                   </DropdownMenuItem>
                 </>
@@ -1264,11 +1527,12 @@ export default function App() {
       {/* Main Content Area */}
       <div className="flex-1 flex min-h-0">
         {/* Desktop Sidebar Navigation */}
-        <motion.nav 
+        <motion.nav
           className="hidden lg:flex w-16 xl:w-20 bg-sidebar border-r border-sidebar-border flex-col items-center py-3 gap-2 xl:gap-3"
           initial={{ x: -80, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          aria-label="Main navigation"
         >
           <motion.div
             whileHover={{ scale: 1.05 }}
@@ -1279,6 +1543,8 @@ export default function App() {
               size="icon"
               className="w-12 h-12 xl:w-14 xl:h-14 relative transition-all duration-200"
               onClick={() => setCurrentScreen('chat')}
+              title={tabContent[NAVIGATION_CONTENT_IDS.TABS.CHAT]?.text}
+              aria-label={tabContent[NAVIGATION_CONTENT_IDS.TABS.CHAT]?.text}
             >
               <MessageCircle className="w-5 h-5 xl:w-6 xl:h-6" />
               <motion.div
@@ -1299,6 +1565,8 @@ export default function App() {
               size="icon"
               className="w-12 h-12 xl:w-14 xl:h-14 transition-all duration-200"
               onClick={() => setCurrentScreen('store')}
+              title={tabContent[NAVIGATION_CONTENT_IDS.TABS.STORE]?.text}
+              aria-label={tabContent[NAVIGATION_CONTENT_IDS.TABS.STORE]?.text}
             >
               <Store className="w-5 h-5 xl:w-6 xl:h-6" />
             </Button>
@@ -1310,6 +1578,8 @@ export default function App() {
               size="icon"
               className="w-12 h-12 xl:w-14 xl:h-14 relative transition-all duration-200"
               onClick={() => setCurrentScreen('social')}
+              title={tabContent[NAVIGATION_CONTENT_IDS.TABS.SOCIAL]?.text}
+              aria-label={tabContent[NAVIGATION_CONTENT_IDS.TABS.SOCIAL]?.text}
             >
               <Users className="w-5 h-5 xl:w-6 xl:h-6" />
               <motion.div
@@ -1326,6 +1596,8 @@ export default function App() {
               size="icon"
               className="w-12 h-12 xl:w-14 xl:h-14 relative transition-all duration-200"
               onClick={() => setCurrentScreen('video')}
+              title={tabContent[NAVIGATION_CONTENT_IDS.TABS.VIDEO]?.text}
+              aria-label={tabContent[NAVIGATION_CONTENT_IDS.TABS.VIDEO]?.text}
             >
               <Play className="w-5 h-5 xl:w-6 xl:h-6" />
               <AnimatePresence>
@@ -1351,6 +1623,8 @@ export default function App() {
               size="icon"
               className="w-12 h-12 xl:w-14 xl:h-14 relative transition-all duration-200"
               onClick={() => setCurrentScreen('work')}
+              title={tabContent[NAVIGATION_CONTENT_IDS.TABS.WORK]?.text}
+              aria-label={tabContent[NAVIGATION_CONTENT_IDS.TABS.WORK]?.text}
             >
               <Briefcase className="w-5 h-5 xl:w-6 xl:h-6" />
               <motion.div
@@ -1368,21 +1642,25 @@ export default function App() {
             animate="animate"
           >
             <motion.div variants={childVariants} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button 
+              <Button
                 variant={currentScreen === 'settings' ? 'default' : 'ghost'}
-                size="icon" 
+                size="icon"
                 className="w-12 h-12 xl:w-14 xl:h-14 transition-all duration-200"
                 onClick={() => setCurrentScreen('settings')}
+                title={headerContent[NAVIGATION_CONTENT_IDS.HEADER.SETTINGS]?.text}
+                aria-label={headerContent[NAVIGATION_CONTENT_IDS.HEADER.SETTINGS]?.text}
               >
                 <Settings className="w-5 h-5 xl:w-6 xl:h-6" />
               </Button>
             </motion.div>
             <motion.div variants={childVariants} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button 
+              <Button
                 variant={currentScreen === 'wallet' ? 'default' : 'ghost'}
-                size="icon" 
+                size="icon"
                 className="w-12 h-12 xl:w-14 xl:h-14 transition-all duration-200"
                 onClick={() => setCurrentScreen('wallet')}
+                title={headerContent[NAVIGATION_CONTENT_IDS.HEADER.WALLET]?.text}
+                aria-label={headerContent[NAVIGATION_CONTENT_IDS.HEADER.WALLET]?.text}
               >
                 <Wallet className="w-5 h-5 xl:w-6 xl:h-6" />
               </Button>
@@ -1391,23 +1669,24 @@ export default function App() {
         </motion.nav>
 
         {/* Tab Content */}
-        <main 
+        <main
           className="flex-1 relative overflow-hidden min-h-0 bg-background w-full"
           ref={mainContentRef}
         >
           {/* Scrollable Content Container */}
-          <div 
+          <div
             className="h-full w-full overflow-y-auto overflow-x-hidden mobile-scroll scrollbar-hide"
             style={{
-              paddingBottom: isKeyboardOpen 
-                ? '0.5rem' 
+              paddingBottom: isKeyboardOpen
+                ? '0.5rem'
                 : 'max(5rem, calc(5rem + env(safe-area-inset-bottom, 0)))',
               height: '100%',
               position: 'relative'
             }}
           >
             <div className="min-h-full w-full">
-              <AnimatePresence mode="wait">
+              <ContentErrorBoundary>
+                <AnimatePresence mode="wait">
                 {currentScreen === 'chat' && (
                   <motion.div
                     key="chat-tab"
@@ -1576,7 +1855,9 @@ export default function App() {
                               <div className="w-12 h-12 rounded-full bg-chart-1/10 flex items-center justify-center group-hover:bg-chart-1/20 transition-colors flex-shrink-0">
                                 <Wallet className="w-6 h-6 text-chart-1" />
                               </div>
-                              <span className="text-sm font-medium text-center">Wallet</span>
+                              <span className="text-sm font-medium text-center">
+                                {quickActionsContent[NAVIGATION_CONTENT_IDS.ACTIONS.WALLET]?.text}
+                              </span>
                             </Button>
                           </motion.div>
                           
@@ -1589,7 +1870,9 @@ export default function App() {
                               <div className="w-12 h-12 rounded-full bg-chart-2/10 flex items-center justify-center group-hover:bg-chart-2/20 transition-colors flex-shrink-0">
                                 <Settings className="w-6 h-6 text-chart-2" />
                               </div>
-                              <span className="text-sm font-medium text-center">Settings</span>
+                              <span className="text-sm font-medium text-center">
+                                {quickActionsContent[NAVIGATION_CONTENT_IDS.ACTIONS.SETTINGS]?.text}
+                              </span>
                             </Button>
                           </motion.div>
                           
@@ -1602,7 +1885,9 @@ export default function App() {
                               <div className="w-12 h-12 rounded-full bg-chart-3/10 flex items-center justify-center group-hover:bg-chart-3/20 transition-colors flex-shrink-0">
                                 <Briefcase className="w-6 h-6 text-chart-3" />
                               </div>
-                              <span className="text-sm font-medium text-center">Work</span>
+                              <span className="text-sm font-medium text-center">
+                                {quickActionsContent[NAVIGATION_CONTENT_IDS.ACTIONS.WORK]?.text}
+                              </span>
                             </Button>
                           </motion.div>
                           
@@ -1615,7 +1900,9 @@ export default function App() {
                               <div className="w-12 h-12 rounded-full bg-chart-4/10 flex items-center justify-center group-hover:bg-chart-4/20 transition-colors flex-shrink-0">
                                 <QrCode className="w-6 h-6 text-chart-4" />
                               </div>
-                              <span className="text-sm font-medium text-center">QR Scanner</span>
+                              <span className="text-sm font-medium text-center">
+                                {quickActionsContent[NAVIGATION_CONTENT_IDS.ACTIONS.QR_SCANNER]?.text}
+                              </span>
                             </Button>
                           </motion.div>
                         </div>
@@ -1640,7 +1927,9 @@ export default function App() {
                                 <Globe className="w-5 h-5 text-chart-1" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <span className="text-sm font-medium block">Mini-Apps</span>
+                                <span className="text-sm font-medium block">
+                                  {seaFeaturesContent[NAVIGATION_CONTENT_IDS.FEATURES.MINI_APPS]?.text}
+                                </span>
                                 <p className="text-xs text-muted-foreground">3rd party apps & services</p>
                               </div>
                             </div>
@@ -1659,7 +1948,9 @@ export default function App() {
                                 <Zap className="w-5 h-5 text-chart-2" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <span className="text-sm font-medium block">Data Saver</span>
+                                <span className="text-sm font-medium block">
+                                  {seaFeaturesContent[NAVIGATION_CONTENT_IDS.FEATURES.DATA_SAVER]?.text}
+                                </span>
                                 <p className="text-xs text-muted-foreground">Ultra-low data usage mode</p>
                               </div>
                             </div>
@@ -1681,7 +1972,9 @@ export default function App() {
                                 <CreditCard className="w-5 h-5 text-chart-3" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <span className="text-sm font-medium block">QR Payments</span>
+                                <span className="text-sm font-medium block">
+                                  {seaFeaturesContent[NAVIGATION_CONTENT_IDS.FEATURES.QR_PAYMENTS]?.text}
+                                </span>
                                 <p className="text-xs text-muted-foreground">PromptPay, QRIS, VietQR & more</p>
                               </div>
                             </div>
@@ -1715,7 +2008,9 @@ export default function App() {
                                 <Languages className="w-5 h-5 text-muted-foreground" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <span className="text-sm font-medium block">Language</span>
+                                <span className="text-sm font-medium block">
+                                  {settingsContent[NAVIGATION_CONTENT_IDS.SETTINGS.LANGUAGE]?.text}
+                                </span>
                                 <p className="text-xs text-muted-foreground">App display language</p>
                               </div>
                             </div>
@@ -1755,7 +2050,9 @@ export default function App() {
                                 <Banknote className="w-5 h-5 text-muted-foreground" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <span className="text-sm font-medium block">Currency</span>
+                                <span className="text-sm font-medium block">
+                                  {settingsContent[NAVIGATION_CONTENT_IDS.SETTINGS.CURRENCY]?.text}
+                                </span>
                                 <p className="text-xs text-muted-foreground">Payment currency</p>
                               </div>
                             </div>
@@ -1806,7 +2103,9 @@ export default function App() {
                                 <MessageCircle className="w-5 h-5 text-primary" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <span className="text-sm font-medium block">Version</span>
+                                <span className="text-sm font-medium block">
+                                  {settingsContent[NAVIGATION_CONTENT_IDS.SETTINGS.VERSION]?.text}
+                                </span>
                                 <p className="text-xs text-muted-foreground">Telegram SEA Edition</p>
                               </div>
                             </div>
@@ -1823,7 +2122,9 @@ export default function App() {
                                 <TrendingUp className="w-5 h-5 text-chart-2" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <span className="text-sm font-medium block">Data Usage</span>
+                                <span className="text-sm font-medium block">
+                                  {settingsContent[NAVIGATION_CONTENT_IDS.SETTINGS.DATA_USAGE]?.text}
+                                </span>
                                 <p className="text-xs text-muted-foreground">Ultra-low consumption</p>
                               </div>
                             </div>
@@ -1840,7 +2141,9 @@ export default function App() {
                                 <Bell className="w-5 h-5 text-chart-4" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <span className="text-sm font-medium block">Help & Support</span>
+                                <span className="text-sm font-medium block">
+                                  {settingsContent[NAVIGATION_CONTENT_IDS.SETTINGS.HELP_SUPPORT]?.text}
+                                </span>
                                 <p className="text-xs text-muted-foreground">Get help and report issues</p>
                               </div>
                             </div>
@@ -1867,7 +2170,9 @@ export default function App() {
                               <User className="w-5 h-5 text-destructive" />
                             </div>
                             <div className="text-left min-w-0 flex-1">
-                              <div className="font-medium">Sign Out</div>
+                              <div className="font-medium">
+                                {settingsContent[NAVIGATION_CONTENT_IDS.SETTINGS.SIGN_OUT]?.text}
+                              </div>
                               <div className="text-xs text-muted-foreground">Logout from your account</div>
                             </div>
                           </Button>
@@ -1877,7 +2182,8 @@ export default function App() {
                     </div>
                   </motion.div>
                 )}
-              </AnimatePresence>
+                </AnimatePresence>
+              </ContentErrorBoundary>
             </div>
           </div>
         </main>
@@ -1920,9 +2226,12 @@ export default function App() {
             size="sm"
             className="flex flex-col gap-0.5 h-auto py-2 relative min-w-0 px-1.5 rounded-lg touch-manipulation transition-all duration-200 mobile-button-large"
             onClick={() => setCurrentScreen('chat')}
+            aria-label={tabContent[NAVIGATION_CONTENT_IDS.TABS.CHAT]?.text}
           >
             <MessageCircle className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px] leading-none font-medium">Chat</span>
+            <span className="text-[10px] leading-none font-medium">
+              {tabContent[NAVIGATION_CONTENT_IDS.TABS.CHAT]?.text}
+            </span>
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
@@ -1941,9 +2250,12 @@ export default function App() {
             size="sm"
             className="flex flex-col gap-0.5 h-auto py-2 min-w-0 px-1.5 rounded-lg touch-manipulation transition-all duration-200 mobile-button-large"
             onClick={() => setCurrentScreen('store')}
+            aria-label={tabContent[NAVIGATION_CONTENT_IDS.TABS.STORE]?.text}
           >
             <Store className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px] leading-none font-medium">Store</span>
+            <span className="text-[10px] leading-none font-medium">
+              {tabContent[NAVIGATION_CONTENT_IDS.TABS.STORE]?.text}
+            </span>
           </Button>
         </motion.div>
         
@@ -1953,9 +2265,12 @@ export default function App() {
             size="sm"
             className="flex flex-col gap-0.5 h-auto py-2 relative min-w-0 px-1.5 rounded-lg touch-manipulation transition-all duration-200 mobile-button-large"
             onClick={() => setCurrentScreen('social')}
+            aria-label={tabContent[NAVIGATION_CONTENT_IDS.TABS.SOCIAL]?.text}
           >
             <Users className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px] leading-none font-medium">Social</span>
+            <span className="text-[10px] leading-none font-medium">
+              {tabContent[NAVIGATION_CONTENT_IDS.TABS.SOCIAL]?.text}
+            </span>
             <motion.div
               className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-chart-1 rounded-full border border-card"
               animate={{ scale: [1, 1.2, 1] }}
@@ -1970,9 +2285,12 @@ export default function App() {
             size="sm"
             className="flex flex-col gap-0.5 h-auto py-2 relative min-w-0 px-1.5 rounded-lg touch-manipulation transition-all duration-200 mobile-button-large"
             onClick={() => setCurrentScreen('video')}
+            aria-label={tabContent[NAVIGATION_CONTENT_IDS.TABS.VIDEO]?.text}
           >
             <Play className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px] leading-none font-medium">Video</span>
+            <span className="text-[10px] leading-none font-medium">
+              {tabContent[NAVIGATION_CONTENT_IDS.TABS.VIDEO]?.text}
+            </span>
             <AnimatePresence>
               {watchedVideos.length > 0 && (
                 <motion.div
@@ -1996,9 +2314,12 @@ export default function App() {
             size="sm"
             className="flex flex-col gap-0.5 h-auto py-2 min-w-0 px-1.5 rounded-lg touch-manipulation transition-all duration-200 mobile-button-large"
             onClick={() => setCurrentScreen('more')}
+            aria-label={tabContent[NAVIGATION_CONTENT_IDS.TABS.MORE]?.text}
           >
             <User className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px] leading-none font-medium">More</span>
+            <span className="text-[10px] leading-none font-medium">
+              {tabContent[NAVIGATION_CONTENT_IDS.TABS.MORE]?.text}
+            </span>
           </Button>
         </motion.div>
 

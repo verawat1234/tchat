@@ -1,0 +1,1 @@
+export const StoryComponent = () => <div>Story</div>;

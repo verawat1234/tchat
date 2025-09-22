@@ -1,0 +1,392 @@
+package com.tchat.services
+
+import com.tchat.models.*
+import com.tchat.navigation.NavigationEnvironment
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import javax.inject.Inject
+import javax.inject.Singleton
+import java.util.UUID
+
+/**
+ * Central navigation coordinator for managing app-wide navigation state and synchronization
+ */
+@Singleton
+class NavigationCoordinator @Inject constructor(
+    private val navigationEnvironment: NavigationEnvironment,
+    private val syncService: NavigationSyncService,
+    private val stateManager: NavigationStateManager,
+    private val routeValidator: RouteValidator
+) {
+
+    private val _currentNavigationState = MutableStateFlow<NavigationState?>(null)
+    val currentNavigationState: StateFlow<NavigationState?> = _currentNavigationState.asStateFlow()
+
+    private val _isNavigating = MutableStateFlow(false)
+    val isNavigating: StateFlow<Boolean> = _isNavigating.asStateFlow()
+
+    private val _lastError = MutableStateFlow<NavigationError?>(null)
+    val lastError: StateFlow<NavigationError?> = _lastError.asStateFlow()
+
+    private val navigationMutex = Mutex()
+
+    init {
+        setupObservers()
+        loadInitialState()
+    }
+
+    /**
+     * Navigate to a specific route with parameters
+     */
+    suspend fun navigate(
+        routeId: String,
+        parameters: Map<String, Any> = emptyMap(),
+        transition: NavigationTransition = NavigationTransition.PUSH
+    ) {
+        if (_isNavigating.value) {
+            throw NavigationError.NavigationInProgress()
+        }
+
+        navigationMutex.withLock {
+            _isNavigating.value = true
+
+            try {
+                // Validate route
+                routeValidator.validate(routeId, parameters)
+
+                // Update local state
+                updateNavigationState { state ->
+                    when (transition) {
+                        NavigationTransition.PUSH -> state.push(routeId, parameters)
+                        NavigationTransition.REPLACE -> state.replace(routeId, parameters)
+                        NavigationTransition.RESET -> state.reset(routeId, parameters)
+                        else -> state.push(routeId, parameters)
+                    }
+                }
+
+                // Sync with remote if needed
+                syncNavigationState()
+
+                // Update navigation environment
+                navigationEnvironment.navigationPath.navigate(routeId, parameters)
+
+            } catch (e: Exception) {
+                val error = if (e is NavigationError) e else NavigationError.Unknown(e)
+                _lastError.value = error
+                throw error
+            } finally {
+                _isNavigating.value = false
+            }
+        }
+    }
+
+    /**
+     * Go back in navigation stack
+     */
+    suspend fun goBack() {
+        val state = _currentNavigationState.value
+            ?: throw NavigationError.NoNavigationState()
+
+        if (!state.canGoBack) {
+            throw NavigationError.CannotGoBack()
+        }
+
+        navigationMutex.withLock {
+            _isNavigating.value = true
+
+            try {
+                updateNavigationState { it.pop() }
+                syncNavigationState()
+                navigationEnvironment.navigationPath.goBack()
+
+            } catch (e: Exception) {
+                val error = if (e is NavigationError) e else NavigationError.Unknown(e)
+                _lastError.value = error
+                throw error
+            } finally {
+                _isNavigating.value = false
+            }
+        }
+    }
+
+    /**
+     * Pop to root of navigation stack
+     */
+    suspend fun popToRoot() {
+        val state = _currentNavigationState.value ?: return
+
+        if (state.depth <= 1) return
+
+        navigationMutex.withLock {
+            _isNavigating.value = true
+
+            try {
+                updateNavigationState { it.popToRoot() }
+                syncNavigationState()
+                navigationEnvironment.navigationPath.popToRoot()
+
+            } catch (e: Exception) {
+                val error = if (e is NavigationError) e else NavigationError.Unknown(e)
+                _lastError.value = error
+                throw error
+            } finally {
+                _isNavigating.value = false
+            }
+        }
+    }
+
+    /**
+     * Handle deep link navigation
+     */
+    suspend fun handleDeepLink(url: String) {
+        if (!navigationEnvironment.deepLinkHandler.handle(url)) {
+            throw NavigationError.InvalidDeepLink(url)
+        }
+
+        val routeId = navigationEnvironment.deepLinkHandler.processDeepLink(url)
+            ?: throw NavigationError.DeepLinkProcessingFailed(url)
+
+        // Extract parameters from URL
+        val parameters = extractParameters(url)
+
+        navigate(routeId, parameters, NavigationTransition.DEEP_LINK)
+    }
+
+    /**
+     * Reset navigation to specific state
+     */
+    suspend fun resetNavigation(
+        routeId: String,
+        parameters: Map<String, Any> = emptyMap()
+    ) {
+        navigationMutex.withLock {
+            _isNavigating.value = true
+
+            try {
+                val newState = NavigationState.defaultState(
+                    userId = getCurrentUserId(),
+                    sessionId = getCurrentSessionId()
+                ).apply {
+                    reset(routeId, parameters)
+                }
+
+                _currentNavigationState.value = newState
+                syncNavigationState()
+                navigationEnvironment.navigationPath.popToRoot()
+
+            } catch (e: Exception) {
+                val error = if (e is NavigationError) e else NavigationError.Unknown(e)
+                _lastError.value = error
+                throw error
+            } finally {
+                _isNavigating.value = false
+            }
+        }
+    }
+
+    /**
+     * Restore navigation state from sync
+     */
+    suspend fun restoreNavigationState(state: NavigationState) {
+        _currentNavigationState.value = state
+
+        // Restore navigation environment
+        state.currentRoute?.let { route ->
+            navigationEnvironment.navigationPath.navigate(route, state.currentParameters)
+        }
+    }
+
+    // MARK: - Private Methods
+
+    private fun setupObservers() {
+        // Observe navigation path changes
+        navigationEnvironment.navigationPath.currentRoute.onEach { route ->
+            route?.let { handleRouteChange(it) }
+        }
+
+        // Observe deep link events
+        navigationEnvironment.deepLinkHandler.pendingDeepLink.onEach { url ->
+            url?.let {
+                try {
+                    handleDeepLink(it)
+                    navigationEnvironment.deepLinkHandler.clearPendingDeepLink()
+                } catch (e: Exception) {
+                    _lastError.value = if (e is NavigationError) e else NavigationError.Unknown(e)
+                }
+            }
+        }
+    }
+
+    private fun loadInitialState() {
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                // Try to load saved navigation state
+                val savedState = stateManager.loadNavigationState()
+                if (savedState != null) {
+                    _currentNavigationState.value = savedState
+                } else {
+                    // Create default state
+                    _currentNavigationState.value = NavigationState.defaultState(
+                        userId = getCurrentUserId(),
+                        sessionId = getCurrentSessionId()
+                    )
+                }
+            } catch (e: Exception) {
+                // Fallback to default state
+                _currentNavigationState.value = NavigationState.defaultState(
+                    userId = getCurrentUserId(),
+                    sessionId = getCurrentSessionId()
+                )
+            }
+        }
+    }
+
+    private suspend fun handleRouteChange(route: String) {
+        val state = _currentNavigationState.value ?: return
+
+        if (state.currentRoute != route) {
+            val updatedState = state.copy(currentRoute = route)
+            _currentNavigationState.value = updatedState
+
+            // Save state
+            try {
+                stateManager.saveNavigationState(updatedState)
+            } catch (e: Exception) {
+                // Log error but don't fail
+            }
+        }
+    }
+
+    private suspend fun updateNavigationState(update: (NavigationState) -> Unit) {
+        val state = _currentNavigationState.value
+            ?: throw NavigationError.NoNavigationState()
+
+        update(state)
+        _currentNavigationState.value = state
+
+        // Save updated state
+        stateManager.saveNavigationState(state)
+    }
+
+    private suspend fun syncNavigationState() {
+        val state = _currentNavigationState.value ?: return
+
+        try {
+            val syncRequest = state.createSyncRequest()
+            val response = syncService.syncNavigationState(syncRequest)
+
+            if (response.success) {
+                val updatedState = state.applySyncResponse(response)
+                _currentNavigationState.value = updatedState
+            }
+        } catch (e: Exception) {
+            // Log sync error but don't fail navigation
+            println("Navigation sync failed: ${e.message}")
+        }
+    }
+
+    private fun extractParameters(url: String): Map<String, Any> {
+        return try {
+            val uri = android.net.Uri.parse(url)
+            val parameters = mutableMapOf<String, Any>()
+
+            uri.queryParameterNames.forEach { name ->
+                uri.getQueryParameter(name)?.let { value ->
+                    parameters[name] = value
+                }
+            }
+
+            parameters
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    private fun getCurrentUserId(): String {
+        // TODO: Get from authentication service
+        return "current_user_id"
+    }
+
+    private fun getCurrentSessionId(): String {
+        // TODO: Get from session service
+        return UUID.randomUUID().toString()
+    }
+}
+
+// MARK: - Supporting Services
+
+/**
+ * Navigation sync service for remote synchronization
+ */
+@Singleton
+class NavigationSyncService @Inject constructor() {
+
+    suspend fun syncNavigationState(request: NavigationStateSyncRequest): NavigationStateSyncResponse {
+        // TODO: Implement actual sync with backend
+        return NavigationStateSyncResponse(
+            success = true,
+            syncVersion = request.syncVersion + 1,
+            conflictsResolved = emptyList(),
+            timestamp = System.currentTimeMillis()
+        )
+    }
+}
+
+/**
+ * Navigation state manager for local persistence
+ */
+@Singleton
+class NavigationStateManager @Inject constructor() {
+
+    suspend fun saveNavigationState(state: NavigationState) {
+        // TODO: Implement local persistence (SharedPreferences, Room, etc.)
+    }
+
+    suspend fun loadNavigationState(): NavigationState? {
+        // TODO: Implement local loading
+        return null
+    }
+}
+
+/**
+ * Route validator for navigation validation
+ */
+@Singleton
+class RouteValidator @Inject constructor(
+    private val navigationEnvironment: NavigationEnvironment
+) {
+
+    suspend fun validate(routeId: String, parameters: Map<String, Any>) {
+        if (!navigationEnvironment.routeRegistry.isValidRoute(routeId)) {
+            throw NavigationError.InvalidRoute(routeId)
+        }
+
+        // TODO: Validate parameters against route schema
+    }
+}
+
+// MARK: - Error Types
+
+sealed class NavigationError : Exception() {
+    class NavigationInProgress : NavigationError()
+    class CannotGoBack : NavigationError()
+    class InvalidRoute(val route: String) : NavigationError()
+    class InvalidDeepLink(val url: String) : NavigationError()
+    class DeepLinkProcessingFailed(val url: String) : NavigationError()
+    class NoNavigationState : NavigationError()
+    class SyncFailed(val error: Throwable) : NavigationError()
+    class Unknown(val error: Throwable) : NavigationError()
+
+    override val message: String?
+        get() = when (this) {
+            is NavigationInProgress -> "Navigation already in progress"
+            is CannotGoBack -> "Cannot go back from current navigation state"
+            is InvalidRoute -> "Invalid route: $route"
+            is InvalidDeepLink -> "Invalid deep link: $url"
+            is DeepLinkProcessingFailed -> "Failed to process deep link: $url"
+            is NoNavigationState -> "No navigation state available"
+            is SyncFailed -> "Navigation sync failed: ${error.message}"
+            is Unknown -> "Unknown navigation error: ${error.message}"
+        }
+}

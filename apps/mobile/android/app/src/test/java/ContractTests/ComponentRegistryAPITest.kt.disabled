@@ -1,0 +1,236 @@
+package com.tchat.app.ContractTests
+
+import com.tchat.app.TchatAppTestCase
+import com.tchat.app.TestConfiguration
+import com.tchat.app.api.ComponentRegistryAPIClient
+import com.tchat.app.api.models.ComponentCategory
+import kotlinx.coroutines.test.runTest
+import org.junit.Before
+import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+
+/**
+ * Contract tests for Component Registry API
+ * These tests verify the API contract for component metadata and configuration
+ */
+class ComponentRegistryAPITest : TchatAppTestCase() {
+
+    private lateinit var apiClient: ComponentRegistryAPIClient
+
+    @Before
+    fun setUp() {
+        apiClient = ComponentRegistryAPIClient(baseURL = TestConfiguration.API_BASE_URL)
+    }
+
+    // GET /api/components Tests
+
+    @Test
+    fun `getComponents with valid platform returns components`() = runTest {
+        // Given
+        val platform = "android"
+
+        // When
+        val result = apiClient.getComponents(platform = platform, category = null)
+
+        // Then
+        assertTrue(result.isNotEmpty())
+        result.forEach { component ->
+            assertEquals(platform, component.platform)
+            assertTrue(component.id.isNotEmpty())
+            assertTrue(component.name.isNotEmpty())
+            assertNotNull(component.category)
+            assertNotNull(component.version)
+            assertNotNull(component.webEquivalent)
+            assertNotNull(component.accessibility)
+        }
+    }
+
+    @Test
+    fun `getComponents with category returns filtered components`() = runTest {
+        // Given
+        val platform = "android"
+        val category = ComponentCategory.NAVIGATION
+
+        // When
+        val result = apiClient.getComponents(platform = platform, category = category)
+
+        // Then
+        assertTrue(result.isNotEmpty())
+        result.forEach { component ->
+            assertEquals(category, component.category)
+            assertEquals(platform, component.platform)
+        }
+    }
+
+    @Test
+    fun `getComponents with invalid platform throws error`() = runTest {
+        // Given
+        val platform = "invalid"
+
+        // When & Then
+        assertFailsWith<IllegalArgumentException> {
+            apiClient.getComponents(platform = platform, category = null)
+        }
+    }
+
+    @Test
+    fun `getComponents validates component structure`() = runTest {
+        // Given
+        val platform = "android"
+
+        // When
+        val result = apiClient.getComponents(platform = platform, category = null)
+
+        // Then
+        assertTrue(result.isNotEmpty())
+        val component = result.first()
+
+        // Validate component has all required fields
+        assertTrue(component.id.isNotEmpty())
+        assertTrue(component.name.isNotEmpty())
+        assertNotNull(component.category)
+        assertNotNull(component.version)
+        assertNotNull(component.webEquivalent)
+
+        // Validate accessibility features
+        val accessibility = component.accessibility
+        assertNotNull(accessibility.screenReader)
+        assertNotNull(accessibility.voiceOver)
+        assertNotNull(accessibility.keyboard)
+        assertNotNull(accessibility.highContrast)
+        assertNotNull(accessibility.reducedMotion)
+    }
+
+    // GET /api/components/{componentId}/config Tests
+
+    @Test
+    fun `getComponentConfig with valid component returns config`() = runTest {
+        // Given
+        val componentId = "tchat-button"
+        val platform = "android"
+
+        // When
+        val result = apiClient.getComponentConfig(
+            componentId = componentId,
+            platform = platform
+        )
+
+        // Then
+        assertEquals(componentId, result.id)
+        assertTrue(result.variants.isNotEmpty())
+        assertTrue(result.props.isNotEmpty())
+        assertTrue(result.animations.isNotEmpty())
+        assertNotNull(result.accessibility)
+
+        // Validate variant structure
+        result.variants.forEach { variant ->
+            assertTrue(variant.name.isNotEmpty())
+            assertTrue(variant.description.isNotEmpty())
+            assertNotNull(variant.styles)
+            assertNotNull(variant.example)
+        }
+
+        // Validate props structure
+        result.props.forEach { prop ->
+            assertTrue(prop.name.isNotEmpty())
+            assertNotNull(prop.type)
+            assertNotNull(prop.required)
+            assertNotNull(prop.description)
+        }
+    }
+
+    @Test
+    fun `getComponentConfig with invalid component throws error`() = runTest {
+        // Given
+        val componentId = "non-existent-component"
+        val platform = "android"
+
+        // When & Then
+        assertFailsWith<NoSuchElementException> {
+            apiClient.getComponentConfig(
+                componentId = componentId,
+                platform = platform
+            )
+        }
+    }
+
+    @Test
+    fun `getComponentConfig validates accessibility features`() = runTest {
+        // Given
+        val componentId = "tchat-button"
+        val platform = "android"
+
+        // When
+        val result = apiClient.getComponentConfig(
+            componentId = componentId,
+            platform = platform
+        )
+
+        // Then
+        val accessibility = result.accessibility
+        assertNotNull(accessibility.label)
+        assertNotNull(accessibility.hint)
+        assertNotNull(accessibility.role)
+        assertNotNull(accessibility.traits)
+        assertNotNull(accessibility.minimumTouchSize)
+
+        // Validate minimum touch size for Android (48dp)
+        val touchSize = accessibility.minimumTouchSize
+        assertTrue(touchSize.width >= 48.0)
+        assertTrue(touchSize.height >= 48.0)
+    }
+
+    @Test
+    fun `getComponentConfig validates animation config`() = runTest {
+        // Given
+        val componentId = "tchat-button"
+        val platform = "android"
+
+        // When
+        val result = apiClient.getComponentConfig(
+            componentId = componentId,
+            platform = platform
+        )
+
+        // Then
+        val animations = result.animations
+        assertTrue(animations.isNotEmpty())
+
+        animations.forEach { animation ->
+            assertNotNull(animation.trigger)
+            assertTrue(animation.duration > 0)
+            assertNotNull(animation.easing)
+            assertTrue(animation.properties.isNotEmpty())
+        }
+    }
+
+    @Test
+    fun `getComponentConfig validates required props`() = runTest {
+        // Given
+        val componentId = "tchat-button"
+        val platform = "android"
+
+        // When
+        val result = apiClient.getComponentConfig(
+            componentId = componentId,
+            platform = platform
+        )
+
+        // Then
+        val props = result.props
+        assertTrue(props.isNotEmpty())
+
+        // Should have at least some required props
+        val hasRequiredProps = props.any { it.required }
+        assertTrue(hasRequiredProps)
+
+        // Validate prop types
+        val supportedTypes = setOf("string", "number", "boolean", "object", "array")
+        props.forEach { prop ->
+            assertTrue(prop.type.lowercase() in supportedTypes)
+        }
+    }
+}

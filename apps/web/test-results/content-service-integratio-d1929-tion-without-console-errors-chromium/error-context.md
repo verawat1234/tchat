@@ -1,0 +1,49 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - img [ref=e8]
+      - heading "Telegram SEA Edition" [level=1] [ref=e10]
+    - paragraph [ref=e11]: Cloud messaging, payments, and social commerce built for Southeast Asia
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - img [ref=e14]
+        - paragraph [ref=e16]: End-to-End Encrypted
+      - generic [ref=e17]:
+        - img [ref=e18]
+        - paragraph [ref=e20]: Ultra Low Data
+      - generic [ref=e21]:
+        - img [ref=e22]
+        - paragraph [ref=e25]: QR Payments
+      - generic [ref=e26]:
+        - img [ref=e27]
+        - paragraph [ref=e30]: SEA Languages
+  - generic [ref=e31]:
+    - generic [ref=e33]:
+      - heading "Sign In" [level=3] [ref=e34]
+      - paragraph [ref=e35]: Choose your preferred sign-in method
+    - generic [ref=e36]:
+      - generic [ref=e37]:
+        - tablist [ref=e38]:
+          - tab "Phone OTP" [selected] [ref=e39]:
+            - generic [ref=e41]:
+              - img [ref=e42]
+              - text: Phone OTP
+          - tab "Magic Link" [ref=e44]:
+            - generic [ref=e46]:
+              - img [ref=e47]
+              - text: Magic Link
+        - tabpanel [ref=e50]:
+          - generic [ref=e51]:
+            - generic [ref=e52]:
+              - generic "Thailand +66" [ref=e53] [cursor=pointer]: 🇹🇭 +66
+              - generic "Indonesia +62" [ref=e54] [cursor=pointer]: 🇮🇩 +62
+              - generic "Philippines +63" [ref=e55] [cursor=pointer]: 🇵🇭 +63
+              - generic "Vietnam +84" [ref=e56] [cursor=pointer]: 🇻🇳 +84
+            - textbox "+66 XX XXX XXXX" [ref=e57]
+            - paragraph [ref=e58]: We'll send you a 6-digit OTP via SMS
+      - button "Send OTP" [ref=e59]
+      - paragraph [ref=e60]: By continuing, you agree to our Terms of Service and Privacy Policy. Built for PDPA (TH/MY), PDP (ID) compliance.
+```

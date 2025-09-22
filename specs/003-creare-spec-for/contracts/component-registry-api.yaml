@@ -1,0 +1,186 @@
+openapi: 3.0.3
+info:
+  title: Component Registry API
+  description: API for component metadata and configuration management
+  version: 1.0.0
+
+paths:
+  /api/components:
+    get:
+      summary: Get component registry
+      description: Retrieve available UI components and their configurations
+      parameters:
+        - name: platform
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [ios, android]
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [navigation, input, display, feedback, layout]
+      responses:
+        '200':
+          description: Component registry retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Component'
+
+  /api/components/{componentId}/config:
+    get:
+      summary: Get component configuration
+      description: Retrieve detailed configuration for a specific component
+      parameters:
+        - name: componentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: platform
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [ios, android]
+      responses:
+        '200':
+          description: Component configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComponentConfig'
+        '404':
+          description: Component not found
+
+components:
+  schemas:
+    Component:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique component identifier
+        name:
+          type: string
+          description: Component display name
+        category:
+          type: string
+          enum: [navigation, input, display, feedback, layout]
+        platform:
+          type: string
+          enum: [ios, android]
+        version:
+          type: string
+          description: Component version
+        webEquivalent:
+          type: string
+          description: Corresponding Radix UI component name
+        accessibility:
+          $ref: '#/components/schemas/AccessibilityFeatures'
+
+    ComponentConfig:
+      type: object
+      properties:
+        id:
+          type: string
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComponentVariant'
+        props:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComponentProp'
+        animations:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnimationConfig'
+        accessibility:
+          $ref: '#/components/schemas/AccessibilityConfig'
+
+    ComponentVariant:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        styles:
+          type: object
+          additionalProperties: true
+        example:
+          type: object
+          additionalProperties: true
+
+    ComponentProp:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [string, number, boolean, object, array]
+        required:
+          type: boolean
+        defaultValue:
+          type: string
+        description:
+          type: string
+
+    AnimationConfig:
+      type: object
+      properties:
+        trigger:
+          type: string
+          enum: [tap, swipe, load, focus, hover]
+        duration:
+          type: number
+          description: Duration in milliseconds
+        easing:
+          type: string
+          enum: [linear, easeIn, easeOut, easeInOut, spring]
+        properties:
+          type: array
+          items:
+            type: string
+
+    AccessibilityFeatures:
+      type: object
+      properties:
+        screenReader:
+          type: boolean
+        voiceOver:
+          type: boolean
+        keyboard:
+          type: boolean
+        highContrast:
+          type: boolean
+        reducedMotion:
+          type: boolean
+
+    AccessibilityConfig:
+      type: object
+      properties:
+        label:
+          type: string
+        hint:
+          type: string
+        role:
+          type: string
+        traits:
+          type: array
+          items:
+            type: string
+        minimumTouchSize:
+          type: object
+          properties:
+            width:
+              type: number
+            height:
+              type: number

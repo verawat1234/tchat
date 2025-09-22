@@ -1,0 +1,687 @@
+package com.tchat.services
+
+import android.content.Context
+import com.tchat.models.*
+import com.tchat.state.PersistenceManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
+import java.time.Instant
+import java.util.concurrent.TimeUnit
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Real implementation of Navigation Sync API Client for Android
+ */
+@Singleton
+class NavigationSyncAPIClient @Inject constructor(
+    private val context: Context,
+    private val httpClient: OkHttpClient = createDefaultHttpClient(),
+    private val authenticationProvider: AuthenticationProvider = AuthenticationProvider(context),
+    private val baseURL: String = "https://api.tchat.app"
+) {
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    }
+
+    // MARK: - Navigation Routes API
+
+    /**
+     * GET /navigation/routes
+     */
+    suspend fun getNavigationRoutes(platform: String, userId: String): NavigationRoutesResponse = withContext(Dispatchers.IO) {
+        val url = HttpUrl.Builder()
+            .scheme("https")
+            .host(baseURL.removePrefix("https://"))
+            .addPathSegments("navigation/routes")
+            .addQueryParameter("platform", platform)
+            .addQueryParameter("userId", userId)
+            .build()
+
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .addHeader("Accept", "application/json")
+            .apply {
+                authenticationProvider.getAccessToken()?.let { token ->
+                    addHeader("Authorization", "Bearer $token")
+                }
+            }
+            .build()
+
+        try {
+            val response = executeWithAuth(request)
+
+            when (response.code) {
+                200 -> {
+                    val responseBody = response.body?.string()
+                        ?: throw NavigationSyncException("EMPTY_RESPONSE", "Response body is empty")
+                    json.decodeFromString<NavigationRoutesResponse>(responseBody)
+                }
+                400 -> throw NavigationSyncException("INVALID_PLATFORM", "Invalid platform specified")
+                401 -> throw NavigationSyncException("UNAUTHORIZED", "Authentication required")
+                404 -> throw NavigationSyncException("NOT_FOUND", "Routes not found")
+                else -> throw NavigationSyncException("HTTP_ERROR", "HTTP ${response.code}")
+            }
+
+        } catch (e: NavigationSyncException) {
+            throw e
+        } catch (e: IOException) {
+            throw NavigationSyncException("NETWORK_ERROR", e.message ?: "Network error occurred")
+        } catch (e: Exception) {
+            throw NavigationSyncException("UNKNOWN_ERROR", e.message ?: "Unknown error occurred")
+        }
+    }
+
+    // MARK: - Navigation State Sync API
+
+    /**
+     * POST /navigation/state/sync
+     */
+    suspend fun syncNavigationState(request: NavigationStateSyncRequest): NavigationSyncResponse = withContext(Dispatchers.IO) {
+        val url = HttpUrl.Builder()
+            .scheme("https")
+            .host(baseURL.removePrefix("https://"))
+            .addPathSegments("navigation/state/sync")
+            .build()
+
+        val requestBody = json.encodeToString(request)
+            .toRequestBody("application/json".toMediaType())
+
+        val httpRequest = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Accept", "application/json")
+            .apply {
+                authenticationProvider.getAccessToken()?.let { token ->
+                    addHeader("Authorization", "Bearer $token")
+                }
+            }
+            .build()
+
+        try {
+            val response = executeWithAuth(httpRequest)
+
+            when (response.code) {
+                200 -> {
+                    val responseBody = response.body?.string()
+                        ?: throw NavigationSyncException("EMPTY_RESPONSE", "Response body is empty")
+                    json.decodeFromString<NavigationSyncResponse>(responseBody)
+                }
+                409 -> {
+                    val responseBody = response.body?.string()
+                        ?: throw NavigationSyncException("EMPTY_RESPONSE", "Conflict response body is empty")
+                    val conflictData = json.decodeFromString<NavigationSyncConflictResponse>(responseBody)
+                    throw NavigationSyncConflictException(
+                        conflictType = conflictData.conflictType,
+                        clientVersion = conflictData.clientVersion,
+                        serverVersion = conflictData.serverVersion
+                    )
+                }
+                400 -> throw NavigationSyncException("INVALID_REQUEST", "Invalid sync request")
+                401 -> throw NavigationSyncException("UNAUTHORIZED", "Authentication required")
+                else -> throw NavigationSyncException("HTTP_ERROR", "HTTP ${response.code}")
+            }
+
+        } catch (e: NavigationSyncException) {
+            throw e
+        } catch (e: NavigationSyncConflictException) {
+            throw e
+        } catch (e: IOException) {
+            throw NavigationSyncException("NETWORK_ERROR", e.message ?: "Network error occurred")
+        } catch (e: Exception) {
+            throw NavigationSyncException("UNKNOWN_ERROR", e.message ?: "Unknown error occurred")
+        }
+    }
+
+    // MARK: - Deep Link Resolution API
+
+    /**
+     * POST /navigation/deeplink/resolve
+     */
+    suspend fun resolveDeepLink(request: DeepLinkResolutionRequest): DeepLinkResolution = withContext(Dispatchers.IO) {
+        val url = HttpUrl.Builder()
+            .scheme("https")
+            .host(baseURL.removePrefix("https://"))
+            .addPathSegments("navigation/deeplink/resolve")
+            .build()
+
+        val requestBody = json.encodeToString(request)
+            .toRequestBody("application/json".toMediaType())
+
+        val httpRequest = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Accept", "application/json")
+            .apply {
+                authenticationProvider.getAccessToken()?.let { token ->
+                    addHeader("Authorization", "Bearer $token")
+                }
+            }
+            .build()
+
+        try {
+            val response = executeWithAuth(httpRequest)
+
+            when (response.code) {
+                200 -> {
+                    val responseBody = response.body?.string()
+                        ?: throw NavigationSyncException("EMPTY_RESPONSE", "Response body is empty")
+                    json.decodeFromString<DeepLinkResolution>(responseBody)
+                }
+                404 -> throw NavigationSyncException("DEEP_LINK_NOT_FOUND", "Deep link not found")
+                400 -> throw NavigationSyncException("INVALID_REQUEST", "Invalid deep link request")
+                401 -> throw NavigationSyncException("UNAUTHORIZED", "Authentication required")
+                else -> throw NavigationSyncException("HTTP_ERROR", "HTTP ${response.code}")
+            }
+
+        } catch (e: NavigationSyncException) {
+            throw e
+        } catch (e: IOException) {
+            throw NavigationSyncException("NETWORK_ERROR", e.message ?: "Network error occurred")
+        } catch (e: Exception) {
+            throw NavigationSyncException("UNKNOWN_ERROR", e.message ?: "Unknown error occurred")
+        }
+    }
+
+    companion object {
+        private fun createDefaultHttpClient(): OkHttpClient {
+            return OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .build()
+        }
+    }
+
+    /**
+     * Execute HTTP request with automatic token refresh on 401 responses
+     */
+    private suspend fun executeWithAuth(request: Request): Response = withContext(Dispatchers.IO) {
+        var response = httpClient.newCall(request).execute()
+
+        // If we get 401 and have a refresh token, try to refresh and retry once
+        if (response.code == 401) {
+            response.close()
+
+            try {
+                // Attempt to refresh the token
+                authenticationProvider.refreshToken()
+
+                // Rebuild the request with the new token
+                val newToken = authenticationProvider.getAccessToken()
+                val newRequest = request.newBuilder()
+                    .removeHeader("Authorization")
+                    .apply {
+                        newToken?.let { token ->
+                            addHeader("Authorization", "Bearer $token")
+                        }
+                    }
+                    .build()
+
+                // Retry the request with the new token
+                response = httpClient.newCall(newRequest).execute()
+
+            } catch (e: AuthenticationException) {
+                // If refresh fails, return the original 401 response
+                response = httpClient.newCall(request).execute()
+            }
+        }
+
+        return@withContext response
+    }
+}
+
+// MARK: - Supporting Services
+
+/**
+ * HTTP Client wrapper for API requests
+ */
+@Singleton
+class HTTPClient @Inject constructor() {
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    suspend fun performRequest(request: Request): Pair<String, Response> = withContext(Dispatchers.IO) {
+        val response = client.newCall(request).execute()
+        val body = response.body?.string() ?: ""
+        Pair(body, response)
+    }
+}
+
+/**
+ * Production-ready authentication provider for API access with secure token management
+ */
+@Singleton
+class AuthenticationProvider @Inject constructor(
+    private val context: Context? = null,
+    private val baseURL: String = "https://api.tchat.app"
+) {
+
+    // MARK: - Properties
+
+    private val persistence: PersistenceManager by lazy {
+        context?.let { PersistenceManager(it) }
+            ?: throw IllegalStateException("Context required for authentication")
+    }
+
+    private val httpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    }
+
+    // Thread-safe token management
+    private val tokenMutex = Mutex()
+
+    // Token validation constants
+    companion object {
+        private const val TOKEN_EXPIRY_BUFFER_SECONDS = 300L // 5 minutes buffer
+        private const val MAX_RETRY_ATTEMPTS = 3
+        private const val RETRY_DELAY_MS = 1000L
+        private const val JWT_HEADER_PREFIX = "Bearer "
+    }
+
+    // MARK: - Public API
+
+    /**
+     * Get valid access token with automatic refresh
+     */
+    suspend fun getAccessToken(): String? = withContext(Dispatchers.IO) {
+        tokenMutex.withLock {
+            try {
+                // First try to get existing valid token
+                val existingToken = persistence.loadAuthToken()
+                if (existingToken != null && isTokenValid(existingToken)) {
+                    return@withContext existingToken
+                }
+
+                // Try to refresh token if we have a refresh token
+                val refreshToken = persistence.loadRefreshToken()
+                if (refreshToken != null) {
+                    return@withContext refreshAccessToken(refreshToken)
+                }
+
+                // No valid tokens available
+                return@withContext null
+
+            } catch (e: Exception) {
+                // Log error and return null for graceful degradation
+                android.util.Log.w("AuthProvider", "Failed to get access token", e)
+                return@withContext null
+            }
+        }
+    }
+
+    /**
+     * Refresh access token using refresh token with retry logic
+     */
+    suspend fun refreshToken(): String = withContext(Dispatchers.IO) {
+        val refreshToken = persistence.loadRefreshToken()
+            ?: throw AuthenticationException.RefreshFailed
+
+        return@withContext refreshAccessToken(refreshToken)
+    }
+
+    /**
+     * Login with credentials and store tokens securely
+     */
+    suspend fun login(email: String, password: String): AuthenticationResult = withContext(Dispatchers.IO) {
+        tokenMutex.withLock {
+            try {
+                val loginRequest = LoginRequest(email, password)
+                val response = performLoginRequest(loginRequest)
+
+                // Store tokens securely
+                persistence.saveAuthToken(response.accessToken)
+                persistence.saveRefreshToken(response.refreshToken)
+                persistence.saveAuthenticationState(true)
+
+                // Store user info if provided
+                response.user?.let { user ->
+                    persistence.saveCurrentUser(user)
+                }
+
+                AuthenticationResult.Success(response.accessToken)
+
+            } catch (e: AuthenticationException) {
+                AuthenticationResult.Failure(e)
+            } catch (e: Exception) {
+                AuthenticationResult.Failure(AuthenticationException.NetworkError(e.message))
+            }
+        }
+    }
+
+    /**
+     * Logout and clear all stored authentication data
+     */
+    suspend fun logout(): Unit = withContext(Dispatchers.IO) {
+        tokenMutex.withLock {
+            try {
+                // Attempt to revoke tokens on server
+                val accessToken = persistence.loadAuthToken()
+                if (accessToken != null) {
+                    revokeTokenOnServer(accessToken)
+                }
+
+            } catch (e: Exception) {
+                // Continue with local cleanup even if server revocation fails
+                android.util.Log.w("AuthProvider", "Failed to revoke token on server", e)
+            } finally {
+                // Always clear local data
+                clearAuthenticationData()
+            }
+        }
+    }
+
+    /**
+     * Check if user is currently authenticated
+     */
+    suspend fun isAuthenticated(): Boolean = withContext(Dispatchers.IO) {
+        val hasValidToken = getAccessToken() != null
+        val isMarkedAuthenticated = persistence.loadAuthenticationState()
+        return@withContext hasValidToken && isMarkedAuthenticated
+    }
+
+    // MARK: - Private Implementation
+
+    /**
+     * Validate JWT token expiration
+     */
+    private fun isTokenValid(token: String): Boolean {
+        return try {
+            val payload = parseJWTPayload(token)
+            val expirationTime = payload.exp * 1000L // Convert to milliseconds
+            val currentTime = System.currentTimeMillis()
+            val bufferTime = TOKEN_EXPIRY_BUFFER_SECONDS * 1000L
+
+            expirationTime > (currentTime + bufferTime)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Parse JWT payload to extract expiration time
+     */
+    private fun parseJWTPayload(token: String): JWTPayload {
+        val parts = token.split(".")
+        if (parts.size != 3) throw IllegalArgumentException("Invalid JWT format")
+
+        val payload = String(android.util.Base64.decode(parts[1], android.util.Base64.URL_SAFE))
+        return json.decodeFromString<JWTPayload>(payload)
+    }
+
+    /**
+     * Refresh access token with retry logic
+     */
+    private suspend fun refreshAccessToken(refreshToken: String): String {
+        repeat(MAX_RETRY_ATTEMPTS) { attempt ->
+            try {
+                val refreshRequest = TokenRefreshRequest(refreshToken)
+                val response = performRefreshRequest(refreshRequest)
+
+                // Store new tokens
+                persistence.saveAuthToken(response.accessToken)
+                response.refreshToken?.let { newRefreshToken ->
+                    persistence.saveRefreshToken(newRefreshToken)
+                }
+
+                return response.accessToken
+
+            } catch (e: AuthenticationException.InvalidRefreshToken) {
+                // Invalid refresh token - clear authentication data
+                clearAuthenticationData()
+                throw AuthenticationException.RefreshFailed
+            } catch (e: Exception) {
+                if (attempt == MAX_RETRY_ATTEMPTS - 1) {
+                    throw AuthenticationException.RefreshFailed
+                }
+                delay(RETRY_DELAY_MS * (attempt + 1)) // Exponential backoff
+            }
+        }
+
+        throw AuthenticationException.RefreshFailed
+    }
+
+    /**
+     * Perform login HTTP request
+     */
+    private suspend fun performLoginRequest(loginRequest: LoginRequest): LoginResponse {
+        val url = HttpUrl.Builder()
+            .scheme("https")
+            .host(baseURL.removePrefix("https://"))
+            .addPathSegments("auth/login")
+            .build()
+
+        val requestBody = json.encodeToString(loginRequest)
+            .toRequestBody("application/json".toMediaType())
+
+        val request = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Accept", "application/json")
+            .build()
+
+        val response = httpClient.newCall(request).execute()
+
+        return when (response.code) {
+            200 -> {
+                val responseBody = response.body?.string()
+                    ?: throw AuthenticationException.NetworkError("Empty response body")
+                json.decodeFromString<LoginResponse>(responseBody)
+            }
+            401 -> throw AuthenticationException.InvalidCredentials
+            429 -> throw AuthenticationException.RateLimited
+            else -> throw AuthenticationException.NetworkError("HTTP ${response.code}")
+        }
+    }
+
+    /**
+     * Perform token refresh HTTP request
+     */
+    private suspend fun performRefreshRequest(refreshRequest: TokenRefreshRequest): RefreshResponse {
+        val url = HttpUrl.Builder()
+            .scheme("https")
+            .host(baseURL.removePrefix("https://"))
+            .addPathSegments("auth/refresh")
+            .build()
+
+        val requestBody = json.encodeToString(refreshRequest)
+            .toRequestBody("application/json".toMediaType())
+
+        val request = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Accept", "application/json")
+            .build()
+
+        val response = httpClient.newCall(request).execute()
+
+        return when (response.code) {
+            200 -> {
+                val responseBody = response.body?.string()
+                    ?: throw AuthenticationException.NetworkError("Empty response body")
+                json.decodeFromString<RefreshResponse>(responseBody)
+            }
+            401 -> throw AuthenticationException.InvalidRefreshToken
+            429 -> throw AuthenticationException.RateLimited
+            else -> throw AuthenticationException.NetworkError("HTTP ${response.code}")
+        }
+    }
+
+    /**
+     * Revoke token on server during logout
+     */
+    private suspend fun revokeTokenOnServer(accessToken: String) {
+        try {
+            val url = HttpUrl.Builder()
+                .scheme("https")
+                .host(baseURL.removePrefix("https://"))
+                .addPathSegments("auth/revoke")
+                .build()
+
+            val request = Request.Builder()
+                .url(url)
+                .post("".toRequestBody("application/json".toMediaType()))
+                .addHeader("Authorization", "$JWT_HEADER_PREFIX$accessToken")
+                .addHeader("Content-Type", "application/json")
+                .build()
+
+            httpClient.newCall(request).execute()
+        } catch (e: Exception) {
+            // Ignore errors during logout - local cleanup is more important
+            android.util.Log.w("AuthProvider", "Failed to revoke token on server", e)
+        }
+    }
+
+    /**
+     * Clear all authentication data from secure storage
+     */
+    private fun clearAuthenticationData() {
+        persistence.removeAuthToken()
+        persistence.removeRefreshToken()
+        persistence.removeUserCredentials()
+        persistence.saveAuthenticationState(false)
+    }
+}
+
+// MARK: - Response Models
+
+@Serializable
+data class NavigationSyncConflictResponse(
+    val conflictType: String,
+    val clientVersion: Int,
+    val serverVersion: Int
+)
+
+// MARK: - Authentication Models
+
+@Serializable
+data class LoginRequest(
+    val email: String,
+    val password: String
+)
+
+@Serializable
+data class LoginResponse(
+    val accessToken: String,
+    val refreshToken: String,
+    val user: UserModel? = null,
+    val expiresIn: Long = 3600L
+)
+
+@Serializable
+data class TokenRefreshRequest(
+    val refreshToken: String
+)
+
+@Serializable
+data class RefreshResponse(
+    val accessToken: String,
+    val refreshToken: String? = null,
+    val expiresIn: Long = 3600L
+)
+
+@Serializable
+data class JWTPayload(
+    val exp: Long,
+    val iat: Long = 0L,
+    val sub: String = "",
+    val iss: String = ""
+)
+
+@Serializable
+data class UserModel(
+    val id: String,
+    val email: String,
+    val name: String? = null,
+    val avatar: String? = null
+)
+
+// MARK: - Authentication Result
+
+sealed class AuthenticationResult {
+    data class Success(val accessToken: String) : AuthenticationResult()
+    data class Failure(val error: AuthenticationException) : AuthenticationResult()
+}
+
+// MARK: - Error Types
+
+sealed class AuthenticationException : Exception() {
+    object RefreshFailed : AuthenticationException()
+    object TokenExpired : AuthenticationException()
+    object InvalidCredentials : AuthenticationException()
+    object InvalidRefreshToken : AuthenticationException()
+    object RateLimited : AuthenticationException()
+    data class NetworkError(val errorMessage: String?) : AuthenticationException()
+
+    override val message: String?
+        get() = when (this) {
+            is RefreshFailed -> "Token refresh failed"
+            is TokenExpired -> "Access token expired"
+            is InvalidCredentials -> "Invalid credentials provided"
+            is InvalidRefreshToken -> "Refresh token is invalid or expired"
+            is RateLimited -> "Too many authentication requests"
+            is NetworkError -> "Network error: ${errorMessage ?: "Unknown error"}"
+        }
+}
+
+// MARK: - API Client Factory
+
+/**
+ * Factory for creating API clients with proper configuration
+ */
+@Singleton
+class NavigationSyncAPIClientFactory @Inject constructor(
+    private val context: Context
+) {
+
+    fun create(environment: Environment = Environment.DEVELOPMENT): NavigationSyncAPIClient {
+        val baseURL = when (environment) {
+            Environment.DEVELOPMENT -> "https://dev-api.tchat.app"
+            Environment.STAGING -> "https://staging-api.tchat.app"
+            Environment.PRODUCTION -> "https://api.tchat.app"
+        }
+
+        return NavigationSyncAPIClient(
+            context = context,
+            httpClient = NavigationSyncAPIClient.createDefaultHttpClient(),
+            authenticationProvider = AuthenticationProvider(context, baseURL),
+            baseURL = baseURL
+        )
+    }
+}
+
+enum class Environment {
+    DEVELOPMENT,
+    STAGING,
+    PRODUCTION
+}

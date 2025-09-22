@@ -1,0 +1,576 @@
+openapi: 3.0.3
+info:
+  title: UI Component Sync API
+  description: Cross-platform UI component state synchronization for mobile applications
+  version: 1.0.0
+  contact:
+    name: Tchat Mobile UI Team
+
+servers:
+  - url: https://api.tchat.app/v1
+    description: Production API
+  - url: https://staging-api.tchat.app/v1
+    description: Staging API
+
+paths:
+  /ui/components/state:
+    get:
+      summary: Get component state
+      description: Retrieve current state for specific UI components
+      parameters:
+        - name: component_ids
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+          description: List of component IDs to retrieve
+        - name: user_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: User identifier
+        - name: platform
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [ios, android]
+          description: Target platform
+      responses:
+        '200':
+          description: Component state retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  components:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UIComponentState'
+                  sync_version:
+                    type: integer
+                  platform:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: One or more components not found
+
+    post:
+      summary: Update component state
+      description: Update state for one or more UI components
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComponentStateUpdate'
+      responses:
+        '200':
+          description: Component state updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StateUpdateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: State update conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StateConflict'
+
+  /ui/layout/preferences:
+    get:
+      summary: Get layout preferences
+      description: Retrieve user layout and accessibility preferences
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: User identifier
+        - name: platform
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [ios, android]
+          description: Target platform
+      responses:
+        '200':
+          description: Layout preferences retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LayoutPreferences'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: User preferences not found
+
+    put:
+      summary: Update layout preferences
+      description: Update user layout and accessibility preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LayoutPreferencesUpdate'
+      responses:
+        '200':
+          description: Layout preferences updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreferencesUpdateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /ui/design-tokens/sync:
+    get:
+      summary: Get design tokens
+      description: Retrieve current design tokens for platform-specific rendering
+      parameters:
+        - name: platform
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [ios, android]
+          description: Target platform
+        - name: version
+          in: query
+          schema:
+            type: string
+          description: Specific design token version (latest if not specified)
+      responses:
+        '200':
+          description: Design tokens retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesignTokens'
+        '404':
+          description: Design token version not found
+
+components:
+  schemas:
+    UIComponentState:
+      type: object
+      properties:
+        component_id:
+          type: string
+          description: Unique component identifier
+        component_type:
+          type: string
+          enum: [button, input, card, modal, drawer, list, tab, alert]
+          description: Type of UI component
+        visual_state:
+          type: object
+          properties:
+            visibility:
+              type: string
+              enum: [visible, hidden, collapsed]
+            theme:
+              type: string
+              enum: [light, dark, auto]
+            size:
+              type: string
+              enum: [small, medium, large, auto]
+            variant:
+              type: string
+              description: Component variant (primary, secondary, etc.)
+          additionalProperties: true
+          description: Visual appearance state
+        interaction_state:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            focused:
+              type: boolean
+            pressed:
+              type: boolean
+            selected:
+              type: boolean
+            loading:
+              type: boolean
+          description: Interactive state
+        data:
+          type: object
+          additionalProperties: true
+          description: Component-specific data payload
+        layout:
+          $ref: '#/components/schemas/LayoutConfiguration'
+        accessibility:
+          $ref: '#/components/schemas/AccessibilityMetadata'
+        sync_id:
+          type: string
+          description: Cross-platform sync identifier
+        last_updated:
+          type: string
+          format: date-time
+          description: Last update timestamp
+      required: [component_id, component_type, visual_state, interaction_state, sync_id, last_updated]
+
+    LayoutConfiguration:
+      type: object
+      properties:
+        layout_mode:
+          type: string
+          enum: [compact, regular, split]
+          description: Current layout mode
+        responsive_breakpoint:
+          type: string
+          enum: [xs, sm, md, lg, xl]
+          description: Current responsive breakpoint
+        orientation:
+          type: string
+          enum: [portrait, landscape]
+          description: Device orientation
+        safe_area_insets:
+          type: object
+          properties:
+            top:
+              type: number
+            bottom:
+              type: number
+            left:
+              type: number
+            right:
+              type: number
+          description: Safe area inset values
+        constraints:
+          type: object
+          additionalProperties: true
+          description: Layout constraint specifications
+      required: [layout_mode, responsive_breakpoint, orientation]
+
+    AccessibilityMetadata:
+      type: object
+      properties:
+        label:
+          type: string
+          description: Accessibility label
+        hint:
+          type: string
+          description: Accessibility hint
+        traits:
+          type: array
+          items:
+            type: string
+            enum: [button, link, header, adjustable, selected, disabled, image, text]
+          description: Accessibility traits
+        value:
+          type: string
+          description: Current accessibility value
+        is_accessibility_element:
+          type: boolean
+          description: Whether element is accessible
+        custom_actions:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              description:
+                type: string
+            required: [name]
+          description: Custom accessibility actions
+      required: [is_accessibility_element]
+
+    ComponentStateUpdate:
+      type: object
+      properties:
+        user_id:
+          type: string
+          description: User identifier
+        platform:
+          type: string
+          enum: [ios, android]
+          description: Source platform
+        components:
+          type: array
+          items:
+            $ref: '#/components/schemas/UIComponentState'
+          description: Components to update
+        sync_version:
+          type: integer
+          description: Current sync version
+        batch_id:
+          type: string
+          description: Batch identifier for related updates
+        timestamp:
+          type: string
+          format: date-time
+          description: Update timestamp
+      required: [user_id, platform, components, sync_version, timestamp]
+
+    StateUpdateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Update success status
+        updated_components:
+          type: array
+          items:
+            type: string
+          description: Successfully updated component IDs
+        failed_components:
+          type: array
+          items:
+            type: object
+            properties:
+              component_id:
+                type: string
+              error:
+                type: string
+            required: [component_id, error]
+          description: Failed component updates with errors
+        new_sync_version:
+          type: integer
+          description: New sync version after update
+        timestamp:
+          type: string
+          format: date-time
+          description: Server update timestamp
+      required: [success, updated_components, new_sync_version, timestamp]
+
+    StateConflict:
+      type: object
+      properties:
+        conflict_type:
+          type: string
+          enum: [version_mismatch, concurrent_update, invalid_state]
+          description: Type of state conflict
+        component_id:
+          type: string
+          description: Conflicting component ID
+        client_version:
+          type: integer
+          description: Client sync version
+        server_version:
+          type: integer
+          description: Current server sync version
+        server_state:
+          $ref: '#/components/schemas/UIComponentState'
+        client_state:
+          $ref: '#/components/schemas/UIComponentState'
+        resolution_options:
+          type: array
+          items:
+            type: string
+            enum: [accept_server, accept_client, merge, manual]
+          description: Available resolution options
+      required: [conflict_type, component_id, client_version, server_version, resolution_options]
+
+    LayoutPreferences:
+      type: object
+      properties:
+        user_id:
+          type: string
+          description: User identifier
+        platform:
+          type: string
+          enum: [ios, android]
+          description: Platform
+        theme_preference:
+          type: string
+          enum: [light, dark, auto]
+          description: Theme preference
+        text_size:
+          type: string
+          enum: [small, medium, large, extra_large]
+          description: Text size preference
+        motion_preference:
+          type: string
+          enum: [full, reduced]
+          description: Motion/animation preference
+        contrast_preference:
+          type: string
+          enum: [normal, high]
+          description: Contrast preference
+        layout_density:
+          type: string
+          enum: [compact, comfortable, spacious]
+          description: Layout density preference
+        accessibility_features:
+          type: object
+          properties:
+            voice_over_enabled:
+              type: boolean
+            voice_control_enabled:
+              type: boolean
+            switch_control_enabled:
+              type: boolean
+            bold_text_enabled:
+              type: boolean
+            reduce_transparency:
+              type: boolean
+            reduce_motion:
+              type: boolean
+          description: Platform-specific accessibility features
+        last_updated:
+          type: string
+          format: date-time
+          description: Last update timestamp
+      required: [user_id, platform, theme_preference, text_size, last_updated]
+
+    LayoutPreferencesUpdate:
+      type: object
+      properties:
+        user_id:
+          type: string
+          description: User identifier
+        platform:
+          type: string
+          enum: [ios, android]
+          description: Platform
+        preferences:
+          $ref: '#/components/schemas/LayoutPreferences'
+        timestamp:
+          type: string
+          format: date-time
+          description: Update timestamp
+      required: [user_id, platform, preferences, timestamp]
+
+    PreferencesUpdateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Update success status
+        updated_preferences:
+          $ref: '#/components/schemas/LayoutPreferences'
+        timestamp:
+          type: string
+          format: date-time
+          description: Server update timestamp
+      required: [success, updated_preferences, timestamp]
+
+    DesignTokens:
+      type: object
+      properties:
+        version:
+          type: string
+          description: Design token version
+        platform:
+          type: string
+          enum: [ios, android]
+          description: Platform-specific tokens
+        colors:
+          type: object
+          additionalProperties:
+            type: string
+            pattern: '^#[0-9A-Fa-f]{6}$'
+          description: Color tokens as hex values
+        typography:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              font_family:
+                type: string
+              font_size:
+                type: number
+              font_weight:
+                type: string
+              line_height:
+                type: number
+            required: [font_family, font_size]
+          description: Typography tokens
+        spacing:
+          type: object
+          additionalProperties:
+            type: number
+          description: Spacing tokens in platform units
+        shadows:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              offset_x:
+                type: number
+              offset_y:
+                type: number
+              blur_radius:
+                type: number
+              color:
+                type: string
+              opacity:
+                type: number
+            required: [offset_x, offset_y, blur_radius, color]
+          description: Shadow/elevation tokens
+        animations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              duration:
+                type: number
+              timing_function:
+                type: string
+              delay:
+                type: number
+            required: [duration, timing_function]
+          description: Animation timing tokens
+        last_updated:
+          type: string
+          format: date-time
+          description: Last update timestamp
+      required: [version, platform, colors, typography, spacing, last_updated]
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error details
+      required: [code, message]
+
+  responses:
+    BadRequest:
+      description: Invalid request data
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []

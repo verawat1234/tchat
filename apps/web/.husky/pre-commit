@@ -1,0 +1,14 @@
+#!/bin/sh
+
+# Component Analyzer Pre-commit Hook
+echo "🔍 Running component analyzer validation..."
+
+cd apps/web
+
+# Run lint-staged for general linting and testing
+npx lint-staged
+
+# Optional: Run full component analysis (comment out if too slow)
+# npm run analyze-components
+
+echo "✅ Pre-commit checks completed"

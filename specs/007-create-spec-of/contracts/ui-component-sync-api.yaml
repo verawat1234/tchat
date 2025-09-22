@@ -1,0 +1,171 @@
+openapi: 3.0.3
+info:
+  title: UI Component Sync API
+  description: Cross-platform UI component state synchronization
+  version: 1.0.0
+
+servers:
+  - url: https://api.tchat.app/v1
+    description: Production server
+  - url: https://staging-api.tchat.app/v1
+    description: Staging server
+
+paths:
+  /ui/component/state:
+    post:
+      summary: Create or update component state
+      description: Store component state for cross-platform synchronization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComponentState'
+      responses:
+        '201':
+          description: Component state created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComponentStateResponse'
+        '200':
+          description: Component state updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComponentStateResponse'
+        '400':
+          description: Invalid component state data
+
+    get:
+      summary: Get component state
+      description: Retrieve component state by instance ID
+      parameters:
+        - name: instanceId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Component state retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComponentStateResponse'
+        '404':
+          description: Component state not found
+        '401':
+          description: Unauthorized
+
+  /ui/component/batch:
+    post:
+      summary: Batch update component states
+      description: Update multiple component states in a single request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                states:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ComponentState'
+                userId:
+                  type: string
+                sessionId:
+                  type: string
+                platform:
+                  type: string
+                  enum: [ios, android, web]
+      responses:
+        '200':
+          description: Batch update completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ComponentStateResponse'
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        instanceId:
+                          type: string
+                        error:
+                          type: string
+
+components:
+  schemas:
+    ComponentState:
+      type: object
+      required:
+        - instanceId
+        - componentId
+        - state
+        - userId
+        - sessionId
+        - platform
+        - timestamp
+        - version
+      properties:
+        instanceId:
+          type: string
+          example: "chat_room_123_instance"
+        componentId:
+          type: string
+          example: "ChatRoom"
+        state:
+          type: object
+          additionalProperties: true
+          example:
+            messageCount: 42
+            scrollPosition: 150.0
+            selectedMessage: "msg_123"
+        userId:
+          type: string
+        sessionId:
+          type: string
+        platform:
+          type: string
+          enum: [ios, android, web]
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: integer
+        isSynchronized:
+          type: boolean
+          default: false
+
+    ComponentStateResponse:
+      allOf:
+        - $ref: '#/components/schemas/ComponentState'
+        - type: object
+          properties:
+            id:
+              type: string
+              description: Server-generated unique ID
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time

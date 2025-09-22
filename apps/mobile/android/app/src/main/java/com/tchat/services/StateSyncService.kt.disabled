@@ -1,0 +1,429 @@
+/**
+ * StateSyncService.kt
+ * TchatApp
+ *
+ * Created by Claude on 22/09/2024.
+ */
+
+package com.tchat.services
+
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import android.util.Log
+import com.tchat.models.SyncEvent
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+import java.util.*
+import java.util.concurrent.ConcurrentLinkedQueue
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * Cross-platform state synchronization service for Android
+ * Implements T050: Cross-platform state synchronization service
+ */
+class StateSyncService(
+    private val context: Context,
+    private val navigationSyncClient: NavigationSyncAPIClient,
+    private val uiComponentSyncClient: UIComponentSyncAPIClient
+) {
+
+    // MARK: - Types
+
+    enum class SyncStatus {
+        OFFLINE,
+        CONNECTING,
+        CONNECTED,
+        SYNCING,
+        SYNCED,
+        ERROR
+    }
+
+    enum class SyncStrategy {
+        OPTIMISTIC,    // Apply changes immediately, rollback on conflict
+        CONSERVATIVE,  // Wait for server confirmation
+        AUTOMATIC      // Choose based on network conditions
+    }
+
+    data class SyncStatistics(
+        val pendingEventCount: Int,
+        val lastSyncTimestamp: Long?,
+        val isOnline: Boolean,
+        val conflictsCount: Int
+    )
+
+    // MARK: - State Flows
+
+    private val _syncStatus = MutableStateFlow(SyncStatus.OFFLINE)
+    val syncStatus: StateFlow<SyncStatus> = _syncStatus.asStateFlow()
+
+    private val _lastSyncTimestamp = MutableStateFlow<Long?>(null)
+    val lastSyncTimestamp: StateFlow<Long?> = _lastSyncTimestamp.asStateFlow()
+
+    private val _pendingSyncCount = MutableStateFlow(0)
+    val pendingSyncCount: StateFlow<Int> = _pendingSyncCount.asStateFlow()
+
+    private val _isOnline = MutableStateFlow(false)
+    val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
+
+    // MARK: - Private Properties
+
+    private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    // Sync configuration
+    private val maxRetries = 3
+    private val syncInterval = 30.seconds
+    private val batchSize = 10
+
+    // Pending sync operations
+    private val pendingEvents = ConcurrentLinkedQueue<SyncEvent>()
+    private val conflictResolutionQueue = ConcurrentLinkedQueue<SyncEvent>()
+
+    // Network monitoring
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var periodicSyncJob: Job? = null
+
+    companion object {
+        private const val TAG = "StateSyncService"
+    }
+
+    // MARK: - Lifecycle
+
+    init {
+        setupNetworkMonitoring()
+    }
+
+    fun start() {
+        _syncStatus.value = SyncStatus.CONNECTING
+
+        serviceScope.launch {
+            performInitialSync()
+        }
+    }
+
+    fun stop() {
+        _syncStatus.value = SyncStatus.OFFLINE
+        stopPeriodicSync()
+        serviceScope.cancel()
+    }
+
+    fun destroy() {
+        stop()
+        stopNetworkMonitoring()
+    }
+
+    // MARK: - Public Interface
+
+    /**
+     * Queues a sync event for processing
+     */
+    fun queueSync(event: SyncEvent) {
+        pendingEvents.offer(event)
+        _pendingSyncCount.value = pendingEvents.size
+
+        // Trigger immediate sync for high-priority events
+        if (event.requiresAck) {
+            serviceScope.launch {
+                processPendingEvents()
+            }
+        }
+    }
+
+    /**
+     * Forces an immediate sync of all pending events
+     */
+    suspend fun forceSync() {
+        if (!_isOnline.value) {
+            _syncStatus.value = SyncStatus.ERROR
+            Log.e(TAG, "Cannot sync while offline")
+            return
+        }
+
+        _syncStatus.value = SyncStatus.SYNCING
+        processPendingEvents()
+    }
+
+    /**
+     * Retrieves the current sync statistics
+     */
+    fun getSyncStatistics(): SyncStatistics {
+        return SyncStatistics(
+            pendingEventCount = _pendingSyncCount.value,
+            lastSyncTimestamp = _lastSyncTimestamp.value,
+            isOnline = _isOnline.value,
+            conflictsCount = conflictResolutionQueue.size
+        )
+    }
+
+    // MARK: - Network Monitoring
+
+    private fun setupNetworkMonitoring() {
+        val networkRequest = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
+            .build()
+
+        networkCallback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                super.onAvailable(network)
+                _isOnline.value = true
+                onNetworkAvailable()
+            }
+
+            override fun onLost(network: Network) {
+                super.onLost(network)
+                _isOnline.value = false
+                onNetworkUnavailable()
+            }
+        }
+
+        connectivityManager.registerNetworkCallback(networkRequest, networkCallback!!)
+
+        // Check initial connectivity state
+        val activeNetwork = connectivityManager.activeNetwork
+        val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
+        _isOnline.value = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+    }
+
+    private fun stopNetworkMonitoring() {
+        networkCallback?.let { callback ->
+            connectivityManager.unregisterNetworkCallback(callback)
+        }
+        networkCallback = null
+    }
+
+    private fun onNetworkAvailable() {
+        if (_syncStatus.value == SyncStatus.OFFLINE) {
+            _syncStatus.value = SyncStatus.CONNECTING
+
+            serviceScope.launch {
+                performInitialSync()
+            }
+        }
+    }
+
+    private fun onNetworkUnavailable() {
+        _syncStatus.value = SyncStatus.OFFLINE
+        stopPeriodicSync()
+    }
+
+    // MARK: - Periodic Sync
+
+    private fun setupPeriodicSync() {
+        periodicSyncJob = serviceScope.launch {
+            while (isActive) {
+                delay(syncInterval)
+                if (_isOnline.value && pendingEvents.isNotEmpty()) {
+                    processPendingEvents()
+                }
+            }
+        }
+    }
+
+    private fun stopPeriodicSync() {
+        periodicSyncJob?.cancel()
+        periodicSyncJob = null
+    }
+
+    // MARK: - Sync Processing
+
+    private suspend fun performInitialSync() {
+        try {
+            // Sync navigation state
+            navigationSyncClient.getCurrentNavigationState(
+                platform = "android",
+                userId = getCurrentUserId(),
+                sessionId = getCurrentSessionId()
+            )
+
+            // Sync UI component state
+            uiComponentSyncClient.getComponentStates(
+                platform = "android",
+                userId = getCurrentUserId()
+            )
+
+            _syncStatus.value = SyncStatus.SYNCED
+            _lastSyncTimestamp.value = System.currentTimeMillis()
+
+            // Start periodic sync after successful initial sync
+            setupPeriodicSync()
+
+            // Process any pending events after initial sync
+            processPendingEvents()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Initial sync failed", e)
+            _syncStatus.value = SyncStatus.ERROR
+        }
+    }
+
+    private suspend fun processPendingEvents() {
+        if (!_isOnline.value || pendingEvents.isEmpty()) return
+
+        _syncStatus.value = SyncStatus.SYNCING
+
+        // Process events in batches
+        val eventsToProcess = mutableListOf<SyncEvent>()
+        repeat(minOf(batchSize, pendingEvents.size)) {
+            pendingEvents.poll()?.let { eventsToProcess.add(it) }
+        }
+
+        if (eventsToProcess.isNotEmpty()) {
+            processBatch(eventsToProcess)
+        }
+    }
+
+    private suspend fun processBatch(events: List<SyncEvent>) {
+        for (event in events) {
+            try {
+                processEvent(event)
+                // Event processed successfully - don't add back to queue
+
+            } catch (e: Exception) {
+                handleSyncError(event, e)
+            }
+        }
+
+        _pendingSyncCount.value = pendingEvents.size
+        _syncStatus.value = SyncStatus.SYNCED
+        _lastSyncTimestamp.value = System.currentTimeMillis()
+    }
+
+    private suspend fun processEvent(event: SyncEvent) {
+        when (event.type) {
+            SyncEvent.EventType.NAVIGATION -> processNavigationEvent(event)
+            SyncEvent.EventType.STATE_UPDATE -> processStateUpdateEvent(event)
+            SyncEvent.EventType.DATA_CHANGE -> processDataChangeEvent(event)
+        }
+    }
+
+    private suspend fun processNavigationEvent(event: SyncEvent) {
+        val fromRoute = event.getStringValue("fromRoute")
+            ?: throw IllegalArgumentException("Missing fromRoute in navigation event")
+        val toRoute = event.getStringValue("toRoute")
+            ?: throw IllegalArgumentException("Missing toRoute in navigation event")
+
+        navigationSyncClient.recordNavigationEvent(
+            fromRoute = fromRoute,
+            toRoute = toRoute,
+            trigger = event.getStringValue("trigger") ?: "user",
+            userId = event.userId,
+            sessionId = event.sessionId,
+            platform = "android"
+        )
+    }
+
+    private suspend fun processStateUpdateEvent(event: SyncEvent) {
+        val componentId = event.getStringValue("componentId") ?: ""
+
+        uiComponentSyncClient.updateComponentState(
+            componentId = componentId,
+            state = event.payload,
+            userId = event.userId,
+            sessionId = event.sessionId,
+            platform = "android"
+        )
+    }
+
+    private suspend fun processDataChangeEvent(event: SyncEvent) {
+        // Handle generic data change events
+        val entity = event.getStringValue("entity") ?: ""
+        val action = event.getStringValue("action") ?: ""
+
+        // Log the data change for now - in a real implementation,
+        // this would route to the appropriate service
+        Log.d(TAG, "Data change: $entity - $action")
+    }
+
+    // MARK: - Error Handling
+
+    private fun handleSyncError(event: SyncEvent, error: Exception) {
+        try {
+            val updatedEvent = event.updateStatus(SyncEvent.EventStatus.FAILED, error.message)
+
+            if (updatedEvent.shouldRetry) {
+                // Add back to queue with incremented retry count
+                val retriedEvent = updatedEvent.incrementRetry()
+                pendingEvents.offer(retriedEvent)
+            } else {
+                // Max retries exceeded - add to conflict resolution queue
+                conflictResolutionQueue.offer(updatedEvent)
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to handle sync error for event ${event.id}", e)
+        }
+    }
+
+    // MARK: - Conflict Resolution
+
+    /**
+     * Resolves sync conflicts using last-write-wins strategy
+     */
+    private suspend fun resolveConflicts() {
+        while (conflictResolutionQueue.isNotEmpty()) {
+            conflictResolutionQueue.poll()?.let { event ->
+                // For now, implement last-write-wins
+                // In a production app, this might show user prompts
+                retryEvent(event)
+            }
+        }
+    }
+
+    private fun retryEvent(event: SyncEvent) {
+        val retriedEvent = event.copy(retryCount = 0) // Reset retry count for conflict resolution
+
+        try {
+            val resetEvent = retriedEvent.updateStatus(SyncEvent.EventStatus.PENDING)
+            queueSync(resetEvent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to retry conflicted event ${event.id}", e)
+        }
+    }
+
+    // MARK: - Helper Methods
+
+    private fun getCurrentUserId(): String {
+        // In a real app, this would get the current user ID from auth service
+        return "current_user_id"
+    }
+
+    private fun getCurrentSessionId(): String {
+        // In a real app, this would get the current session ID
+        return "current_session_id"
+    }
+
+    // MARK: - Factory
+
+    companion object {
+        @Volatile
+        private var INSTANCE: StateSyncService? = null
+
+        fun getInstance(
+            context: Context,
+            navigationSyncClient: NavigationSyncAPIClient,
+            uiComponentSyncClient: UIComponentSyncAPIClient
+        ): StateSyncService {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: StateSyncService(
+                    context.applicationContext,
+                    navigationSyncClient,
+                    uiComponentSyncClient
+                ).also { INSTANCE = it }
+            }
+        }
+    }
+}
+
+// MARK: - Exception Types
+
+sealed class StateSyncException(message: String) : Exception(message) {
+    class InvalidEventPayload(message: String) : StateSyncException(message)
+    class NetworkUnavailable : StateSyncException("Network is not available")
+    class SyncInProgress : StateSyncException("Sync operation already in progress")
+    class AuthenticationRequired : StateSyncException("Authentication required for sync")
+}

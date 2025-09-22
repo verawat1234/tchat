@@ -1,0 +1,389 @@
+package com.tchat.services
+
+import com.tchat.models.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
+import java.util.concurrent.TimeUnit
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Real implementation of UI Component Sync API Client for Android
+ */
+@Singleton
+class UIComponentSyncAPIClient @Inject constructor(
+    private val httpClient: OkHttpClient = createDefaultHttpClient(),
+    private val authenticationProvider: AuthenticationProvider = AuthenticationProvider(),
+    private val baseURL: String = "https://api.tchat.app"
+) {
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    }
+
+    // MARK: - Component State Sync API
+
+    /**
+     * POST /components/state/sync
+     */
+    suspend fun syncComponentState(request: ComponentStateSyncRequest): ComponentStateSyncResponse = withContext(Dispatchers.IO) {
+        val url = HttpUrl.Builder()
+            .scheme("https")
+            .host(baseURL.removePrefix("https://"))
+            .addPathSegments("components/state/sync")
+            .build()
+
+        val requestBody = json.encodeToString(request)
+            .toRequestBody("application/json".toMediaType())
+
+        val httpRequest = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Accept", "application/json")
+            .apply {
+                authenticationProvider.getAccessToken()?.let { token ->
+                    addHeader("Authorization", "Bearer $token")
+                }
+            }
+            .build()
+
+        try {
+            val response = httpClient.newCall(httpRequest).execute()
+
+            when (response.code) {
+                200 -> {
+                    val responseBody = response.body?.string()
+                        ?: throw UIComponentSyncException("EMPTY_RESPONSE", "Response body is empty")
+                    json.decodeFromString<ComponentStateSyncResponse>(responseBody)
+                }
+                409 -> {
+                    val responseBody = response.body?.string()
+                        ?: throw UIComponentSyncException("EMPTY_RESPONSE", "Conflict response body is empty")
+                    val conflictData = json.decodeFromString<ComponentSyncConflictResponse>(responseBody)
+                    throw UIComponentSyncConflictException(
+                        conflictType = conflictData.conflictType,
+                        componentId = conflictData.componentId,
+                        clientVersion = conflictData.clientVersion,
+                        serverVersion = conflictData.serverVersion
+                    )
+                }
+                400 -> throw UIComponentSyncException("INVALID_REQUEST", "Invalid sync request")
+                401 -> throw UIComponentSyncException("UNAUTHORIZED", "Authentication required")
+                422 -> throw UIComponentSyncException("VALIDATION_ERROR", "Component state validation failed")
+                else -> throw UIComponentSyncException("HTTP_ERROR", "HTTP ${response.code}")
+            }
+
+        } catch (e: UIComponentSyncException) {
+            throw e
+        } catch (e: UIComponentSyncConflictException) {
+            throw e
+        } catch (e: IOException) {
+            throw UIComponentSyncException("NETWORK_ERROR", e.message ?: "Network error occurred")
+        } catch (e: Exception) {
+            throw UIComponentSyncException("UNKNOWN_ERROR", e.message ?: "Unknown error occurred")
+        }
+    }
+
+    // MARK: - Component State Retrieval API
+
+    /**
+     * GET /components/state/{instanceId}
+     */
+    suspend fun getComponentState(instanceId: String, userId: String): ComponentStateResponse = withContext(Dispatchers.IO) {
+        val url = HttpUrl.Builder()
+            .scheme("https")
+            .host(baseURL.removePrefix("https://"))
+            .addPathSegments("components/state/$instanceId")
+            .addQueryParameter("userId", userId)
+            .build()
+
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .addHeader("Accept", "application/json")
+            .apply {
+                authenticationProvider.getAccessToken()?.let { token ->
+                    addHeader("Authorization", "Bearer $token")
+                }
+            }
+            .build()
+
+        try {
+            val response = httpClient.newCall(request).execute()
+
+            when (response.code) {
+                200 -> {
+                    val responseBody = response.body?.string()
+                        ?: throw UIComponentSyncException("EMPTY_RESPONSE", "Response body is empty")
+                    json.decodeFromString<ComponentStateResponse>(responseBody)
+                }
+                404 -> throw UIComponentSyncException("COMPONENT_NOT_FOUND", "Component state not found")
+                401 -> throw UIComponentSyncException("UNAUTHORIZED", "Authentication required")
+                403 -> throw UIComponentSyncException("ACCESS_DENIED", "Access denied to component state")
+                else -> throw UIComponentSyncException("HTTP_ERROR", "HTTP ${response.code}")
+            }
+
+        } catch (e: UIComponentSyncException) {
+            throw e
+        } catch (e: IOException) {
+            throw UIComponentSyncException("NETWORK_ERROR", e.message ?: "Network error occurred")
+        } catch (e: Exception) {
+            throw UIComponentSyncException("UNKNOWN_ERROR", e.message ?: "Unknown error occurred")
+        }
+    }
+
+    // MARK: - Bulk Component State Sync API
+
+    /**
+     * POST /components/state/bulk-sync
+     */
+    suspend fun bulkSyncComponentStates(request: BulkComponentStateSyncRequest): BulkComponentStateSyncResponse = withContext(Dispatchers.IO) {
+        val url = HttpUrl.Builder()
+            .scheme("https")
+            .host(baseURL.removePrefix("https://"))
+            .addPathSegments("components/state/bulk-sync")
+            .build()
+
+        val requestBody = json.encodeToString(request)
+            .toRequestBody("application/json".toMediaType())
+
+        val httpRequest = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Accept", "application/json")
+            .apply {
+                authenticationProvider.getAccessToken()?.let { token ->
+                    addHeader("Authorization", "Bearer $token")
+                }
+            }
+            .build()
+
+        try {
+            val response = httpClient.newCall(httpRequest).execute()
+
+            when (response.code) {
+                200, 207 -> { // 200 = success, 207 = multi-status with partial success
+                    val responseBody = response.body?.string()
+                        ?: throw UIComponentSyncException("EMPTY_RESPONSE", "Response body is empty")
+                    json.decodeFromString<BulkComponentStateSyncResponse>(responseBody)
+                }
+                400 -> throw UIComponentSyncException("INVALID_REQUEST", "Invalid bulk sync request")
+                401 -> throw UIComponentSyncException("UNAUTHORIZED", "Authentication required")
+                413 -> throw UIComponentSyncException("PAYLOAD_TOO_LARGE", "Bulk request too large")
+                else -> throw UIComponentSyncException("HTTP_ERROR", "HTTP ${response.code}")
+            }
+
+        } catch (e: UIComponentSyncException) {
+            throw e
+        } catch (e: IOException) {
+            throw UIComponentSyncException("NETWORK_ERROR", e.message ?: "Network error occurred")
+        } catch (e: Exception) {
+            throw UIComponentSyncException("UNKNOWN_ERROR", e.message ?: "Unknown error occurred")
+        }
+    }
+
+    // MARK: - Component Schema Validation API
+
+    /**
+     * POST /components/schema/validate
+     */
+    suspend fun validateComponentSchema(request: ComponentSchemaValidationRequest): ComponentSchemaValidationResponse = withContext(Dispatchers.IO) {
+        val url = HttpUrl.Builder()
+            .scheme("https")
+            .host(baseURL.removePrefix("https://"))
+            .addPathSegments("components/schema/validate")
+            .build()
+
+        val requestBody = json.encodeToString(request)
+            .toRequestBody("application/json".toMediaType())
+
+        val httpRequest = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Accept", "application/json")
+            .apply {
+                authenticationProvider.getAccessToken()?.let { token ->
+                    addHeader("Authorization", "Bearer $token")
+                }
+            }
+            .build()
+
+        try {
+            val response = httpClient.newCall(httpRequest).execute()
+
+            when (response.code) {
+                200, 422 -> { // 200 = valid, 422 = invalid with validation errors
+                    val responseBody = response.body?.string()
+                        ?: throw UIComponentSyncException("EMPTY_RESPONSE", "Response body is empty")
+                    json.decodeFromString<ComponentSchemaValidationResponse>(responseBody)
+                }
+                400 -> throw UIComponentSyncException("INVALID_SCHEMA", "Invalid component schema")
+                401 -> throw UIComponentSyncException("UNAUTHORIZED", "Authentication required")
+                else -> throw UIComponentSyncException("HTTP_ERROR", "HTTP ${response.code}")
+            }
+
+        } catch (e: UIComponentSyncException) {
+            throw e
+        } catch (e: IOException) {
+            throw UIComponentSyncException("NETWORK_ERROR", e.message ?: "Network error occurred")
+        } catch (e: Exception) {
+            throw UIComponentSyncException("UNKNOWN_ERROR", e.message ?: "Unknown error occurred")
+        }
+    }
+
+    companion object {
+        private fun createDefaultHttpClient(): OkHttpClient {
+            return OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .build()
+        }
+    }
+}
+
+// MARK: - Response Models
+
+@Serializable
+data class ComponentSyncConflictResponse(
+    val conflictType: String,
+    val componentId: String,
+    val clientVersion: Int,
+    val serverVersion: Int
+)
+
+@Serializable
+data class ComponentStateResponse(
+    val componentState: ComponentState,
+    val version: Int,
+    val lastModified: Long, // Unix timestamp
+    val permissions: List<String>
+)
+
+@Serializable
+data class BulkComponentStateSyncRequest(
+    val userId: String,
+    val sessionId: String,
+    val platform: String,
+    val componentStates: List<ComponentState>,
+    val timestamp: Long, // Unix timestamp
+    val syncVersion: Int,
+    val options: BulkSyncOptions? = null
+)
+
+@Serializable
+data class BulkSyncOptions(
+    val maxConcurrency: Int? = null,
+    val timeoutSeconds: Int? = null,
+    val stopOnFirstError: Boolean? = null,
+    val includeMetrics: Boolean? = null
+)
+
+@Serializable
+data class BulkComponentStateSyncResponse(
+    val success: Boolean,
+    val totalRequested: Int,
+    val totalSucceeded: Int,
+    val totalFailed: Int,
+    val results: List<ComponentSyncResult>,
+    val syncVersion: Int,
+    val timestamp: Long, // Unix timestamp
+    val metrics: BulkSyncMetrics? = null
+)
+
+@Serializable
+data class ComponentSyncResult(
+    val instanceId: String,
+    val success: Boolean,
+    val error: String? = null,
+    val version: Int? = null
+)
+
+@Serializable
+data class BulkSyncMetrics(
+    val totalDurationMs: Int,
+    val avgComponentSyncMs: Double,
+    val networkLatencyMs: Int,
+    val processingTimeMs: Int
+)
+
+@Serializable
+data class ComponentSchemaValidationRequest(
+    val componentId: String,
+    val schema: Map<String, kotlinx.serialization.json.JsonElement>,
+    val platform: String,
+    val version: String
+)
+
+@Serializable
+data class ComponentSchemaValidationResponse(
+    val valid: Boolean,
+    val errors: List<ValidationError>,
+    val warnings: List<ValidationWarning>,
+    val suggestions: List<String>
+)
+
+@Serializable
+data class ValidationError(
+    val field: String,
+    val message: String,
+    val code: String
+)
+
+@Serializable
+data class ValidationWarning(
+    val field: String,
+    val message: String,
+    val severity: String
+)
+
+// MARK: - Error Types
+
+class UIComponentSyncException(
+    val code: String,
+    override val message: String
+) : Exception(message) {
+    override fun toString(): String = "$code: $message"
+}
+
+class UIComponentSyncConflictException(
+    val conflictType: String,
+    val componentId: String,
+    val clientVersion: Int,
+    val serverVersion: Int
+) : Exception("Component sync conflict ($conflictType) for $componentId: client v$clientVersion vs server v$serverVersion")
+
+// MARK: - API Client Factory
+
+/**
+ * Factory for creating UI Component Sync API clients with proper configuration
+ */
+@Singleton
+class UIComponentSyncAPIClientFactory @Inject constructor() {
+
+    fun create(environment: Environment = Environment.DEVELOPMENT): UIComponentSyncAPIClient {
+        val baseURL = when (environment) {
+            Environment.DEVELOPMENT -> "https://dev-api.tchat.app"
+            Environment.STAGING -> "https://staging-api.tchat.app"
+            Environment.PRODUCTION -> "https://api.tchat.app"
+        }
+
+        return UIComponentSyncAPIClient(
+            httpClient = UIComponentSyncAPIClient.createDefaultHttpClient(),
+            authenticationProvider = AuthenticationProvider(),
+            baseURL = baseURL
+        )
+    }
+}

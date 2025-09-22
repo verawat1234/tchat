@@ -1,0 +1,1 @@
+export const FixtureComponent = () => <div>Fixture</div>;

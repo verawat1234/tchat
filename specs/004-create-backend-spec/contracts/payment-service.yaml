@@ -1,0 +1,410 @@
+openapi: 3.0.3
+info:
+  title: Payment Service API
+  description: Payment processing and wallet management for Telegram SEA Edition
+  version: 1.0.0
+
+servers:
+  - url: https://payments.tchat.sea
+    description: Production server
+  - url: https://payments-staging.tchat.sea
+    description: Staging server
+
+paths:
+  /wallets:
+    get:
+      summary: Get user wallets
+      operationId: getUserWallets
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Wallets retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Wallet'
+
+    post:
+      summary: Create new wallet
+      operationId: createWallet
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currency
+              properties:
+                currency:
+                  type: string
+                  enum: [THB, SGD, IDR, MYR, PHP, VND, USD]
+                is_primary:
+                  type: boolean
+                  default: false
+      responses:
+        '201':
+          description: Wallet created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wallet'
+
+  /wallets/{wallet_id}/balance:
+    get:
+      summary: Get wallet balance
+      operationId: getWalletBalance
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: wallet_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Balance retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  balance:
+                    type: integer
+                    description: Balance in cents
+                  available_balance:
+                    type: integer
+                    description: Available balance after frozen amount
+                  frozen_balance:
+                    type: integer
+                  currency:
+                    type: string
+
+  /wallets/{wallet_id}/transactions:
+    get:
+      summary: Get wallet transaction history
+      operationId: getTransactions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: wallet_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [send, receive, topup, withdraw, purchase, refund]
+      responses:
+        '200':
+          description: Transactions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transactions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Transaction'
+                  total:
+                    type: integer
+                  has_more:
+                    type: boolean
+
+  /transactions/send:
+    post:
+      summary: Send money to another user
+      operationId: sendMoney
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - wallet_id
+                - recipient_id
+                - amount
+                - currency
+              properties:
+                wallet_id:
+                  type: string
+                  format: uuid
+                recipient_id:
+                  type: string
+                  format: uuid
+                  description: Recipient user ID
+                amount:
+                  type: integer
+                  description: Amount in cents
+                  minimum: 1
+                currency:
+                  type: string
+                  enum: [THB, SGD, IDR, MYR, PHP, VND, USD]
+                description:
+                  type: string
+                  maxLength: 200
+                reference:
+                  type: string
+                  maxLength: 100
+      responses:
+        '201':
+          description: Transaction initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          description: Invalid request or insufficient funds
+        '402':
+          description: Daily/monthly limit exceeded
+
+  /transactions/topup:
+    post:
+      summary: Top up wallet using external payment method
+      operationId: topupWallet
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - wallet_id
+                - amount
+                - payment_method
+              properties:
+                wallet_id:
+                  type: string
+                  format: uuid
+                amount:
+                  type: integer
+                  description: Amount in cents
+                  minimum: 100
+                payment_method:
+                  type: object
+                  required:
+                    - type
+                  properties:
+                    type:
+                      type: string
+                      enum: [bank_transfer, credit_card, promptpay, qr_payment]
+                    details:
+                      type: object
+                      description: Payment method specific details
+      responses:
+        '201':
+          description: Top-up initiated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Transaction'
+                  - type: object
+                    properties:
+                      payment_url:
+                        type: string
+                        format: uri
+                        description: URL for external payment completion
+                      qr_code:
+                        type: string
+                        description: QR code for PromptPay payments
+
+  /transactions/{transaction_id}/status:
+    get:
+      summary: Get transaction status
+      operationId: getTransactionStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transaction_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Transaction status retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+
+  /payment-methods:
+    get:
+      summary: Get available payment methods for user's country
+      operationId: getPaymentMethods
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Payment methods retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  methods:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          enum: [bank_transfer, credit_card, promptpay, qr_payment, e_wallet]
+                        name:
+                          type: string
+                        supported_currencies:
+                          type: array
+                          items:
+                            type: string
+                        min_amount:
+                          type: integer
+                        max_amount:
+                          type: integer
+                        fee_percentage:
+                          type: number
+                        fee_fixed:
+                          type: integer
+
+components:
+  schemas:
+    Wallet:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        balance:
+          type: integer
+          description: Balance in cents
+        currency:
+          type: string
+          enum: [THB, SGD, IDR, MYR, PHP, VND, USD]
+        frozen_balance:
+          type: integer
+          description: Frozen balance in cents
+        available_balance:
+          type: integer
+          description: Available balance (balance - frozen)
+        daily_limit:
+          type: integer
+          description: Daily transaction limit in cents
+        monthly_limit:
+          type: integer
+          description: Monthly transaction limit in cents
+        used_this_month:
+          type: integer
+          description: Amount used this month in cents
+        status:
+          type: string
+          enum: [active, suspended, closed]
+        is_primary:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        wallet_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [send, receive, topup, withdraw, purchase, refund, fee, reward, cashback]
+        amount:
+          type: integer
+          description: Amount in cents
+        currency:
+          type: string
+          enum: [THB, SGD, IDR, MYR, PHP, VND, USD]
+        fee:
+          type: integer
+          description: Transaction fee in cents
+        net_amount:
+          type: integer
+          description: Net amount after fees
+        status:
+          type: string
+          enum: [pending, processing, completed, failed, cancelled, expired]
+        description:
+          type: string
+        reference:
+          type: string
+          nullable: true
+        counterpart:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            type:
+              type: string
+              enum: [user, merchant, system]
+        metadata:
+          type: object
+          description: Additional transaction data
+        balance_before:
+          type: integer
+          nullable: true
+        balance_after:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        processed_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

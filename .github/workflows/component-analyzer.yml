@@ -1,0 +1,93 @@
+name: Component Analysis
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'apps/web/src/components/**'
+      - 'tools/component-analyzer/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'apps/web/src/components/**'
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    name: Analyze Components
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          cd tools/component-analyzer
+          npm install
+          npm run build
+
+      - name: Run component analysis
+        run: |
+          cd tools/component-analyzer
+          npm run analyze -- ../../apps/web/src/components
+
+      - name: Check for duplicates
+        run: |
+          cd tools/component-analyzer
+          npm run duplicates -- --threshold 80
+        continue-on-error: true
+
+      - name: Validate consistency
+        run: |
+          cd tools/component-analyzer
+          npm run validate
+
+      - name: Generate statistics
+        run: |
+          cd tools/component-analyzer
+          npm run stats
+
+      - name: Upload registry artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: component-registry
+          path: docs/components/registry.json
+        if: always()
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const registryPath = 'docs/components/registry.json';
+
+            if (fs.existsSync(registryPath)) {
+              const registry = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
+              const stats = registry.statistics;
+
+              const comment = `## 📊 Component Analysis Results
+
+              - **Total Components**: ${stats.totalComponents}
+              - **Atoms**: ${stats.atomCount}
+              - **Molecules**: ${stats.moleculeCount}
+              - **Organisms**: ${stats.organismCount}
+              - **Duplicates Found**: ${stats.duplicatesFound}
+              - **Inconsistencies**: ${stats.inconsistenciesFound}
+
+              View full report in the [workflow artifacts](${context.payload.pull_request.html_url}/checks).`;
+
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            }

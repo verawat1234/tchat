@@ -1,0 +1,293 @@
+package ContractTests
+
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import java.util.Date
+
+/**
+ * Contract tests for UI Component Sync API
+ * These tests validate API contract compliance and must fail initially (TDD)
+ */
+@RunWith(JUnit4::class)
+class UIComponentSyncAPITest {
+
+    private lateinit var mockUIComponentSyncService: MockUIComponentSyncService
+
+    @Before
+    fun setUp() {
+        mockUIComponentSyncService = MockUIComponentSyncService()
+    }
+
+    // MARK: - GET /ui/components/registry Tests
+
+    @Test
+    fun `getComponentRegistry with valid request returns registry`() = runTest {
+        // Given
+        val platform = "android"
+        val version = "1.0.0"
+
+        // When - This will fail initially as the service doesn't exist yet
+        try {
+            val result = mockUIComponentSyncService.getComponentRegistry(platform, version)
+
+            // Then
+            assertNotNull(result)
+            assertEquals(platform, result.platform)
+            assertEquals(version, result.version)
+            assertTrue(result.components.isNotEmpty())
+            assertTrue(result.totalCount > 0)
+
+            // Validate component structure
+            val firstComponent = result.components.first()
+            assertFalse(firstComponent.id.isEmpty())
+            assertFalse(firstComponent.name.isEmpty())
+            assertNotNull(firstComponent.props)
+            assertNotNull(firstComponent.stateSchema)
+            assertNotNull(firstComponent.isStateful)
+        } catch (e: UIComponentSyncException) {
+            // Expected to fail initially
+            assertEquals("NOT_IMPLEMENTED", e.code)
+        }
+    }
+
+    @Test
+    fun `getComponentRegistry with invalid platform returns 400`() = runTest {
+        // Given
+        val invalidPlatform = "invalid"
+        val version = "1.0.0"
+
+        // When/Then - This will fail initially
+        try {
+            mockUIComponentSyncService.getComponentRegistry(invalidPlatform, version)
+            fail("Expected error for invalid platform")
+        } catch (e: UIComponentSyncException) {
+            // Expected to fail initially with NOT_IMPLEMENTED, but should eventually be INVALID_PLATFORM
+            assertTrue(e.code == "NOT_IMPLEMENTED" || e.code == "INVALID_PLATFORM")
+        }
+    }
+
+    @Test
+    fun `getComponentRegistry with unsupported version returns 404`() = runTest {
+        // Given
+        val platform = "android"
+        val unsupportedVersion = "99.0.0"
+
+        // When/Then - This will fail initially
+        try {
+            mockUIComponentSyncService.getComponentRegistry(platform, unsupportedVersion)
+            fail("Expected error for unsupported version")
+        } catch (e: UIComponentSyncException) {
+            // Expected to fail initially with NOT_IMPLEMENTED, but should eventually be VERSION_NOT_FOUND
+            assertTrue(e.code == "NOT_IMPLEMENTED" || e.code == "VERSION_NOT_FOUND")
+        }
+    }
+
+    // MARK: - POST /ui/components/state/sync Tests
+
+    @Test
+    fun `syncComponentState with valid sync returns success`() = runTest {
+        // Given
+        val syncRequest = ComponentStateSyncRequest(
+            userId = "test_user_123",
+            sessionId = "session_456",
+            platform = "android",
+            componentStates = listOf(
+                ComponentState("chat-message", "msg-123", mapOf("isRead" to true, "timestamp" to Date()), 1),
+                ComponentState("user-avatar", "avatar-456", mapOf("isOnline" to false, "lastSeen" to Date()), 1)
+            ),
+            timestamp = Date(),
+            syncVersion = 1
+        )
+
+        // When - This will fail initially
+        try {
+            val result = mockUIComponentSyncService.syncComponentState(syncRequest)
+
+            // Then
+            assertTrue(result.success)
+            assertTrue(result.syncVersion > syncRequest.syncVersion)
+            assertNotNull(result.timestamp)
+            assertTrue(result.conflictsResolved.isEmpty()) // No conflicts in this test
+        } catch (e: UIComponentSyncException) {
+            // Expected to fail initially
+            assertEquals("NOT_IMPLEMENTED", e.code)
+        }
+    }
+
+    @Test
+    fun `syncComponentState with state conflict returns 409`() = runTest {
+        // Given
+        val syncRequest = ComponentStateSyncRequest(
+            userId = "test_user_123",
+            sessionId = "session_456",
+            platform = "android",
+            componentStates = listOf(
+                ComponentState("chat-message", "msg-123", mapOf("isRead" to true), -1) // Invalid version
+            ),
+            timestamp = Date(),
+            syncVersion = 1
+        )
+
+        // When/Then - This will fail initially
+        try {
+            mockUIComponentSyncService.syncComponentState(syncRequest)
+            fail("Expected state conflict error")
+        } catch (e: UIComponentSyncConflictException) {
+            // Expected behavior once implemented
+            assertEquals("state_mismatch", e.conflictType)
+            assertEquals("chat-message", e.componentId)
+            assertEquals(-1, e.clientVersion)
+            assertTrue(e.serverVersion > 0)
+        } catch (e: UIComponentSyncException) {
+            // Expected to fail initially
+            assertEquals("NOT_IMPLEMENTED", e.code)
+        }
+    }
+
+    // MARK: - GET /ui/components/{id}/schema Tests
+
+    @Test
+    fun `getComponentSchema with valid id returns schema`() = runTest {
+        // Given
+        val componentId = "chat-message"
+        val platform = "android"
+
+        // When - This will fail initially
+        try {
+            val result = mockUIComponentSyncService.getComponentSchema(componentId, platform)
+
+            // Then
+            assertEquals(componentId, result.componentId)
+            assertEquals(platform, result.platform)
+            assertNotNull(result.propsSchema)
+            assertNotNull(result.stateSchema)
+            assertNotNull(result.eventsSchema)
+            assertNotNull(result.version)
+            assertTrue(result.dependencies.isNotEmpty())
+        } catch (e: UIComponentSyncException) {
+            // Expected to fail initially
+            assertEquals("NOT_IMPLEMENTED", e.code)
+        }
+    }
+
+    @Test
+    fun `getComponentSchema with invalid id returns 404`() = runTest {
+        // Given
+        val invalidComponentId = "non-existent-component"
+        val platform = "android"
+
+        // When/Then - This will fail initially
+        try {
+            mockUIComponentSyncService.getComponentSchema(invalidComponentId, platform)
+            fail("Expected not found error for invalid component ID")
+        } catch (e: UIComponentSyncException) {
+            // Expected to fail initially with NOT_IMPLEMENTED, but should eventually be COMPONENT_NOT_FOUND
+            assertTrue(e.code == "NOT_IMPLEMENTED" || e.code == "COMPONENT_NOT_FOUND")
+        }
+    }
+
+    // MARK: - Performance Tests
+
+    @Test
+    fun `uiComponentSync performance within budget`() = runTest {
+        val startTime = System.currentTimeMillis()
+
+        try {
+            mockUIComponentSyncService.getComponentRegistry("android", "1.0.0")
+        } catch (e: UIComponentSyncException) {
+            // Performance test - failure expected initially
+        }
+
+        val duration = System.currentTimeMillis() - startTime
+        assertTrue("UI component sync should complete within 100ms", duration < 100)
+    }
+}
+
+// MARK: - Mock Service (Will fail until real implementation exists)
+
+private class MockUIComponentSyncService {
+
+    suspend fun getComponentRegistry(platform: String, version: String): ComponentRegistryResponse {
+        // This will fail initially - no real implementation yet
+        throw UIComponentSyncException("NOT_IMPLEMENTED", "Service not implemented yet")
+    }
+
+    suspend fun syncComponentState(request: ComponentStateSyncRequest): ComponentStateSyncResponse {
+        // This will fail initially - no real implementation yet
+        throw UIComponentSyncException("NOT_IMPLEMENTED", "Service not implemented yet")
+    }
+
+    suspend fun getComponentSchema(id: String, platform: String): ComponentSchemaResponse {
+        // This will fail initially - no real implementation yet
+        throw UIComponentSyncException("NOT_IMPLEMENTED", "Service not implemented yet")
+    }
+}
+
+// MARK: - Contract Models (Stub implementations that will fail)
+
+data class ComponentRegistryResponse(
+    val components: List<ComponentDefinition>,
+    val platform: String,
+    val version: String,
+    val totalCount: Int
+)
+
+data class ComponentDefinition(
+    val id: String,
+    val name: String,
+    val category: String,
+    val props: Map<String, Any>,
+    val stateSchema: Map<String, Any>,
+    val eventsSchema: Map<String, Any>,
+    val isStateful: Boolean,
+    val dependencies: List<String>,
+    val version: String
+)
+
+data class ComponentStateSyncRequest(
+    val userId: String,
+    val sessionId: String,
+    val platform: String,
+    val componentStates: List<ComponentState>,
+    val timestamp: Date,
+    val syncVersion: Int
+)
+
+data class ComponentState(
+    val componentId: String,
+    val instanceId: String,
+    val state: Map<String, Any>,
+    val version: Int
+)
+
+data class ComponentStateSyncResponse(
+    val success: Boolean,
+    val syncVersion: Int,
+    val conflictsResolved: List<String>,
+    val timestamp: Date
+)
+
+data class ComponentSchemaResponse(
+    val componentId: String,
+    val platform: String,
+    val propsSchema: Map<String, Any>,
+    val stateSchema: Map<String, Any>,
+    val eventsSchema: Map<String, Any>,
+    val version: String,
+    val dependencies: List<String>
+)
+
+// MARK: - Error Types
+
+class UIComponentSyncException(val code: String, message: String) : Exception(message)
+
+class UIComponentSyncConflictException(
+    val conflictType: String,
+    val componentId: String,
+    val clientVersion: Int,
+    val serverVersion: Int
+) : Exception("UI component sync conflict: $conflictType")

@@ -2,9 +2,35 @@
   import { defineConfig } from 'vite';
   import react from '@vitejs/plugin-react-swc';
   import path from 'path';
+  /// <reference types="vitest" />
 
   export default defineConfig({
     plugins: [react()],
+    test: {
+      globals: true,
+      environment: 'jsdom',
+      setupFiles: './src/test-setup.ts',
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'json', 'html', 'lcov'],
+        exclude: [
+          'node_modules/',
+          'src/test-setup.ts',
+          '*.config.ts',
+          '**/*.d.ts',
+          '**/*.stories.tsx',
+          '**/test-utils/**',
+        ],
+        thresholds: {
+          branches: 90,
+          functions: 90,
+          lines: 90,
+          statements: 90,
+        },
+      },
+      css: true,
+      testMatch: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
+    },
     resolve: {
       extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
       alias: {
@@ -50,12 +76,27 @@
         '@': path.resolve(__dirname, './src'),
       },
     },
+    optimizeDeps: {
+      include: ['react', 'redux', 'react-redux', '@reduxjs/toolkit'],
+      exclude: ['redux-persist'],
+    },
     build: {
       target: 'esnext',
       outDir: 'build',
+      commonjsOptions: {
+        include: [/node_modules/],
+        transformMixedEsModules: true,
+      },
     },
     server: {
       port: 3000,
       open: true,
+      proxy: {
+        '/api/v1/content': {
+          target: 'http://localhost:8086',
+          changeOrigin: true,
+          secure: false,
+        },
+      },
     },
   });

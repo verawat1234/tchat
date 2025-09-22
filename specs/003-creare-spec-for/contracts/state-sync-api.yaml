@@ -1,0 +1,288 @@
+openapi: 3.0.3
+info:
+  title: State Synchronization API
+  description: API for synchronizing application state between web and native platforms
+  version: 1.0.0
+
+paths:
+  /api/sync/state:
+    get:
+      summary: Get current application state
+      description: Retrieve current synchronized state for the user
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: platform
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [web, ios, android]
+        - name: timestamp
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Get state changes since this timestamp
+      responses:
+        '200':
+          description: Application state retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncState'
+        '304':
+          description: No changes since timestamp
+        '401':
+          description: Unauthorized access
+
+    post:
+      summary: Update application state
+      description: Sync state changes from client to server
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StateUpdate'
+      responses:
+        '200':
+          description: State updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResponse'
+        '409':
+          description: Conflict - state has been modified by another client
+
+  /api/sync/notifications:
+    post:
+      summary: Sync notification preferences
+      description: Update notification settings across platforms
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationPreferences'
+      responses:
+        '200':
+          description: Notification preferences updated successfully
+
+  /api/sync/workspace:
+    post:
+      summary: Switch workspace context
+      description: Update current workspace and sync related state
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                workspaceId:
+                  type: string
+                  format: uuid
+                platform:
+                  type: string
+                  enum: [web, ios, android]
+      responses:
+        '200':
+          description: Workspace context updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceState'
+
+components:
+  schemas:
+    SyncState:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: integer
+        platform:
+          type: string
+          enum: [web, ios, android]
+        preferences:
+          $ref: '#/components/schemas/UserPreferences'
+        navigation:
+          $ref: '#/components/schemas/NavigationState'
+        workspace:
+          $ref: '#/components/schemas/WorkspaceState'
+
+    StateUpdate:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        platform:
+          type: string
+          enum: [web, ios, android]
+        timestamp:
+          type: string
+          format: date-time
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/StateChange'
+
+    StateChange:
+      type: object
+      properties:
+        path:
+          type: string
+          description: JSONPath to the changed property
+        operation:
+          type: string
+          enum: [set, delete, append]
+        value:
+          type: object
+          additionalProperties: true
+        oldValue:
+          type: object
+          additionalProperties: true
+
+    SyncResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        version:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+        conflicts:
+          type: array
+          items:
+            $ref: '#/components/schemas/StateConflict'
+
+    StateConflict:
+      type: object
+      properties:
+        path:
+          type: string
+        clientValue:
+          type: object
+          additionalProperties: true
+        serverValue:
+          type: object
+          additionalProperties: true
+        resolution:
+          type: string
+          enum: [client_wins, server_wins, merge]
+
+    UserPreferences:
+      type: object
+      properties:
+        theme:
+          type: string
+          enum: [light, dark, auto]
+        language:
+          type: string
+        notifications:
+          $ref: '#/components/schemas/NotificationPreferences'
+        accessibility:
+          $ref: '#/components/schemas/AccessibilityPreferences'
+
+    NotificationPreferences:
+      type: object
+      properties:
+        chat:
+          type: boolean
+        store:
+          type: boolean
+        social:
+          type: boolean
+        video:
+          type: boolean
+        workspace:
+          type: boolean
+        marketing:
+          type: boolean
+        quietHours:
+          $ref: '#/components/schemas/QuietHours'
+
+    QuietHours:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        startTime:
+          type: string
+          format: time
+        endTime:
+          type: string
+          format: time
+        timezone:
+          type: string
+
+    AccessibilityPreferences:
+      type: object
+      properties:
+        reducedMotion:
+          type: boolean
+        highContrast:
+          type: boolean
+        largerText:
+          type: boolean
+        screenReader:
+          type: boolean
+
+    NavigationState:
+      type: object
+      properties:
+        currentTab:
+          type: string
+          enum: [chat, store, social, video, more]
+        tabHistory:
+          type: array
+          items:
+            type: string
+        chatContext:
+          type: object
+          additionalProperties: true
+        storeContext:
+          type: object
+          additionalProperties: true
+
+    WorkspaceState:
+      type: object
+      properties:
+        currentWorkspaceId:
+          type: string
+          format: uuid
+        availableWorkspaces:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkspaceInfo'
+        role:
+          type: string
+          enum: [owner, admin, member, guest]
+
+    WorkspaceInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          type: string
+          enum: [personal, business, team]
+        unreadCount:
+          type: integer

@@ -1,0 +1,182 @@
+openapi: 3.0.3
+info:
+  title: Navigation Sync API
+  description: Cross-platform navigation state synchronization
+  version: 1.0.0
+
+servers:
+  - url: https://api.tchat.app/v1
+    description: Production server
+  - url: https://staging-api.tchat.app/v1
+    description: Staging server
+
+paths:
+  /navigation/state:
+    get:
+      summary: Get current navigation state
+      description: Retrieve the current navigation state for a user session
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: platform
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [ios, android, web]
+      responses:
+        '200':
+          description: Navigation state retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NavigationStateResponse'
+        '404':
+          description: Navigation state not found
+        '401':
+          description: Unauthorized
+
+    put:
+      summary: Update navigation state
+      description: Update the navigation state for a user session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NavigationStateUpdate'
+      responses:
+        '200':
+          description: Navigation state updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NavigationStateResponse'
+        '409':
+          description: Conflict - state version mismatch
+        '400':
+          description: Invalid navigation state data
+
+  /navigation/events:
+    post:
+      summary: Record navigation event
+      description: Record a navigation event for analytics and history
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NavigationEvent'
+      responses:
+        '201':
+          description: Navigation event recorded
+        '400':
+          description: Invalid event data
+
+components:
+  schemas:
+    NavigationStateResponse:
+      type: object
+      properties:
+        currentRoute:
+          type: string
+          example: "/chat/room/123"
+        routeStack:
+          type: array
+          items:
+            type: string
+          example: ["/", "/chat", "/chat/room/123"]
+        routeParams:
+          type: object
+          additionalProperties: true
+          example:
+            roomId: "123"
+            userId: "user456"
+        navigationHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/NavigationEvent'
+        platform:
+          type: string
+          enum: [ios, android, web]
+        userId:
+          type: string
+        sessionId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          example: 1
+
+    NavigationStateUpdate:
+      type: object
+      required:
+        - currentRoute
+        - routeStack
+        - platform
+        - userId
+        - sessionId
+        - version
+      properties:
+        currentRoute:
+          type: string
+        routeStack:
+          type: array
+          items:
+            type: string
+        routeParams:
+          type: object
+          additionalProperties: true
+        platform:
+          type: string
+          enum: [ios, android, web]
+        userId:
+          type: string
+        sessionId:
+          type: string
+        version:
+          type: integer
+
+    NavigationEvent:
+      type: object
+      required:
+        - fromRoute
+        - toRoute
+        - trigger
+        - timestamp
+        - userId
+        - sessionId
+        - platform
+      properties:
+        fromRoute:
+          type: string
+          example: "/chat"
+        toRoute:
+          type: string
+          example: "/chat/room/123"
+        trigger:
+          type: string
+          enum: [user, system, deepLink]
+        timestamp:
+          type: string
+          format: date-time
+        parameters:
+          type: object
+          additionalProperties: true
+        userId:
+          type: string
+        sessionId:
+          type: string
+        platform:
+          type: string
+          enum: [ios, android, web]

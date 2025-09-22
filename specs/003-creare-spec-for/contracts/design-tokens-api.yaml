@@ -1,0 +1,160 @@
+openapi: 3.0.3
+info:
+  title: Design Tokens API
+  description: API for managing design tokens and theme configurations for native mobile apps
+  version: 1.0.0
+
+paths:
+  /api/design-tokens:
+    get:
+      summary: Get current design token configuration
+      description: Retrieve design tokens for mobile app theming
+      parameters:
+        - name: platform
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [ios, android]
+        - name: theme
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [light, dark, auto]
+            default: light
+      responses:
+        '200':
+          description: Design tokens retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesignTokens'
+        '400':
+          description: Invalid platform or theme parameter
+
+  /api/design-tokens/sync:
+    post:
+      summary: Sync design token updates
+      description: Notify mobile apps of design token changes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                version:
+                  type: string
+                  description: Design token version
+                changedTokens:
+                  type: array
+                  items:
+                    type: string
+                  description: List of changed token keys
+      responses:
+        '200':
+          description: Sync notification sent successfully
+        '400':
+          description: Invalid sync request
+
+components:
+  schemas:
+    DesignTokens:
+      type: object
+      properties:
+        version:
+          type: string
+          description: Design token version
+        platform:
+          type: string
+          enum: [ios, android]
+        theme:
+          type: string
+          enum: [light, dark]
+        typography:
+          $ref: '#/components/schemas/Typography'
+        colors:
+          $ref: '#/components/schemas/Colors'
+        spacing:
+          $ref: '#/components/schemas/Spacing'
+        animations:
+          $ref: '#/components/schemas/Animations'
+
+    Typography:
+      type: object
+      properties:
+        headingLarge:
+          $ref: '#/components/schemas/TextStyle'
+        headingMedium:
+          $ref: '#/components/schemas/TextStyle'
+        bodyLarge:
+          $ref: '#/components/schemas/TextStyle'
+        bodyMedium:
+          $ref: '#/components/schemas/TextStyle'
+        bodySmall:
+          $ref: '#/components/schemas/TextStyle'
+        caption:
+          $ref: '#/components/schemas/TextStyle'
+
+    TextStyle:
+      type: object
+      properties:
+        fontSize:
+          type: number
+        fontWeight:
+          type: string
+          enum: [light, regular, medium, semibold, bold]
+        lineHeight:
+          type: number
+        letterSpacing:
+          type: number
+
+    Colors:
+      type: object
+      properties:
+        primary:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+        secondary:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+        background:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+        surface:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+        error:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+        success:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+
+    Spacing:
+      type: object
+      properties:
+        xs:
+          type: number
+        sm:
+          type: number
+        md:
+          type: number
+        lg:
+          type: number
+        xl:
+          type: number
+
+    Animations:
+      type: object
+      properties:
+        quickTransition:
+          type: number
+          description: Duration in milliseconds
+        standardTransition:
+          type: number
+          description: Duration in milliseconds
+        slowTransition:
+          type: number
+          description: Duration in milliseconds

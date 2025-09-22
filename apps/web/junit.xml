@@ -1,0 +1,1079 @@
+<testsuites id="" name="" tests="63" failures="40" skipped="0" errors="0" time="101.710867">
+<testsuite name="content-contract.spec.ts" timestamp="2025-09-22T15:52:15.643Z" hostname="chromium" tests="9" failures="4" skipped="0" time="39.044" errors="0">
+<testcase name="Content Service Contract Validation › Response Structure Contract › should return correct response structure for content list" classname="content-contract.spec.ts" time="0.493">
+<failure message="content-contract.spec.ts:14:9 should return correct response structure for content list" type="FAILURE">
+<![CDATA[  [chromium] › content-contract.spec.ts:14:9 › Content Service Contract Validation › Response Structure Contract › should return correct response structure for content list 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "page"
+    Received path: []
+
+    Received value: {"items": [{"category": "auth.app.title", "created_at": "2025-09-22T22:47:44.814462+07:00", "id": "3076dfee-a100-4dfe-8941-dfd40d5f9227", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:47:44.814462+07:00", "value": {"text": "Tchat Application"}}, {"category": "navigation", "created_at": "2025-09-22T22:03:36.859946+07:00", "id": "3ffc8c8c-14cd-4c79-9ce0-27f31503e021", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:03:36.859946+07:00", "value": {"text": "Home"}}], "pagination": {"offset": 0, "page": 0, "page_size": 20, "total": 2}, "total": 2}
+
+      39 |         expect(data.data).toHaveProperty('items');
+      40 |         expect(data.data).toHaveProperty('total');
+    > 41 |         expect(data.data).toHaveProperty('page');
+         |                           ^
+      42 |         expect(data.data).toHaveProperty('limit');
+      43 |         expect(Array.isArray(data.data.items)).toBe(true);
+      44 |       }
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:41:27
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Response Structure Contract › should return correct structure for single content item" classname="content-contract.spec.ts" time="0.492">
+</testcase>
+<testcase name="Content Service Contract Validation › Response Structure Contract › should validate content value structure by type" classname="content-contract.spec.ts" time="0.598">
+</testcase>
+<testcase name="Content Service Contract Validation › Error Response Contract › should return consistent error structure" classname="content-contract.spec.ts" time="0.473">
+<failure message="content-contract.spec.ts:132:9 should return consistent error structure" type="FAILURE">
+<![CDATA[  [chromium] › content-contract.spec.ts:132:9 › Content Service Contract Validation › Error Response Contract › should return consistent error structure 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "error"
+    Received path: []
+
+    Received value: {"details": "record not found", "message": "Content not found", "status": "error"}
+
+      137 |       const notFoundData = await notFoundResponse.json();
+      138 |       expect(notFoundData).toHaveProperty('status');
+    > 139 |       expect(notFoundData).toHaveProperty('error');
+          |                            ^
+      140 |       expect(notFoundData.status).toBe('error');
+      141 |       expect(notFoundData.error).toContain('not found');
+      142 |     });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:139:28
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Error Response Contract › should return validation error structure" classname="content-contract.spec.ts" time="0.457">
+<failure message="content-contract.spec.ts:144:9 should return validation error structure" type="FAILURE">
+<![CDATA[  [chromium] › content-contract.spec.ts:144:9 › Content Service Contract Validation › Error Response Contract › should return validation error structure 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "error"
+    Received path: []
+
+    Received value: {"details": "json: cannot unmarshal string into Go struct field CreateContentRequest.value of type models.ContentValue", "message": "Validation failed", "status": "error"}
+
+      155 |
+      156 |       expect(invalidData).toHaveProperty('status');
+    > 157 |       expect(invalidData).toHaveProperty('error');
+          |                           ^
+      158 |       expect(invalidData.status).toBe('error');
+      159 |     });
+      160 |   });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:157:27
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Frontend-Backend Data Contract › should validate that frontend can properly process backend responses" classname="content-contract.spec.ts" time="36.389">
+<failure message="content-contract.spec.ts:163:9 should validate that frontend can properly process backend responses" type="FAILURE">
+<![CDATA[  [chromium] › content-contract.spec.ts:163:9 › Content Service Contract Validation › Frontend-Backend Data Contract › should validate that frontend can properly process backend responses 
+
+    TimeoutError: page.waitForLoadState: Timeout 30000ms exceeded.
+
+      198 |
+      199 |       await page.goto('http://localhost:3000');
+    > 200 |       await page.waitForLoadState('networkidle');
+          |                  ^
+      201 |
+      202 |       // Should not have forEach errors
+      203 |       const forEachErrors = errors.filter(error => error.includes('forEach is not a function'));
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:200:18
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../test-results/content-contract-Content-S-8c902-y-process-backend-responses-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../test-results/content-contract-Content-S-8c902-y-process-backend-responses-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/content-contract-Content-S-8c902-y-process-backend-responses-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/content-contract-Content-S-8c902-y-process-backend-responses-chromium/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Content Service Contract Validation › Frontend-Backend Data Contract › should validate content batch loading contract" classname="content-contract.spec.ts" time="0.076">
+</testcase>
+<testcase name="Content Service Contract Validation › UUID vs String Key Contract › should handle both UUID and string key formats consistently" classname="content-contract.spec.ts" time="0.036">
+</testcase>
+<testcase name="Content Service Contract Validation › UUID vs String Key Contract › should validate that invalid UUIDs fall back to string key lookup" classname="content-contract.spec.ts" time="0.03">
+</testcase>
+</testsuite>
+<testsuite name="content-contract.spec.ts" timestamp="2025-09-22T15:52:15.643Z" hostname="firefox" tests="9" failures="6" skipped="0" time="6.944" errors="0">
+<testcase name="Content Service Contract Validation › Response Structure Contract › should return correct response structure for content list" classname="content-contract.spec.ts" time="0.375">
+<failure message="content-contract.spec.ts:14:9 should return correct response structure for content list" type="FAILURE">
+<![CDATA[  [firefox] › content-contract.spec.ts:14:9 › Content Service Contract Validation › Response Structure Contract › should return correct response structure for content list 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "page"
+    Received path: []
+
+    Received value: {"items": [{"category": "not-a-uuid-but-has-dashes", "created_at": "2025-09-22T22:52:17.512216+07:00", "id": "5ae53f38-6060-413e-be66-f42613848ee1", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:17.512216+07:00", "value": {"text": "This should be accessible by string key"}}, {"category": "navigation.main.title", "created_at": "2025-09-22T22:52:17.462386+07:00", "id": "e3ff62ad-1877-46d2-906e-2ce2b43ea68e", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:17.462386+07:00", "value": {"text": "Content 3"}}, {"category": "uuid.string.test", "created_at": "2025-09-22T22:52:17.456023+07:00", "id": "19be419f-99b2-4531-8efe-59dce7aaf185", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:17.456023+07:00", "value": {"text": "Test content for UUID/string compatibility"}}, {"category": "auth.signup.title", "created_at": "2025-09-22T22:52:17.443002+07:00", "id": "7990673c-7cc4-4acf-8adf-e071f2f99747", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:17.443002+07:00", "value": {"text": "Content 2"}}, {"category": "auth.signin.title", "created_at": "2025-09-22T22:52:17.428705+07:00", "id": "f6fb1f48-f2e4-45bd-9b15-9b8f2cfca5e6", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:17.428705+07:00", "value": {"text": "Content 1"}}, {"category": "contract.type.json", "created_at": "2025-09-22T22:52:17.400131+07:00", "id": "b389e8d0-18e0-4f71-97a5-5bc6cd7d48fb", "metadata": null, "status": "published", "type": "json", "updated_at": "2025-09-22T22:52:17.400131+07:00", "value": {"data": {"key": "value", "number": 42}}}, {"category": "contract.type.html", "created_at": "2025-09-22T22:52:17.359371+07:00", "id": "77804352-a25b-4ede-ba05-f395aa0542a0", "metadata": null, "status": "published", "type": "html", "updated_at": "2025-09-22T22:52:17.359371+07:00", "value": {"html": "<p>Sample HTML content</p>"}}, {"category": "contract.test.item", "created_at": "2025-09-22T22:52:17.255952+07:00", "id": "03a864dc-fa27-4474-9ade-e3de3bb99676", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:17.255952+07:00", "value": {"text": "Contract test content"}}, {"category": "contract.type.text", "created_at": "2025-09-22T22:52:17.224077+07:00", "id": "8452633d-5f1a-444c-b587-c9f0c8a546a0", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:17.224077+07:00", "value": {"text": "Sample text content"}}, {"category": "auth.app.title", "created_at": "2025-09-22T22:47:44.814462+07:00", "id": "3076dfee-a100-4dfe-8941-dfd40d5f9227", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:47:44.814462+07:00", "value": {"text": "Tchat Application"}}, …], "pagination": {"offset": 0, "page": 0, "page_size": 20, "total": 11}, "total": 11}
+
+      39 |         expect(data.data).toHaveProperty('items');
+      40 |         expect(data.data).toHaveProperty('total');
+    > 41 |         expect(data.data).toHaveProperty('page');
+         |                           ^
+      42 |         expect(data.data).toHaveProperty('limit');
+      43 |         expect(Array.isArray(data.data.items)).toBe(true);
+      44 |       }
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:41:27
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Response Structure Contract › should return correct structure for single content item" classname="content-contract.spec.ts" time="0.416">
+<failure message="content-contract.spec.ts:47:9 should return correct structure for single content item" type="FAILURE">
+<![CDATA[  [firefox] › content-contract.spec.ts:47:9 › Content Service Contract Validation › Response Structure Contract › should return correct structure for single content item 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 3
+    + Received  + 3
+
+      Object {
+        "category": "contract.test.item",
+    -   "created_at": "2025-09-22T22:52:17.255952+07:00",
+    -   "id": "03a864dc-fa27-4474-9ade-e3de3bb99676",
+    +   "created_at": "2025-09-22T22:52:18.937249+07:00",
+    +   "id": "dbea6ad9-460b-4bbb-8bbf-1425d1050d1b",
+        "metadata": null,
+        "status": "published",
+        "type": "text",
+    -   "updated_at": "2025-09-22T22:52:17.255952+07:00",
+    +   "updated_at": "2025-09-22T22:52:18.937249+07:00",
+        "value": Object {
+          "text": "Contract test content",
+        },
+      }
+
+      88 |
+      89 |       // Both responses should have identical structure
+    > 90 |       expect(getByIdData.data).toEqual(getByKeyData.data);
+         |                                ^
+      91 |     });
+      92 |
+      93 |     test('should validate content value structure by type', async ({ request }) => {
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:90:32
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Response Structure Contract › should validate content value structure by type" classname="content-contract.spec.ts" time="0.551">
+</testcase>
+<testcase name="Content Service Contract Validation › Error Response Contract › should return consistent error structure" classname="content-contract.spec.ts" time="0.454">
+<failure message="content-contract.spec.ts:132:9 should return consistent error structure" type="FAILURE">
+<![CDATA[  [firefox] › content-contract.spec.ts:132:9 › Content Service Contract Validation › Error Response Contract › should return consistent error structure 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "error"
+    Received path: []
+
+    Received value: {"details": "record not found", "message": "Content not found", "status": "error"}
+
+      137 |       const notFoundData = await notFoundResponse.json();
+      138 |       expect(notFoundData).toHaveProperty('status');
+    > 139 |       expect(notFoundData).toHaveProperty('error');
+          |                            ^
+      140 |       expect(notFoundData.status).toBe('error');
+      141 |       expect(notFoundData.error).toContain('not found');
+      142 |     });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:139:28
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Error Response Contract › should return validation error structure" classname="content-contract.spec.ts" time="0.433">
+<failure message="content-contract.spec.ts:144:9 should return validation error structure" type="FAILURE">
+<![CDATA[  [firefox] › content-contract.spec.ts:144:9 › Content Service Contract Validation › Error Response Contract › should return validation error structure 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "error"
+    Received path: []
+
+    Received value: {"details": "json: cannot unmarshal string into Go struct field CreateContentRequest.value of type models.ContentValue", "message": "Validation failed", "status": "error"}
+
+      155 |
+      156 |       expect(invalidData).toHaveProperty('status');
+    > 157 |       expect(invalidData).toHaveProperty('error');
+          |                           ^
+      158 |       expect(invalidData.status).toBe('error');
+      159 |     });
+      160 |   });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:157:27
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Frontend-Backend Data Contract › should validate that frontend can properly process backend responses" classname="content-contract.spec.ts" time="3.749">
+<failure message="content-contract.spec.ts:163:9 should validate that frontend can properly process backend responses" type="FAILURE">
+<![CDATA[  [firefox] › content-contract.spec.ts:163:9 › Content Service Contract Validation › Frontend-Backend Data Contract › should validate that frontend can properly process backend responses 
+
+    Error: expect(received).toHaveLength(expected)
+
+    Expected length: 0
+    Received length: 1
+    Received array:  ["Warning: validateDOMNesting(...): <div> cannot appear as a descendant of <p>.
+    div
+    p
+    div
+    div
+    div
+    AuthScreen@http://localhost:3000/src/components/AuthScreen.tsx?t=1758555767292:56:27
+    App@http://localhost:3000/src/App.tsx?t=1758555767292:62:22
+    Provider@http://localhost:3000/node_modules/.vite/deps/chunk-S6KV2J5U.js?v=ccfcd4a9:923:53"]
+
+      209 |         !error.includes('API Error')
+      210 |       );
+    > 211 |       expect(criticalErrors).toHaveLength(0);
+          |                              ^
+      212 |     });
+      213 |
+      214 |     test('should validate content batch loading contract', async ({ request }) => {
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:211:30
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../test-results/content-contract-Content-S-8c902-y-process-backend-responses-firefox/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../test-results/content-contract-Content-S-8c902-y-process-backend-responses-firefox/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/content-contract-Content-S-8c902-y-process-backend-responses-firefox/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/content-contract-Content-S-8c902-y-process-backend-responses-firefox/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Content Service Contract Validation › Frontend-Backend Data Contract › should validate content batch loading contract" classname="content-contract.spec.ts" time="0.434">
+</testcase>
+<testcase name="Content Service Contract Validation › UUID vs String Key Contract › should handle both UUID and string key formats consistently" classname="content-contract.spec.ts" time="0.108">
+<failure message="content-contract.spec.ts:253:9 should handle both UUID and string key formats consistently" type="FAILURE">
+<![CDATA[  [firefox] › content-contract.spec.ts:253:9 › Content Service Contract Validation › UUID vs String Key Contract › should handle both UUID and string key formats consistently 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "19be419f-99b2-4531-8efe-59dce7aaf185"
+    Received: "6caac246-e211-4f13-a5d6-305a7bb847ca"
+
+      278 |       const stringData = await stringResponse.json();
+      279 |
+    > 280 |       expect(uuidData.data.id).toBe(stringData.data.id);
+          |                                ^
+      281 |       expect(uuidData.data.category).toBe(stringData.data.category);
+      282 |       expect(uuidData.data.value).toEqual(stringData.data.value);
+      283 |     });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:280:32
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › UUID vs String Key Contract › should validate that invalid UUIDs fall back to string key lookup" classname="content-contract.spec.ts" time="0.424">
+</testcase>
+</testsuite>
+<testsuite name="content-contract.spec.ts" timestamp="2025-09-22T15:52:15.643Z" hostname="webkit" tests="9" failures="6" skipped="0" time="35.768" errors="0">
+<testcase name="Content Service Contract Validation › Response Structure Contract › should return correct response structure for content list" classname="content-contract.spec.ts" time="0.563">
+<failure message="content-contract.spec.ts:14:9 should return correct response structure for content list" type="FAILURE">
+<![CDATA[  [webkit] › content-contract.spec.ts:14:9 › Content Service Contract Validation › Response Structure Contract › should return correct response structure for content list 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "page"
+    Received path: []
+
+    Received value: {"items": [{"category": "not-a-uuid-but-has-dashes", "created_at": "2025-09-22T22:52:22.603336+07:00", "id": "c0c1d6c4-9c97-482e-b288-afaa4642f1b2", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:22.603336+07:00", "value": {"text": "This should be accessible by string key"}}, {"category": "navigation.main.title", "created_at": "2025-09-22T22:52:22.527134+07:00", "id": "24c5173b-7546-4f9e-845a-4e4fa67f6386", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:22.527134+07:00", "value": {"text": "Content 3"}}, {"category": "auth.signup.title", "created_at": "2025-09-22T22:52:22.512321+07:00", "id": "62260bfc-2f8e-4e2c-9f36-724310b8aafa", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:22.512321+07:00", "value": {"text": "Content 2"}}, {"category": "auth.signin.title", "created_at": "2025-09-22T22:52:22.476201+07:00", "id": "f89b1400-5a77-4c97-8d98-88a452e6c58d", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:22.476201+07:00", "value": {"text": "Content 1"}}, {"category": "uuid.string.test", "created_at": "2025-09-22T22:52:21.048318+07:00", "id": "6caac246-e211-4f13-a5d6-305a7bb847ca", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:21.048318+07:00", "value": {"text": "Test content for UUID/string compatibility"}}, {"category": "contract.type.json", "created_at": "2025-09-22T22:52:20.936084+07:00", "id": "e9f5a5e1-ff69-4b15-b0d1-567b5f1f2fb8", "metadata": null, "status": "published", "type": "json", "updated_at": "2025-09-22T22:52:20.936084+07:00", "value": {"data": {"key": "value", "number": 42}}}, {"category": "contract.type.html", "created_at": "2025-09-22T22:52:20.90109+07:00", "id": "acf810f0-8eac-46eb-bdf9-8491e5a4b1ca", "metadata": null, "status": "published", "type": "html", "updated_at": "2025-09-22T22:52:20.90109+07:00", "value": {"html": "<p>Sample HTML content</p>"}}, {"category": "contract.type.text", "created_at": "2025-09-22T22:52:20.848052+07:00", "id": "f164fcc9-52d7-4629-a7d8-e9ee968f08a7", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:20.848052+07:00", "value": {"text": "Sample text content"}}, {"category": "navigation.menu.items", "created_at": "2025-09-22T22:52:20.320704+07:00", "id": "09475772-4180-40a3-a9b9-f35bec84e42e", "metadata": null, "status": "published", "type": "json", "updated_at": "2025-09-22T22:52:20.320704+07:00", "value": {"data": [{"label": "Home", "path": "/"}, {"label": "About", "path": "/about"}]}}, {"category": "auth.signin.subtitle", "created_at": "2025-09-22T22:52:20.308581+07:00", "id": "18f0c4c1-c39a-439c-970c-ccc864229fe5", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:20.308581+07:00", "value": {"text": "Welcome back to Tchat"}}, …], "pagination": {"offset": 0, "page": 0, "page_size": 20, "total": 23}, "total": 23}
+
+      39 |         expect(data.data).toHaveProperty('items');
+      40 |         expect(data.data).toHaveProperty('total');
+    > 41 |         expect(data.data).toHaveProperty('page');
+         |                           ^
+      42 |         expect(data.data).toHaveProperty('limit');
+      43 |         expect(Array.isArray(data.data.items)).toBe(true);
+      44 |       }
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:41:27
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Response Structure Contract › should return correct structure for single content item" classname="content-contract.spec.ts" time="0.563">
+<failure message="content-contract.spec.ts:47:9 should return correct structure for single content item" type="FAILURE">
+<![CDATA[  [webkit] › content-contract.spec.ts:47:9 › Content Service Contract Validation › Response Structure Contract › should return correct structure for single content item 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 3
+    + Received  + 3
+
+      Object {
+        "category": "contract.test.item",
+    -   "created_at": "2025-09-22T22:52:17.255952+07:00",
+    -   "id": "03a864dc-fa27-4474-9ade-e3de3bb99676",
+    +   "created_at": "2025-09-22T22:52:25.113267+07:00",
+    +   "id": "5c521777-dcc2-4d84-bd53-a7f9e616b818",
+        "metadata": null,
+        "status": "published",
+        "type": "text",
+    -   "updated_at": "2025-09-22T22:52:17.255952+07:00",
+    +   "updated_at": "2025-09-22T22:52:25.113267+07:00",
+        "value": Object {
+          "text": "Contract test content",
+        },
+      }
+
+      88 |
+      89 |       // Both responses should have identical structure
+    > 90 |       expect(getByIdData.data).toEqual(getByKeyData.data);
+         |                                ^
+      91 |     });
+      92 |
+      93 |     test('should validate content value structure by type', async ({ request }) => {
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:90:32
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Response Structure Contract › should validate content value structure by type" classname="content-contract.spec.ts" time="0.477">
+</testcase>
+<testcase name="Content Service Contract Validation › Error Response Contract › should return consistent error structure" classname="content-contract.spec.ts" time="0.414">
+<failure message="content-contract.spec.ts:132:9 should return consistent error structure" type="FAILURE">
+<![CDATA[  [webkit] › content-contract.spec.ts:132:9 › Content Service Contract Validation › Error Response Contract › should return consistent error structure 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "error"
+    Received path: []
+
+    Received value: {"details": "record not found", "message": "Content not found", "status": "error"}
+
+      137 |       const notFoundData = await notFoundResponse.json();
+      138 |       expect(notFoundData).toHaveProperty('status');
+    > 139 |       expect(notFoundData).toHaveProperty('error');
+          |                            ^
+      140 |       expect(notFoundData.status).toBe('error');
+      141 |       expect(notFoundData.error).toContain('not found');
+      142 |     });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:139:28
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Error Response Contract › should return validation error structure" classname="content-contract.spec.ts" time="0.451">
+<failure message="content-contract.spec.ts:144:9 should return validation error structure" type="FAILURE">
+<![CDATA[  [webkit] › content-contract.spec.ts:144:9 › Content Service Contract Validation › Error Response Contract › should return validation error structure 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "error"
+    Received path: []
+
+    Received value: {"details": "json: cannot unmarshal string into Go struct field CreateContentRequest.value of type models.ContentValue", "message": "Validation failed", "status": "error"}
+
+      155 |
+      156 |       expect(invalidData).toHaveProperty('status');
+    > 157 |       expect(invalidData).toHaveProperty('error');
+          |                           ^
+      158 |       expect(invalidData.status).toBe('error');
+      159 |     });
+      160 |   });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:157:27
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Frontend-Backend Data Contract › should validate that frontend can properly process backend responses" classname="content-contract.spec.ts" time="31.981">
+<failure message="content-contract.spec.ts:163:9 should validate that frontend can properly process backend responses" type="FAILURE">
+<![CDATA[  [webkit] › content-contract.spec.ts:163:9 › Content Service Contract Validation › Frontend-Backend Data Contract › should validate that frontend can properly process backend responses 
+
+    TimeoutError: page.waitForLoadState: Timeout 30000ms exceeded.
+    =========================== logs ===========================
+      "domcontentloaded" event fired
+    ============================================================
+
+      198 |
+      199 |       await page.goto('http://localhost:3000');
+    > 200 |       await page.waitForLoadState('networkidle');
+          |                  ^
+      201 |
+      202 |       // Should not have forEach errors
+      203 |       const forEachErrors = errors.filter(error => error.includes('forEach is not a function'));
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:200:18
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../test-results/content-contract-Content-S-8c902-y-process-backend-responses-webkit/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../test-results/content-contract-Content-S-8c902-y-process-backend-responses-webkit/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/content-contract-Content-S-8c902-y-process-backend-responses-webkit/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/content-contract-Content-S-8c902-y-process-backend-responses-webkit/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Content Service Contract Validation › Frontend-Backend Data Contract › should validate content batch loading contract" classname="content-contract.spec.ts" time="0.589">
+</testcase>
+<testcase name="Content Service Contract Validation › UUID vs String Key Contract › should handle both UUID and string key formats consistently" classname="content-contract.spec.ts" time="0.608">
+<failure message="content-contract.spec.ts:253:9 should handle both UUID and string key formats consistently" type="FAILURE">
+<![CDATA[  [webkit] › content-contract.spec.ts:253:9 › Content Service Contract Validation › UUID vs String Key Contract › should handle both UUID and string key formats consistently 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "19be419f-99b2-4531-8efe-59dce7aaf185"
+    Received: "6b7d8d12-e180-47ea-b22d-22e90ffd709e"
+
+      278 |       const stringData = await stringResponse.json();
+      279 |
+    > 280 |       expect(uuidData.data.id).toBe(stringData.data.id);
+          |                                ^
+      281 |       expect(uuidData.data.category).toBe(stringData.data.category);
+      282 |       expect(uuidData.data.value).toEqual(stringData.data.value);
+      283 |     });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:280:32
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › UUID vs String Key Contract › should validate that invalid UUIDs fall back to string key lookup" classname="content-contract.spec.ts" time="0.122">
+</testcase>
+</testsuite>
+<testsuite name="content-contract.spec.ts" timestamp="2025-09-22T15:52:15.643Z" hostname="Mobile Chrome" tests="9" failures="6" skipped="0" time="37.849" errors="0">
+<testcase name="Content Service Contract Validation › Response Structure Contract › should return correct response structure for content list" classname="content-contract.spec.ts" time="0.421">
+<failure message="content-contract.spec.ts:14:9 should return correct response structure for content list" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › content-contract.spec.ts:14:9 › Content Service Contract Validation › Response Structure Contract › should return correct response structure for content list 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "page"
+    Received path: []
+
+    Received value: {"items": [{"category": "uuid.string.test", "created_at": "2025-09-22T22:52:31.440588+07:00", "id": "6b7d8d12-e180-47ea-b22d-22e90ffd709e", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:31.440588+07:00", "value": {"text": "Test content for UUID/string compatibility"}}, {"category": "not-a-uuid-but-has-dashes", "created_at": "2025-09-22T22:52:30.811414+07:00", "id": "445a279c-c27a-4db6-b4ea-49e836420ce0", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:30.811414+07:00", "value": {"text": "This should be accessible by string key"}}, {"category": "navigation.main.title", "created_at": "2025-09-22T22:52:30.646033+07:00", "id": "02b88366-93dd-481f-b42b-7b5668e54275", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:30.646033+07:00", "value": {"text": "Content 3"}}, {"category": "auth.signup.title", "created_at": "2025-09-22T22:52:30.570679+07:00", "id": "0301661c-e921-42ab-9a40-45d8a88c0dc3", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:30.570679+07:00", "value": {"text": "Content 2"}}, {"category": "auth.signin.title", "created_at": "2025-09-22T22:52:30.529329+07:00", "id": "0094b7ea-fa00-4154-b21d-e3984b8e012f", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:30.529329+07:00", "value": {"text": "Content 1"}}, {"category": "navigation.menu.items", "created_at": "2025-09-22T22:52:29.443288+07:00", "id": "da06f7d5-5179-4795-bb8f-c9623b88a098", "metadata": null, "status": "published", "type": "json", "updated_at": "2025-09-22T22:52:29.443288+07:00", "value": {"data": [{"label": "Home", "path": "/"}, {"label": "About", "path": "/about"}]}}, {"category": "auth.signin.subtitle", "created_at": "2025-09-22T22:52:29.435714+07:00", "id": "000644f9-a534-42de-9a67-43d9efcd6685", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:29.435714+07:00", "value": {"text": "Welcome back to Tchat"}}, {"category": "auth.signin.title", "created_at": "2025-09-22T22:52:29.427339+07:00", "id": "5389c9e9-8971-47ff-84a4-2e069eefdf3a", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:29.427339+07:00", "value": {"text": "Sign In"}}, {"category": "contract.type.json", "created_at": "2025-09-22T22:52:27.356351+07:00", "id": "5667d358-0432-4248-8adc-b377f2f07c7d", "metadata": null, "status": "published", "type": "json", "updated_at": "2025-09-22T22:52:27.356351+07:00", "value": {"data": {"key": "value", "number": 42}}}, {"category": "contract.type.html", "created_at": "2025-09-22T22:52:27.33962+07:00", "id": "d267a050-e509-4a36-9010-ed53106166c6", "metadata": null, "status": "published", "type": "html", "updated_at": "2025-09-22T22:52:27.33962+07:00", "value": {"html": "<p>Sample HTML content</p>"}}, …], "pagination": {"offset": 0, "page": 0, "page_size": 20, "total": 38}, "total": 38}
+
+      39 |         expect(data.data).toHaveProperty('items');
+      40 |         expect(data.data).toHaveProperty('total');
+    > 41 |         expect(data.data).toHaveProperty('page');
+         |                           ^
+      42 |         expect(data.data).toHaveProperty('limit');
+      43 |         expect(Array.isArray(data.data.items)).toBe(true);
+      44 |       }
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:41:27
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Response Structure Contract › should return correct structure for single content item" classname="content-contract.spec.ts" time="0.423">
+<failure message="content-contract.spec.ts:47:9 should return correct structure for single content item" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › content-contract.spec.ts:47:9 › Content Service Contract Validation › Response Structure Contract › should return correct structure for single content item 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 3
+    + Received  + 3
+
+      Object {
+        "category": "contract.test.item",
+    -   "created_at": "2025-09-22T22:52:17.255952+07:00",
+    -   "id": "03a864dc-fa27-4474-9ade-e3de3bb99676",
+    +   "created_at": "2025-09-22T22:52:33.076441+07:00",
+    +   "id": "8f93d268-ba37-4696-a257-e9cfbf176a47",
+        "metadata": null,
+        "status": "published",
+        "type": "text",
+    -   "updated_at": "2025-09-22T22:52:17.255952+07:00",
+    +   "updated_at": "2025-09-22T22:52:33.076441+07:00",
+        "value": Object {
+          "text": "Contract test content",
+        },
+      }
+
+      88 |
+      89 |       // Both responses should have identical structure
+    > 90 |       expect(getByIdData.data).toEqual(getByKeyData.data);
+         |                                ^
+      91 |     });
+      92 |
+      93 |     test('should validate content value structure by type', async ({ request }) => {
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:90:32
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Response Structure Contract › should validate content value structure by type" classname="content-contract.spec.ts" time="0.633">
+</testcase>
+<testcase name="Content Service Contract Validation › Error Response Contract › should return consistent error structure" classname="content-contract.spec.ts" time="0.459">
+<failure message="content-contract.spec.ts:132:9 should return consistent error structure" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › content-contract.spec.ts:132:9 › Content Service Contract Validation › Error Response Contract › should return consistent error structure 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "error"
+    Received path: []
+
+    Received value: {"details": "record not found", "message": "Content not found", "status": "error"}
+
+      137 |       const notFoundData = await notFoundResponse.json();
+      138 |       expect(notFoundData).toHaveProperty('status');
+    > 139 |       expect(notFoundData).toHaveProperty('error');
+          |                            ^
+      140 |       expect(notFoundData.status).toBe('error');
+      141 |       expect(notFoundData.error).toContain('not found');
+      142 |     });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:139:28
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Error Response Contract › should return validation error structure" classname="content-contract.spec.ts" time="0.028">
+<failure message="content-contract.spec.ts:144:9 should return validation error structure" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › content-contract.spec.ts:144:9 › Content Service Contract Validation › Error Response Contract › should return validation error structure 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "error"
+    Received path: []
+
+    Received value: {"details": "json: cannot unmarshal string into Go struct field CreateContentRequest.value of type models.ContentValue", "message": "Validation failed", "status": "error"}
+
+      155 |
+      156 |       expect(invalidData).toHaveProperty('status');
+    > 157 |       expect(invalidData).toHaveProperty('error');
+          |                           ^
+      158 |       expect(invalidData.status).toBe('error');
+      159 |     });
+      160 |   });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:157:27
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Frontend-Backend Data Contract › should validate that frontend can properly process backend responses" classname="content-contract.spec.ts" time="34.747">
+<failure message="content-contract.spec.ts:163:9 should validate that frontend can properly process backend responses" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › content-contract.spec.ts:163:9 › Content Service Contract Validation › Frontend-Backend Data Contract › should validate that frontend can properly process backend responses 
+
+    TimeoutError: page.waitForLoadState: Timeout 30000ms exceeded.
+
+      198 |
+      199 |       await page.goto('http://localhost:3000');
+    > 200 |       await page.waitForLoadState('networkidle');
+          |                  ^
+      201 |
+      202 |       // Should not have forEach errors
+      203 |       const forEachErrors = errors.filter(error => error.includes('forEach is not a function'));
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:200:18
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../test-results/content-contract-Content-S-8c902-y-process-backend-responses-Mobile-Chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../test-results/content-contract-Content-S-8c902-y-process-backend-responses-Mobile-Chrome/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/content-contract-Content-S-8c902-y-process-backend-responses-Mobile-Chrome/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/content-contract-Content-S-8c902-y-process-backend-responses-Mobile-Chrome/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Content Service Contract Validation › Frontend-Backend Data Contract › should validate content batch loading contract" classname="content-contract.spec.ts" time="0.569">
+</testcase>
+<testcase name="Content Service Contract Validation › UUID vs String Key Contract › should handle both UUID and string key formats consistently" classname="content-contract.spec.ts" time="0.174">
+<failure message="content-contract.spec.ts:253:9 should handle both UUID and string key formats consistently" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › content-contract.spec.ts:253:9 › Content Service Contract Validation › UUID vs String Key Contract › should handle both UUID and string key formats consistently 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "19be419f-99b2-4531-8efe-59dce7aaf185"
+    Received: "9726a473-3e66-43bf-8f0a-6275238ff3b2"
+
+      278 |       const stringData = await stringResponse.json();
+      279 |
+    > 280 |       expect(uuidData.data.id).toBe(stringData.data.id);
+          |                                ^
+      281 |       expect(uuidData.data.category).toBe(stringData.data.category);
+      282 |       expect(uuidData.data.value).toEqual(stringData.data.value);
+      283 |     });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:280:32
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › UUID vs String Key Contract › should validate that invalid UUIDs fall back to string key lookup" classname="content-contract.spec.ts" time="0.395">
+</testcase>
+</testsuite>
+<testsuite name="content-contract.spec.ts" timestamp="2025-09-22T15:52:15.643Z" hostname="Mobile Safari" tests="9" failures="6" skipped="0" time="34.339" errors="0">
+<testcase name="Content Service Contract Validation › Response Structure Contract › should return correct response structure for content list" classname="content-contract.spec.ts" time="0.395">
+<failure message="content-contract.spec.ts:14:9 should return correct response structure for content list" type="FAILURE">
+<![CDATA[  [Mobile Safari] › content-contract.spec.ts:14:9 › Content Service Contract Validation › Response Structure Contract › should return correct response structure for content list 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "page"
+    Received path: []
+
+    Received value: {"items": [{"category": "not-a-uuid-but-has-dashes", "created_at": "2025-09-22T22:52:39.669365+07:00", "id": "7f074ce2-b466-47f2-a511-ede877734b97", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:39.669365+07:00", "value": {"text": "This should be accessible by string key"}}, {"category": "navigation.menu.items", "created_at": "2025-09-22T22:52:38.035655+07:00", "id": "38f7ed32-2390-4763-8912-52873ac14c6a", "metadata": null, "status": "published", "type": "json", "updated_at": "2025-09-22T22:52:38.035655+07:00", "value": {"data": [{"label": "Home", "path": "/"}, {"label": "About", "path": "/about"}]}}, {"category": "auth.signin.subtitle", "created_at": "2025-09-22T22:52:38.024962+07:00", "id": "b59a7840-553b-4ffc-842f-b810b48ae440", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:38.024962+07:00", "value": {"text": "Welcome back to Tchat"}}, {"category": "auth.signin.title", "created_at": "2025-09-22T22:52:38.01217+07:00", "id": "55a296c8-fddd-41c1-91b6-2dd0b9f57c93", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:38.01217+07:00", "value": {"text": "Sign In"}}, {"category": "uuid.string.test", "created_at": "2025-09-22T22:52:37.411297+07:00", "id": "9726a473-3e66-43bf-8f0a-6275238ff3b2", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:37.411297+07:00", "value": {"text": "Test content for UUID/string compatibility"}}, {"category": "navigation.main.title", "created_at": "2025-09-22T22:52:37.197402+07:00", "id": "ba8a1619-b679-41b4-a5ac-3ba88189b39e", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:37.197402+07:00", "value": {"text": "Content 3"}}, {"category": "auth.signup.title", "created_at": "2025-09-22T22:52:37.178823+07:00", "id": "38cea279-417f-412a-b10a-cb6f9cf19f3f", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:37.178823+07:00", "value": {"text": "Content 2"}}, {"category": "auth.signin.title", "created_at": "2025-09-22T22:52:37.151432+07:00", "id": "179248a0-4b56-4a38-bb14-d257761ba6be", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:37.151432+07:00", "value": {"text": "Content 1"}}, {"category": "contract.type.json", "created_at": "2025-09-22T22:52:35.177959+07:00", "id": "2dd708d4-60c4-4770-a4e6-e58fd6761f97", "metadata": null, "status": "published", "type": "json", "updated_at": "2025-09-22T22:52:35.177959+07:00", "value": {"data": {"key": "value", "number": 42}}}, {"category": "contract.type.html", "created_at": "2025-09-22T22:52:35.166041+07:00", "id": "07b19b53-77b1-4ca9-a729-3fef0be25776", "metadata": null, "status": "published", "type": "html", "updated_at": "2025-09-22T22:52:35.166041+07:00", "value": {"html": "<p>Sample HTML content</p>"}}, …], "pagination": {"offset": 0, "page": 0, "page_size": 20, "total": 50}, "total": 50}
+
+      39 |         expect(data.data).toHaveProperty('items');
+      40 |         expect(data.data).toHaveProperty('total');
+    > 41 |         expect(data.data).toHaveProperty('page');
+         |                           ^
+      42 |         expect(data.data).toHaveProperty('limit');
+      43 |         expect(Array.isArray(data.data.items)).toBe(true);
+      44 |       }
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:41:27
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Response Structure Contract › should return correct structure for single content item" classname="content-contract.spec.ts" time="0.424">
+<failure message="content-contract.spec.ts:47:9 should return correct structure for single content item" type="FAILURE">
+<![CDATA[  [Mobile Safari] › content-contract.spec.ts:47:9 › Content Service Contract Validation › Response Structure Contract › should return correct structure for single content item 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 3
+    + Received  + 3
+
+      Object {
+        "category": "contract.test.item",
+    -   "created_at": "2025-09-22T22:52:17.255952+07:00",
+    -   "id": "03a864dc-fa27-4474-9ade-e3de3bb99676",
+    +   "created_at": "2025-09-22T22:52:43.318159+07:00",
+    +   "id": "3609eb5b-d3d0-4be0-a378-75410ef81108",
+        "metadata": null,
+        "status": "published",
+        "type": "text",
+    -   "updated_at": "2025-09-22T22:52:17.255952+07:00",
+    +   "updated_at": "2025-09-22T22:52:43.318159+07:00",
+        "value": Object {
+          "text": "Contract test content",
+        },
+      }
+
+      88 |
+      89 |       // Both responses should have identical structure
+    > 90 |       expect(getByIdData.data).toEqual(getByKeyData.data);
+         |                                ^
+      91 |     });
+      92 |
+      93 |     test('should validate content value structure by type', async ({ request }) => {
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:90:32
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Response Structure Contract › should validate content value structure by type" classname="content-contract.spec.ts" time="0.429">
+</testcase>
+<testcase name="Content Service Contract Validation › Error Response Contract › should return consistent error structure" classname="content-contract.spec.ts" time="0.04">
+<failure message="content-contract.spec.ts:132:9 should return consistent error structure" type="FAILURE">
+<![CDATA[  [Mobile Safari] › content-contract.spec.ts:132:9 › Content Service Contract Validation › Error Response Contract › should return consistent error structure 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "error"
+    Received path: []
+
+    Received value: {"details": "record not found", "message": "Content not found", "status": "error"}
+
+      137 |       const notFoundData = await notFoundResponse.json();
+      138 |       expect(notFoundData).toHaveProperty('status');
+    > 139 |       expect(notFoundData).toHaveProperty('error');
+          |                            ^
+      140 |       expect(notFoundData.status).toBe('error');
+      141 |       expect(notFoundData.error).toContain('not found');
+      142 |     });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:139:28
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Error Response Contract › should return validation error structure" classname="content-contract.spec.ts" time="0.395">
+<failure message="content-contract.spec.ts:144:9 should return validation error structure" type="FAILURE">
+<![CDATA[  [Mobile Safari] › content-contract.spec.ts:144:9 › Content Service Contract Validation › Error Response Contract › should return validation error structure 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "error"
+    Received path: []
+
+    Received value: {"details": "json: cannot unmarshal string into Go struct field CreateContentRequest.value of type models.ContentValue", "message": "Validation failed", "status": "error"}
+
+      155 |
+      156 |       expect(invalidData).toHaveProperty('status');
+    > 157 |       expect(invalidData).toHaveProperty('error');
+          |                           ^
+      158 |       expect(invalidData.status).toBe('error');
+      159 |     });
+      160 |   });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:157:27
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Frontend-Backend Data Contract › should validate that frontend can properly process backend responses" classname="content-contract.spec.ts" time="31.694">
+<failure message="content-contract.spec.ts:163:9 should validate that frontend can properly process backend responses" type="FAILURE">
+<![CDATA[  [Mobile Safari] › content-contract.spec.ts:163:9 › Content Service Contract Validation › Frontend-Backend Data Contract › should validate that frontend can properly process backend responses 
+
+    TimeoutError: page.waitForLoadState: Timeout 30000ms exceeded.
+    =========================== logs ===========================
+      "domcontentloaded" event fired
+    ============================================================
+
+      198 |
+      199 |       await page.goto('http://localhost:3000');
+    > 200 |       await page.waitForLoadState('networkidle');
+          |                  ^
+      201 |
+      202 |       // Should not have forEach errors
+      203 |       const forEachErrors = errors.filter(error => error.includes('forEach is not a function'));
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:200:18
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../test-results/content-contract-Content-S-8c902-y-process-backend-responses-Mobile-Safari/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../test-results/content-contract-Content-S-8c902-y-process-backend-responses-Mobile-Safari/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/content-contract-Content-S-8c902-y-process-backend-responses-Mobile-Safari/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/content-contract-Content-S-8c902-y-process-backend-responses-Mobile-Safari/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Content Service Contract Validation › Frontend-Backend Data Contract › should validate content batch loading contract" classname="content-contract.spec.ts" time="0.426">
+</testcase>
+<testcase name="Content Service Contract Validation › UUID vs String Key Contract › should handle both UUID and string key formats consistently" classname="content-contract.spec.ts" time="0.11">
+<failure message="content-contract.spec.ts:253:9 should handle both UUID and string key formats consistently" type="FAILURE">
+<![CDATA[  [Mobile Safari] › content-contract.spec.ts:253:9 › Content Service Contract Validation › UUID vs String Key Contract › should handle both UUID and string key formats consistently 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "19be419f-99b2-4531-8efe-59dce7aaf185"
+    Received: "33afbdcf-92b4-4663-b1cf-62ef0a9f77e0"
+
+      278 |       const stringData = await stringResponse.json();
+      279 |
+    > 280 |       expect(uuidData.data.id).toBe(stringData.data.id);
+          |                                ^
+      281 |       expect(uuidData.data.category).toBe(stringData.data.category);
+      282 |       expect(uuidData.data.value).toEqual(stringData.data.value);
+      283 |     });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:280:32
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › UUID vs String Key Contract › should validate that invalid UUIDs fall back to string key lookup" classname="content-contract.spec.ts" time="0.426">
+</testcase>
+</testsuite>
+<testsuite name="content-contract.spec.ts" timestamp="2025-09-22T15:52:15.643Z" hostname="Microsoft Edge" tests="9" failures="6" skipped="0" time="2.511" errors="0">
+<testcase name="Content Service Contract Validation › Response Structure Contract › should return correct response structure for content list" classname="content-contract.spec.ts" time="0.387">
+<failure message="content-contract.spec.ts:14:9 should return correct response structure for content list" type="FAILURE">
+<![CDATA[  [Microsoft Edge] › content-contract.spec.ts:14:9 › Content Service Contract Validation › Response Structure Contract › should return correct response structure for content list 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "page"
+    Received path: []
+
+    Received value: {"items": [{"category": "not-a-uuid-but-has-dashes", "created_at": "2025-09-22T22:52:59.339575+07:00", "id": "8d011f99-e6ca-4b76-ab1d-032c4954a148", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:59.339575+07:00", "value": {"text": "This should be accessible by string key"}}, {"category": "uuid.string.test", "created_at": "2025-09-22T22:52:57.515999+07:00", "id": "33afbdcf-92b4-4663-b1cf-62ef0a9f77e0", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:57.515999+07:00", "value": {"text": "Test content for UUID/string compatibility"}}, {"category": "navigation.main.title", "created_at": "2025-09-22T22:52:57.44256+07:00", "id": "0b159de7-3f00-4208-ba04-f887a67249c3", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:57.44256+07:00", "value": {"text": "Content 3"}}, {"category": "auth.signup.title", "created_at": "2025-09-22T22:52:57.427255+07:00", "id": "5ae5c29b-96be-47a0-b13a-6682ec80fc81", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:57.427255+07:00", "value": {"text": "Content 2"}}, {"category": "auth.signin.title", "created_at": "2025-09-22T22:52:57.407567+07:00", "id": "21f916bc-30df-4d2e-8288-02d4b10c951a", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:57.407567+07:00", "value": {"text": "Content 1"}}, {"category": "navigation.menu.items", "created_at": "2025-09-22T22:52:50.032478+07:00", "id": "ee28747b-2a4b-4c65-9965-efe2641673ce", "metadata": null, "status": "published", "type": "json", "updated_at": "2025-09-22T22:52:50.032478+07:00", "value": {"data": [{"label": "Home", "path": "/"}, {"label": "About", "path": "/about"}]}}, {"category": "auth.signin.subtitle", "created_at": "2025-09-22T22:52:50.021488+07:00", "id": "951b3133-4118-488d-b1e2-d4b0fc7bbbcb", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:50.021488+07:00", "value": {"text": "Welcome back to Tchat"}}, {"category": "auth.signin.title", "created_at": "2025-09-22T22:52:49.996347+07:00", "id": "99214bff-2f28-4513-aec5-092d2385be37", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:49.996347+07:00", "value": {"text": "Sign In"}}, {"category": "contract.type.json", "created_at": "2025-09-22T22:52:45.424231+07:00", "id": "4e1e6d3b-4f5e-448e-b398-fe61c0e5f308", "metadata": null, "status": "published", "type": "json", "updated_at": "2025-09-22T22:52:45.424231+07:00", "value": {"data": {"key": "value", "number": 42}}}, {"category": "contract.type.html", "created_at": "2025-09-22T22:52:45.402905+07:00", "id": "7e6c8cd3-599c-46ed-b0bc-c85af44345e4", "metadata": null, "status": "published", "type": "html", "updated_at": "2025-09-22T22:52:45.402905+07:00", "value": {"html": "<p>Sample HTML content</p>"}}, …], "pagination": {"offset": 0, "page": 0, "page_size": 20, "total": 62}, "total": 62}
+
+      39 |         expect(data.data).toHaveProperty('items');
+      40 |         expect(data.data).toHaveProperty('total');
+    > 41 |         expect(data.data).toHaveProperty('page');
+         |                           ^
+      42 |         expect(data.data).toHaveProperty('limit');
+      43 |         expect(Array.isArray(data.data.items)).toBe(true);
+      44 |       }
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:41:27
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Response Structure Contract › should return correct structure for single content item" classname="content-contract.spec.ts" time="0.434">
+<failure message="content-contract.spec.ts:47:9 should return correct structure for single content item" type="FAILURE">
+<![CDATA[  [Microsoft Edge] › content-contract.spec.ts:47:9 › Content Service Contract Validation › Response Structure Contract › should return correct structure for single content item 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 3
+    + Received  + 3
+
+      Object {
+        "category": "contract.test.item",
+    -   "created_at": "2025-09-22T22:52:17.255952+07:00",
+    -   "id": "03a864dc-fa27-4474-9ade-e3de3bb99676",
+    +   "created_at": "2025-09-22T22:53:01.944792+07:00",
+    +   "id": "6b2e03cb-7a1c-431f-8b7c-552d65e0e1be",
+        "metadata": null,
+        "status": "published",
+        "type": "text",
+    -   "updated_at": "2025-09-22T22:52:17.255952+07:00",
+    +   "updated_at": "2025-09-22T22:53:01.944792+07:00",
+        "value": Object {
+          "text": "Contract test content",
+        },
+      }
+
+      88 |
+      89 |       // Both responses should have identical structure
+    > 90 |       expect(getByIdData.data).toEqual(getByKeyData.data);
+         |                                ^
+      91 |     });
+      92 |
+      93 |     test('should validate content value structure by type', async ({ request }) => {
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:90:32
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Response Structure Contract › should validate content value structure by type" classname="content-contract.spec.ts" time="0.428">
+</testcase>
+<testcase name="Content Service Contract Validation › Error Response Contract › should return consistent error structure" classname="content-contract.spec.ts" time="0.369">
+<failure message="content-contract.spec.ts:132:9 should return consistent error structure" type="FAILURE">
+<![CDATA[  [Microsoft Edge] › content-contract.spec.ts:132:9 › Content Service Contract Validation › Error Response Contract › should return consistent error structure 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "error"
+    Received path: []
+
+    Received value: {"details": "record not found", "message": "Content not found", "status": "error"}
+
+      137 |       const notFoundData = await notFoundResponse.json();
+      138 |       expect(notFoundData).toHaveProperty('status');
+    > 139 |       expect(notFoundData).toHaveProperty('error');
+          |                            ^
+      140 |       expect(notFoundData.status).toBe('error');
+      141 |       expect(notFoundData.error).toContain('not found');
+      142 |     });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:139:28
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Error Response Contract › should return validation error structure" classname="content-contract.spec.ts" time="0.022">
+<failure message="content-contract.spec.ts:144:9 should return validation error structure" type="FAILURE">
+<![CDATA[  [Microsoft Edge] › content-contract.spec.ts:144:9 › Content Service Contract Validation › Error Response Contract › should return validation error structure 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "error"
+    Received path: []
+
+    Received value: {"details": "json: cannot unmarshal string into Go struct field CreateContentRequest.value of type models.ContentValue", "message": "Validation failed", "status": "error"}
+
+      155 |
+      156 |       expect(invalidData).toHaveProperty('status');
+    > 157 |       expect(invalidData).toHaveProperty('error');
+          |                           ^
+      158 |       expect(invalidData.status).toBe('error');
+      159 |     });
+      160 |   });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:157:27
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Frontend-Backend Data Contract › should validate that frontend can properly process backend responses" classname="content-contract.spec.ts" time="0.006">
+<failure message="content-contract.spec.ts:163:9 should validate that frontend can properly process backend responses" type="FAILURE">
+<![CDATA[  [Microsoft Edge] › content-contract.spec.ts:163:9 › Content Service Contract Validation › Frontend-Backend Data Contract › should validate that frontend can properly process backend responses 
+
+    Error: browserType.launch: Chromium distribution 'msedge' is not found at /Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge
+    Run "npx playwright install msedge"
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Frontend-Backend Data Contract › should validate content batch loading contract" classname="content-contract.spec.ts" time="0.412">
+</testcase>
+<testcase name="Content Service Contract Validation › UUID vs String Key Contract › should handle both UUID and string key formats consistently" classname="content-contract.spec.ts" time="0.429">
+<failure message="content-contract.spec.ts:253:9 should handle both UUID and string key formats consistently" type="FAILURE">
+<![CDATA[  [Microsoft Edge] › content-contract.spec.ts:253:9 › Content Service Contract Validation › UUID vs String Key Contract › should handle both UUID and string key formats consistently 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "19be419f-99b2-4531-8efe-59dce7aaf185"
+    Received: "b6e5705e-62e0-453c-bb88-fd1d991a3405"
+
+      278 |       const stringData = await stringResponse.json();
+      279 |
+    > 280 |       expect(uuidData.data.id).toBe(stringData.data.id);
+          |                                ^
+      281 |       expect(uuidData.data.category).toBe(stringData.data.category);
+      282 |       expect(uuidData.data.value).toEqual(stringData.data.value);
+      283 |     });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:280:32
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › UUID vs String Key Contract › should validate that invalid UUIDs fall back to string key lookup" classname="content-contract.spec.ts" time="0.024">
+</testcase>
+</testsuite>
+<testsuite name="content-contract.spec.ts" timestamp="2025-09-22T15:52:15.643Z" hostname="Google Chrome" tests="9" failures="6" skipped="0" time="35.892" errors="0">
+<testcase name="Content Service Contract Validation › Response Structure Contract › should return correct response structure for content list" classname="content-contract.spec.ts" time="0.38">
+<failure message="content-contract.spec.ts:14:9 should return correct response structure for content list" type="FAILURE">
+<![CDATA[  [Google Chrome] › content-contract.spec.ts:14:9 › Content Service Contract Validation › Response Structure Contract › should return correct response structure for content list 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "page"
+    Received path: []
+
+    Received value: {"items": [{"category": "uuid.string.test", "created_at": "2025-09-22T22:53:05.248788+07:00", "id": "b6e5705e-62e0-453c-bb88-fd1d991a3405", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:53:05.248788+07:00", "value": {"text": "Test content for UUID/string compatibility"}}, {"category": "not-a-uuid-but-has-dashes", "created_at": "2025-09-22T22:53:05.203755+07:00", "id": "820d84a0-eca4-4855-99fc-61456ffac897", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:53:05.203755+07:00", "value": {"text": "This should be accessible by string key"}}, {"category": "navigation.main.title", "created_at": "2025-09-22T22:53:05.124689+07:00", "id": "c60a5eb1-bce7-4638-901b-0f919794512b", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:53:05.124689+07:00", "value": {"text": "Content 3"}}, {"category": "auth.signup.title", "created_at": "2025-09-22T22:53:05.112171+07:00", "id": "946f80f4-ce84-4e0b-bd53-f3bfad168666", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:53:05.112171+07:00", "value": {"text": "Content 2"}}, {"category": "auth.signin.title", "created_at": "2025-09-22T22:53:05.095035+07:00", "id": "639df3a4-7e62-40ee-9dc7-08dbdd689aff", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:53:05.095035+07:00", "value": {"text": "Content 1"}}, {"category": "contract.type.json", "created_at": "2025-09-22T22:53:02.724965+07:00", "id": "e49f7744-db57-4a79-af84-d7977c6ee046", "metadata": null, "status": "published", "type": "json", "updated_at": "2025-09-22T22:53:02.724965+07:00", "value": {"data": {"key": "value", "number": 42}}}, {"category": "contract.type.html", "created_at": "2025-09-22T22:53:02.695049+07:00", "id": "b3f7ecde-7cab-4af6-b687-73b3b63e894e", "metadata": null, "status": "published", "type": "html", "updated_at": "2025-09-22T22:53:02.695049+07:00", "value": {"html": "<p>Sample HTML content</p>"}}, {"category": "contract.type.text", "created_at": "2025-09-22T22:53:02.666184+07:00", "id": "0202a8a2-80be-4115-a610-c3dce642f24b", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:53:02.666184+07:00", "value": {"text": "Sample text content"}}, {"category": "contract.test.item", "created_at": "2025-09-22T22:53:01.944792+07:00", "id": "6b2e03cb-7a1c-431f-8b7c-552d65e0e1be", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:53:01.944792+07:00", "value": {"text": "Contract test content"}}, {"category": "not-a-uuid-but-has-dashes", "created_at": "2025-09-22T22:52:59.339575+07:00", "id": "8d011f99-e6ca-4b76-ab1d-032c4954a148", "metadata": null, "status": "published", "type": "text", "updated_at": "2025-09-22T22:52:59.339575+07:00", "value": {"text": "This should be accessible by string key"}}, …], "pagination": {"offset": 0, "page": 0, "page_size": 20, "total": 71}, "total": 71}
+
+      39 |         expect(data.data).toHaveProperty('items');
+      40 |         expect(data.data).toHaveProperty('total');
+    > 41 |         expect(data.data).toHaveProperty('page');
+         |                           ^
+      42 |         expect(data.data).toHaveProperty('limit');
+      43 |         expect(Array.isArray(data.data.items)).toBe(true);
+      44 |       }
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:41:27
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Response Structure Contract › should return correct structure for single content item" classname="content-contract.spec.ts" time="0.434">
+<failure message="content-contract.spec.ts:47:9 should return correct structure for single content item" type="FAILURE">
+<![CDATA[  [Google Chrome] › content-contract.spec.ts:47:9 › Content Service Contract Validation › Response Structure Contract › should return correct structure for single content item 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 3
+    + Received  + 3
+
+      Object {
+        "category": "contract.test.item",
+    -   "created_at": "2025-09-22T22:52:17.255952+07:00",
+    -   "id": "03a864dc-fa27-4474-9ade-e3de3bb99676",
+    +   "created_at": "2025-09-22T22:53:06.782447+07:00",
+    +   "id": "9db1ad6d-256e-45e4-b657-a5e193627c3a",
+        "metadata": null,
+        "status": "published",
+        "type": "text",
+    -   "updated_at": "2025-09-22T22:52:17.255952+07:00",
+    +   "updated_at": "2025-09-22T22:53:06.782447+07:00",
+        "value": Object {
+          "text": "Contract test content",
+        },
+      }
+
+      88 |
+      89 |       // Both responses should have identical structure
+    > 90 |       expect(getByIdData.data).toEqual(getByKeyData.data);
+         |                                ^
+      91 |     });
+      92 |
+      93 |     test('should validate content value structure by type', async ({ request }) => {
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:90:32
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Response Structure Contract › should validate content value structure by type" classname="content-contract.spec.ts" time="0.472">
+</testcase>
+<testcase name="Content Service Contract Validation › Error Response Contract › should return consistent error structure" classname="content-contract.spec.ts" time="0.362">
+<failure message="content-contract.spec.ts:132:9 should return consistent error structure" type="FAILURE">
+<![CDATA[  [Google Chrome] › content-contract.spec.ts:132:9 › Content Service Contract Validation › Error Response Contract › should return consistent error structure 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "error"
+    Received path: []
+
+    Received value: {"details": "record not found", "message": "Content not found", "status": "error"}
+
+      137 |       const notFoundData = await notFoundResponse.json();
+      138 |       expect(notFoundData).toHaveProperty('status');
+    > 139 |       expect(notFoundData).toHaveProperty('error');
+          |                            ^
+      140 |       expect(notFoundData.status).toBe('error');
+      141 |       expect(notFoundData.error).toContain('not found');
+      142 |     });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:139:28
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Error Response Contract › should return validation error structure" classname="content-contract.spec.ts" time="0.019">
+<failure message="content-contract.spec.ts:144:9 should return validation error structure" type="FAILURE">
+<![CDATA[  [Google Chrome] › content-contract.spec.ts:144:9 › Content Service Contract Validation › Error Response Contract › should return validation error structure 
+
+    Error: expect(received).toHaveProperty(path)
+
+    Expected path: "error"
+    Received path: []
+
+    Received value: {"details": "json: cannot unmarshal string into Go struct field CreateContentRequest.value of type models.ContentValue", "message": "Validation failed", "status": "error"}
+
+      155 |
+      156 |       expect(invalidData).toHaveProperty('status');
+    > 157 |       expect(invalidData).toHaveProperty('error');
+          |                           ^
+      158 |       expect(invalidData.status).toBe('error');
+      159 |     });
+      160 |   });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:157:27
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › Frontend-Backend Data Contract › should validate that frontend can properly process backend responses" classname="content-contract.spec.ts" time="33.278">
+<failure message="content-contract.spec.ts:163:9 should validate that frontend can properly process backend responses" type="FAILURE">
+<![CDATA[  [Google Chrome] › content-contract.spec.ts:163:9 › Content Service Contract Validation › Frontend-Backend Data Contract › should validate that frontend can properly process backend responses 
+
+    TimeoutError: page.waitForLoadState: Timeout 30000ms exceeded.
+
+      198 |
+      199 |       await page.goto('http://localhost:3000');
+    > 200 |       await page.waitForLoadState('networkidle');
+          |                  ^
+      201 |
+      202 |       // Should not have forEach errors
+      203 |       const forEachErrors = errors.filter(error => error.includes('forEach is not a function'));
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:200:18
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../test-results/content-contract-Content-S-8c902-y-process-backend-responses-Google-Chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../test-results/content-contract-Content-S-8c902-y-process-backend-responses-Google-Chrome/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/content-contract-Content-S-8c902-y-process-backend-responses-Google-Chrome/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/content-contract-Content-S-8c902-y-process-backend-responses-Google-Chrome/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Content Service Contract Validation › Frontend-Backend Data Contract › should validate content batch loading contract" classname="content-contract.spec.ts" time="0.488">
+</testcase>
+<testcase name="Content Service Contract Validation › UUID vs String Key Contract › should handle both UUID and string key formats consistently" classname="content-contract.spec.ts" time="0.065">
+<failure message="content-contract.spec.ts:253:9 should handle both UUID and string key formats consistently" type="FAILURE">
+<![CDATA[  [Google Chrome] › content-contract.spec.ts:253:9 › Content Service Contract Validation › UUID vs String Key Contract › should handle both UUID and string key formats consistently 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "19be419f-99b2-4531-8efe-59dce7aaf185"
+    Received: "dbd5cd7a-4af2-46a7-bb56-d6b01707e239"
+
+      278 |       const stringData = await stringResponse.json();
+      279 |
+    > 280 |       expect(uuidData.data.id).toBe(stringData.data.id);
+          |                                ^
+      281 |       expect(uuidData.data.category).toBe(stringData.data.category);
+      282 |       expect(uuidData.data.value).toEqual(stringData.data.value);
+      283 |     });
+        at /Users/weerawat/Tchat/apps/web/tests/e2e/content-contract.spec.ts:280:32
+]]>
+</failure>
+</testcase>
+<testcase name="Content Service Contract Validation › UUID vs String Key Contract › should validate that invalid UUIDs fall back to string key lookup" classname="content-contract.spec.ts" time="0.394">
+</testcase>
+</testsuite>
+</testsuites>

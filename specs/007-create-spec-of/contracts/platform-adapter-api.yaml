@@ -1,0 +1,249 @@
+openapi: 3.0.3
+info:
+  title: Platform Adapter API
+  description: Platform-specific feature integration and capabilities
+  version: 1.0.0
+
+servers:
+  - url: https://api.tchat.app/v1
+    description: Production server
+  - url: https://staging-api.tchat.app/v1
+    description: Staging server
+
+paths:
+  /platform/capabilities:
+    get:
+      summary: Get platform capabilities
+      description: Retrieve available capabilities for a specific platform
+      parameters:
+        - name: platform
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [ios, android]
+        - name: version
+          in: query
+          required: true
+          schema:
+            type: string
+            example: "iOS 15.0"
+      responses:
+        '200':
+          description: Platform capabilities retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformCapabilities'
+        '400':
+          description: Invalid platform or version
+
+  /platform/gestures/handle:
+    post:
+      summary: Handle platform gesture
+      description: Process and respond to platform-specific gestures
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GestureEvent'
+      responses:
+        '200':
+          description: Gesture handled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GestureResponse'
+        '400':
+          description: Invalid gesture data
+        '422':
+          description: Gesture not supported on platform
+
+  /platform/animations/execute:
+    post:
+      summary: Execute platform animation
+      description: Trigger platform-appropriate animations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnimationRequest'
+      responses:
+        '200':
+          description: Animation executed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnimationResponse'
+        '400':
+          description: Invalid animation request
+        '422':
+          description: Animation not supported on platform
+
+components:
+  schemas:
+    PlatformCapabilities:
+      type: object
+      properties:
+        platform:
+          type: string
+          enum: [ios, android]
+        version:
+          type: string
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlatformCapability'
+        limitations:
+          type: array
+          items:
+            type: string
+        supportedGestures:
+          type: array
+          items:
+            type: string
+          example: ["tap", "swipe", "longPress", "pan", "pinch"]
+        supportedAnimations:
+          type: array
+          items:
+            type: string
+          example: ["fade", "slide", "scale", "spring"]
+
+    PlatformCapability:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "hapticFeedback"
+        available:
+          type: boolean
+        description:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+        limitations:
+          type: array
+          items:
+            type: string
+
+    GestureEvent:
+      type: object
+      required:
+        - gestureType
+        - direction
+        - position
+        - platform
+        - componentId
+        - timestamp
+        - sessionId
+      properties:
+        gestureType:
+          type: string
+          enum: [tap, swipe, longPress, pan, pinch, rotate]
+        direction:
+          type: string
+          enum: [up, down, left, right, none]
+        velocity:
+          type: number
+          example: 1.5
+        position:
+          $ref: '#/components/schemas/GesturePosition'
+        platform:
+          type: string
+          enum: [ios, android]
+        componentId:
+          type: string
+          example: "ChatRoomHeader"
+        metadata:
+          type: object
+          additionalProperties: true
+        timestamp:
+          type: string
+          format: date-time
+        sessionId:
+          type: string
+
+    GesturePosition:
+      type: object
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+        width:
+          type: number
+        height:
+          type: number
+
+    GestureResponse:
+      type: object
+      properties:
+        handled:
+          type: boolean
+        action:
+          type: string
+          example: "navigate_back"
+        gestureType:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        preventDefaultBehavior:
+          type: boolean
+          default: false
+
+    AnimationRequest:
+      type: object
+      required:
+        - animationType
+        - duration
+        - platform
+        - componentId
+        - timestamp
+        - sessionId
+      properties:
+        animationType:
+          type: string
+          enum: [fade, slide, scale, spring, bounce, shake]
+        duration:
+          type: number
+          example: 0.3
+        easing:
+          type: string
+          enum: [linear, easeIn, easeOut, easeInOut, spring]
+          default: easeInOut
+        properties:
+          type: object
+          additionalProperties: true
+          example:
+            opacity: [0, 1]
+            transform: ["translateX(-100%)", "translateX(0)"]
+        platform:
+          type: string
+          enum: [ios, android]
+        componentId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        sessionId:
+          type: string
+
+    AnimationResponse:
+      type: object
+      properties:
+        started:
+          type: boolean
+        animationType:
+          type: string
+        duration:
+          type: number
+        animationId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time

@@ -1,0 +1,468 @@
+package com.tchat.services
+
+import android.content.Context
+import android.content.pm.PackageManager
+import android.hardware.biometrics.BiometricManager
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.view.animation.AnimationUtils
+import com.tchat.models.*
+import kotlinx.coroutines.flow.*
+import java.util.*
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Platform adapter implementation for Android-specific functionality
+ */
+@Singleton
+class PlatformAdapterImpl @Inject constructor(
+    private val context: Context,
+    private val gestureHandler: GestureHandler,
+    private val animationEngine: AnimationEngine,
+    private val capabilityDetector: CapabilityDetector,
+    private val uiConventionsProvider: UIConventionsProvider
+) {
+
+    private val _platformAdapter = MutableStateFlow(PlatformAdapter.defaultAndroidAdapter())
+    val platformAdapter: StateFlow<PlatformAdapter> = _platformAdapter.asStateFlow()
+
+    private val _gestureResponses = MutableStateFlow<List<GestureHandlingResponse>>(emptyList())
+    val gestureResponses: StateFlow<List<GestureHandlingResponse>> = _gestureResponses.asStateFlow()
+
+    private val _animationExecutions = MutableStateFlow<List<AnimationExecutionResponse>>(emptyList())
+    val animationExecutions: StateFlow<List<AnimationExecutionResponse>> = _animationExecutions.asStateFlow()
+
+    init {
+        updatePlatformCapabilities()
+    }
+
+    /**
+     * Get platform capabilities
+     */
+    fun getPlatformCapabilities(): PlatformCapabilitiesResponse {
+        val adapter = _platformAdapter.value
+        return PlatformCapabilitiesResponse(
+            platform = adapter.platform,
+            version = adapter.version,
+            capabilities = adapter.capabilities,
+            limitations = getPlatformLimitations()
+        )
+    }
+
+    /**
+     * Check if platform supports capability
+     */
+    fun supportsCapability(capabilityName: String): Boolean {
+        return _platformAdapter.value.supportsCapability(capabilityName)
+    }
+
+    /**
+     * Get capability restrictions
+     */
+    fun getCapabilityRestrictions(capabilityName: String): List<String> {
+        return _platformAdapter.value.getCapabilityRestrictions(capabilityName)
+    }
+
+    /**
+     * Handle gesture input
+     */
+    suspend fun handleGesture(request: GestureHandlingRequest): GestureHandlingResponse {
+        // Validate gesture support
+        if (!_platformAdapter.value.supportsGesture(request.gestureType)) {
+            throw PlatformAdapterError.GestureNotSupported(request.gestureType)
+        }
+
+        // Process gesture
+        val response = gestureHandler.handleGesture(request)
+
+        // Store response
+        _gestureResponses.value = _gestureResponses.value + response
+
+        // Trigger haptic feedback if supported
+        if (_platformAdapter.value.supportsCapability("hapticFeedback")) {
+            triggerHapticFeedback(request.gestureType)
+        }
+
+        return response
+    }
+
+    /**
+     * Get supported gestures
+     */
+    fun getSupportedGestures(): List<GestureDefinition> {
+        return _platformAdapter.value.gestureSupport.supportedGestures
+    }
+
+    /**
+     * Execute animation
+     */
+    suspend fun executeAnimation(request: AnimationExecutionRequest): AnimationExecutionResponse {
+        // Validate animation support
+        if (!_platformAdapter.value.supportsAnimation(request.animationType)) {
+            throw PlatformAdapterError.AnimationNotSupported(request.animationType)
+        }
+
+        // Execute animation
+        val response = animationEngine.executeAnimation(request)
+
+        // Store response
+        _animationExecutions.value = _animationExecutions.value + response
+
+        return response
+    }
+
+    /**
+     * Get supported animations
+     */
+    fun getSupportedAnimations(): List<AnimationDefinition> {
+        return _platformAdapter.value.animationSupport.supportedAnimations
+    }
+
+    /**
+     * Get UI conventions for platform
+     */
+    fun getUIConventions(): UIConventionsResponse {
+        val adapter = _platformAdapter.value
+        return UIConventionsResponse(
+            platform = adapter.platform,
+            designSystem = adapter.uiConventions.designSystem,
+            navigationPatterns = adapter.uiConventions.navigationPatterns,
+            gestureConventions = getGestureConventions(),
+            animationSpecs = getAnimationSpecs(),
+            accessibilityGuidelines = adapter.uiConventions.accessibilityGuidelines
+        )
+    }
+
+    /**
+     * Get design system
+     */
+    fun getDesignSystem(): DesignSystem {
+        return _platformAdapter.value.uiConventions.designSystem
+    }
+
+    /**
+     * Get device metadata
+     */
+    fun getDeviceMetadata(): Map<String, Any> {
+        return mapOf(
+            "model" to Build.MODEL,
+            "manufacturer" to Build.MANUFACTURER,
+            "androidVersion" to Build.VERSION.RELEASE,
+            "apiLevel" to Build.VERSION.SDK_INT,
+            "screenDensity" to context.resources.displayMetrics.density,
+            "screenWidth" to context.resources.displayMetrics.widthPixels,
+            "screenHeight" to context.resources.displayMetrics.heightPixels,
+            "isTablet" to isTablet()
+        )
+    }
+
+    /**
+     * Check if device has specific hardware feature
+     */
+    fun hasHardwareFeature(feature: String): Boolean {
+        return when (feature) {
+            "biometric" -> capabilityDetector.hasBiometric()
+            "fingerprint" -> capabilityDetector.hasFingerprint()
+            "hapticFeedback" -> capabilityDetector.hasHapticFeedback()
+            "camera" -> capabilityDetector.hasCamera()
+            "microphone" -> capabilityDetector.hasMicrophone()
+            "nfc" -> capabilityDetector.hasNFC()
+            "bluetooth" -> capabilityDetector.hasBluetooth()
+            else -> false
+        }
+    }
+
+    // MARK: - Private Methods
+
+    private fun updatePlatformCapabilities() {
+        // Refresh capabilities based on current device state
+        _platformAdapter.value = PlatformAdapter.defaultAndroidAdapter()
+    }
+
+    private fun getPlatformLimitations(): List<String> {
+        val limitations = mutableListOf<String>()
+
+        // Check Android version limitations
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            limitations.add("Notification channels not supported")
+            limitations.add("Adaptive icons not supported")
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            limitations.add("Dark mode not supported")
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            limitations.add("Runtime permissions not available")
+        }
+
+        // Check device limitations
+        if (isTablet()) {
+            limitations.add("Phone-specific features not available")
+        }
+
+        return limitations
+    }
+
+    private fun getGestureConventions(): Map<String, Any> {
+        return mapOf(
+            "swipeToGoBack" to "enabled",
+            "pullToRefresh" to "enabled",
+            "longPressContextMenu" to "enabled",
+            "doubleTapToZoom" to "enabled",
+            "pinchToZoom" to "enabled",
+            "edgeSwipe" to "enabled"
+        )
+    }
+
+    private fun getAnimationSpecs(): Map<String, Any> {
+        return mapOf(
+            "fastOutSlowIn" to "enabled",
+            "linearOutSlowIn" to "enabled",
+            "fastOutLinearIn" to "enabled",
+            "defaultDuration" to 300,
+            "reducedMotionRespected" to true,
+            "materialMotion" to "enabled"
+        )
+    }
+
+    private fun triggerHapticFeedback(gestureType: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            val effect = VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE)
+            vibrator.vibrate(effect)
+        }
+    }
+
+    private fun isTablet(): Boolean {
+        val screenLayout = context.resources.configuration.screenLayout
+        return (screenLayout and android.content.res.Configuration.SCREENLAYOUT_SIZE_MASK) >=
+               android.content.res.Configuration.SCREENLAYOUT_SIZE_LARGE
+    }
+}
+
+// MARK: - Supporting Services
+
+/**
+ * Gesture handler for Android gestures
+ */
+@Singleton
+class GestureHandler @Inject constructor() {
+
+    suspend fun handleGesture(request: GestureHandlingRequest): GestureHandlingResponse {
+        val action = when (request.gestureType) {
+            "tap" -> "select"
+            "doubleTap" -> "activate"
+            "longPress" -> "context_menu"
+            "swipe" -> "navigate_${request.direction}"
+            "pan" -> "drag"
+            "pinch" -> "zoom"
+            "rotation" -> "rotate"
+            "fling" -> "fast_scroll"
+            else -> throw PlatformAdapterError.GestureNotSupported(request.gestureType)
+        }
+
+        return GestureHandlingResponse(
+            handled = true,
+            action = action,
+            gestureType = request.gestureType,
+            timestamp = System.currentTimeMillis(),
+            preventDefaultBehavior = true
+        )
+    }
+}
+
+/**
+ * Animation engine for Android animations
+ */
+@Singleton
+class AnimationEngine @Inject constructor(
+    private val context: Context
+) {
+
+    suspend fun executeAnimation(request: AnimationExecutionRequest): AnimationExecutionResponse {
+        val animationId = UUID.randomUUID().toString()
+
+        // Execute platform-specific animation
+        when (request.animationType) {
+            "fade" -> {
+                // TODO: Implement fade animation
+            }
+            "slide" -> {
+                // TODO: Implement slide animation
+            }
+            "scale" -> {
+                // TODO: Implement scale animation
+            }
+            "rotate" -> {
+                // TODO: Implement rotation animation
+            }
+            "translate" -> {
+                // TODO: Implement translation animation
+            }
+            "morphing" -> {
+                // TODO: Implement morphing animation
+            }
+            "ripple" -> {
+                // TODO: Implement ripple animation
+            }
+            else -> throw PlatformAdapterError.AnimationNotSupported(request.animationType)
+        }
+
+        return AnimationExecutionResponse(
+            started = true,
+            animationType = request.animationType,
+            duration = request.duration,
+            animationId = animationId,
+            timestamp = System.currentTimeMillis()
+        )
+    }
+}
+
+/**
+ * Capability detector for Android features
+ */
+@Singleton
+class CapabilityDetector @Inject constructor(
+    private val context: Context
+) {
+
+    fun hasBiometric(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val biometricManager = BiometricManager.from(context)
+            biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
+        } else {
+            false
+        }
+    }
+
+    fun hasFingerprint(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            context.packageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT)
+        } else {
+            false
+        }
+    }
+
+    fun hasHapticFeedback(): Boolean {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+    }
+
+    fun hasCamera(): Boolean {
+        return context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
+    }
+
+    fun hasMicrophone(): Boolean {
+        return context.packageManager.hasSystemFeature(PackageManager.FEATURE_MICROPHONE)
+    }
+
+    fun hasNFC(): Boolean {
+        return context.packageManager.hasSystemFeature(PackageManager.FEATURE_NFC)
+    }
+
+    fun hasBluetooth(): Boolean {
+        return context.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH)
+    }
+}
+
+/**
+ * UI conventions provider for Android
+ */
+@Singleton
+class UIConventionsProvider @Inject constructor() {
+
+    fun getNavigationPatterns(): Map<String, String> {
+        return mapOf(
+            "navigationDrawer" to "left",
+            "bottomNavigation" to "material",
+            "appBar" to "top",
+            "fab" to "bottom_right"
+        )
+    }
+
+    fun getAccessibilityGuidelines(): Map<String, String> {
+        return mapOf(
+            "talkBack" to "full_support",
+            "largeText" to "supported",
+            "highContrast" to "supported",
+            "colorCorrection" to "supported"
+        )
+    }
+}
+
+// MARK: - Supporting Types
+
+data class PlatformCapabilitiesResponse(
+    val platform: String,
+    val version: String,
+    val capabilities: List<PlatformCapability>,
+    val limitations: List<String>
+)
+
+data class GestureHandlingRequest(
+    val gestureType: String,
+    val direction: String,
+    val velocity: Double,
+    val position: GesturePosition,
+    val platform: String,
+    val componentId: String,
+    val metadata: Map<String, Any>
+)
+
+data class GesturePosition(
+    val x: Double,
+    val y: Double
+)
+
+data class GestureHandlingResponse(
+    val handled: Boolean,
+    val action: String?,
+    val gestureType: String,
+    val timestamp: Long,
+    val preventDefaultBehavior: Boolean
+)
+
+data class UIConventionsResponse(
+    val platform: String,
+    val designSystem: DesignSystem,
+    val navigationPatterns: Map<String, String>,
+    val gestureConventions: Map<String, Any>,
+    val animationSpecs: Map<String, Any>,
+    val accessibilityGuidelines: Map<String, String>
+)
+
+data class AnimationExecutionRequest(
+    val animationType: String,
+    val duration: Double,
+    val easing: String,
+    val properties: Map<String, Any>,
+    val platform: String,
+    val componentId: String
+)
+
+data class AnimationExecutionResponse(
+    val started: Boolean,
+    val animationType: String,
+    val duration: Double,
+    val animationId: String,
+    val timestamp: Long
+)
+
+// MARK: - Error Types
+
+sealed class PlatformAdapterError : Exception() {
+    class GestureNotSupported(val gesture: String) : PlatformAdapterError()
+    class AnimationNotSupported(val animation: String) : PlatformAdapterError()
+    class CapabilityNotAvailable(val capability: String) : PlatformAdapterError()
+    class UnsupportedPlatformVersion(val version: String) : PlatformAdapterError()
+
+    override val message: String?
+        get() = when (this) {
+            is GestureNotSupported -> "Gesture not supported: $gesture"
+            is AnimationNotSupported -> "Animation not supported: $animation"
+            is CapabilityNotAvailable -> "Capability not available: $capability"
+            is UnsupportedPlatformVersion -> "Unsupported platform version: $version"
+        }
+}

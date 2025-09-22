@@ -1,0 +1,936 @@
+package services
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+
+	"tchat-backend/payment/models"
+	"tchat-backend/payment/repositories"
+	"tchat-backend/shared/events"
+)
+
+type PaymentGatewayService struct {
+	paymentRepo    repositories.PaymentRepository
+	walletRepo     repositories.WalletRepository
+	eventPublisher events.EventPublisher
+	db             *gorm.DB
+	gateways       map[string]PaymentGateway
+}
+
+// PaymentGateway interface for different payment providers
+type PaymentGateway interface {
+	ProcessPayment(ctx context.Context, request *PaymentRequest) (*PaymentResponse, error)
+	RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error)
+	GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error)
+	ValidateWebhook(payload []byte, signature string) error
+}
+
+// Payment request/response structures
+type PaymentRequest struct {
+	Amount      float64                `json:"amount"`
+	Currency    string                 `json:"currency"`
+	PaymentID   string                 `json:"payment_id"`
+	UserID      uuid.UUID              `json:"user_id"`
+	Description string                 `json:"description"`
+	ReturnURL   string                 `json:"return_url"`
+	Metadata    map[string]interface{} `json:"metadata"`
+}
+
+type PaymentResponse struct {
+	TransactionID string                 `json:"transaction_id"`
+	Status        string                 `json:"status"`
+	RedirectURL   string                 `json:"redirect_url,omitempty"`
+	Metadata      map[string]interface{} `json:"metadata,omitempty"`
+}
+
+type RefundResponse struct {
+	RefundID string `json:"refund_id"`
+	Status   string `json:"status"`
+	Amount   float64 `json:"amount"`
+}
+
+type PaymentStatusResponse struct {
+	Status    string    `json:"status"`
+	Amount    float64   `json:"amount"`
+	Currency  string    `json:"currency"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// Service request structures
+type CreatePaymentRequest struct {
+	WalletID    uuid.UUID `json:"wallet_id" validate:"required"`
+	Amount      float64   `json:"amount" validate:"required,gt=0"`
+	Currency    string    `json:"currency" validate:"required,len=3"`
+	Gateway     string    `json:"gateway" validate:"required"`
+	Method      string    `json:"method" validate:"required"`
+	Description string    `json:"description" validate:"max=500"`
+	ReturnURL   string    `json:"return_url" validate:"url"`
+	Metadata    map[string]interface{} `json:"metadata"`
+}
+
+type ProcessRefundRequest struct {
+	PaymentID uuid.UUID `json:"payment_id" validate:"required"`
+	Amount    float64   `json:"amount" validate:"required,gt=0"`
+	Reason    string    `json:"reason" validate:"required,max=500"`
+}
+
+type UpdatePaymentStatusRequest struct {
+	PaymentID     uuid.UUID `json:"payment_id" validate:"required"`
+	Status        string    `json:"status" validate:"required"`
+	GatewayTxnID  string    `json:"gateway_txn_id,omitempty"`
+	FailureReason string    `json:"failure_reason,omitempty"`
+	ProcessedAt   *time.Time `json:"processed_at,omitempty"`
+}
+
+type HandleWebhookRequest struct {
+	Gateway   string            `json:"gateway" validate:"required"`
+	Payload   []byte            `json:"payload" validate:"required"`
+	Signature string            `json:"signature" validate:"required"`
+	Headers   map[string]string `json:"headers"`
+}
+
+func NewPaymentGatewayService(
+	paymentRepo repositories.PaymentRepository,
+	walletRepo repositories.WalletRepository,
+	eventPublisher events.EventPublisher,
+	db *gorm.DB,
+) *PaymentGatewayService {
+	service := &PaymentGatewayService{
+		paymentRepo:    paymentRepo,
+		walletRepo:     walletRepo,
+		eventPublisher: eventPublisher,
+		db:             db,
+		gateways:       make(map[string]PaymentGateway),
+	}
+
+	// Register Southeast Asian payment gateways
+	service.registerGateways()
+
+	return service
+}
+
+// CreatePayment initiates a new payment through a gateway
+func (pgs *PaymentGatewayService) CreatePayment(ctx context.Context, req *CreatePaymentRequest) (*models.Payment, error) {
+	// Validate request
+	if err := pgs.validateCreatePaymentRequest(req); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
+
+	// Verify wallet exists and is active
+	wallet, err := pgs.walletRepo.GetByID(ctx, req.WalletID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get wallet: %w", err)
+	}
+
+	if wallet.Status != models.WalletStatusActive {
+		return nil, fmt.Errorf("wallet is not active: %s", wallet.Status)
+	}
+
+	// Validate gateway
+	gateway, exists := pgs.gateways[req.Gateway]
+	if !exists {
+		return nil, fmt.Errorf("unsupported payment gateway: %s", req.Gateway)
+	}
+
+	// Create payment record
+	payment := &models.Payment{
+		ID:          uuid.New(),
+		WalletID:    req.WalletID,
+		Amount:      req.Amount,
+		Currency:    req.Currency,
+		Gateway:     req.Gateway,
+		Method:      req.Method,
+		Status:      models.PaymentStatusPending,
+		Description: req.Description,
+		ReturnURL:   req.ReturnURL,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	// Add metadata
+	if req.Metadata != nil {
+		metadataBytes, _ := json.Marshal(req.Metadata)
+		payment.Metadata = metadataBytes
+	}
+
+	// Save payment record
+	if err := pgs.paymentRepo.Create(ctx, payment); err != nil {
+		return nil, fmt.Errorf("failed to create payment: %w", err)
+	}
+
+	// Process payment through gateway
+	paymentRequest := &PaymentRequest{
+		Amount:      req.Amount,
+		Currency:    req.Currency,
+		PaymentID:   payment.ID.String(),
+		UserID:      wallet.UserID,
+		Description: req.Description,
+		ReturnURL:   req.ReturnURL,
+		Metadata:    req.Metadata,
+	}
+
+	gatewayResponse, err := gateway.ProcessPayment(ctx, paymentRequest)
+	if err != nil {
+		// Update payment status to failed
+		payment.Status = models.PaymentStatusFailed
+		payment.FailureReason = err.Error()
+		pgs.paymentRepo.Update(ctx, payment)
+		return nil, fmt.Errorf("gateway processing failed: %w", err)
+	}
+
+	// Update payment with gateway response
+	payment.GatewayTxnID = gatewayResponse.TransactionID
+	payment.Status = models.PaymentStatus(gatewayResponse.Status)
+	payment.UpdatedAt = time.Now()
+
+	// Add gateway metadata
+	if gatewayResponse.Metadata != nil {
+		gatewayMetadata, _ := json.Marshal(gatewayResponse.Metadata)
+		payment.GatewayMetadata = gatewayMetadata
+	}
+
+	if err := pgs.paymentRepo.Update(ctx, payment); err != nil {
+		return nil, fmt.Errorf("failed to update payment: %w", err)
+	}
+
+	// Publish event
+	pgs.publishPaymentCreatedEvent(ctx, payment)
+
+	return payment, nil
+}
+
+// ProcessRefund handles payment refunds
+func (pgs *PaymentGatewayService) ProcessRefund(ctx context.Context, req *ProcessRefundRequest) (*models.Payment, error) {
+	// Validate request
+	if err := pgs.validateProcessRefundRequest(req); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
+
+	// Get payment record
+	payment, err := pgs.paymentRepo.GetByID(ctx, req.PaymentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get payment: %w", err)
+	}
+
+	// Validate refund eligibility
+	if err := pgs.validateRefundEligibility(payment, req.Amount); err != nil {
+		return nil, fmt.Errorf("refund validation failed: %w", err)
+	}
+
+	// Get gateway
+	gateway, exists := pgs.gateways[payment.Gateway]
+	if !exists {
+		return nil, fmt.Errorf("unsupported payment gateway: %s", payment.Gateway)
+	}
+
+	// Process refund through gateway
+	refundResponse, err := gateway.RefundPayment(ctx, payment.GatewayTxnID, req.Amount)
+	if err != nil {
+		return nil, fmt.Errorf("gateway refund failed: %w", err)
+	}
+
+	// Update payment record
+	payment.RefundedAmount += req.Amount
+	payment.RefundReason = req.Reason
+	payment.UpdatedAt = time.Now()
+
+	// Update status based on refund amount
+	if payment.RefundedAmount >= payment.Amount {
+		payment.Status = models.PaymentStatusRefunded
+	} else {
+		payment.Status = models.PaymentStatusPartiallyRefunded
+	}
+
+	// Add refund metadata
+	refundMetadata := map[string]interface{}{
+		"refund_id": refundResponse.RefundID,
+		"status":    refundResponse.Status,
+		"amount":    refundResponse.Amount,
+		"reason":    req.Reason,
+	}
+	refundBytes, _ := json.Marshal(refundMetadata)
+	payment.RefundMetadata = refundBytes
+
+	if err := pgs.paymentRepo.Update(ctx, payment); err != nil {
+		return nil, fmt.Errorf("failed to update payment: %w", err)
+	}
+
+	// Publish event
+	pgs.publishPaymentRefundedEvent(ctx, payment, req.Amount, req.Reason)
+
+	return payment, nil
+}
+
+// UpdatePaymentStatus updates payment status (typically from webhooks)
+func (pgs *PaymentGatewayService) UpdatePaymentStatus(ctx context.Context, req *UpdatePaymentStatusRequest) (*models.Payment, error) {
+	// Validate request
+	if err := pgs.validateUpdatePaymentStatusRequest(req); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
+
+	// Get payment record
+	payment, err := pgs.paymentRepo.GetByID(ctx, req.PaymentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get payment: %w", err)
+	}
+
+	// Validate status transition
+	if err := pgs.validatePaymentStatusTransition(payment.Status, models.PaymentStatus(req.Status)); err != nil {
+		return nil, fmt.Errorf("invalid status transition: %w", err)
+	}
+
+	// Update payment
+	oldStatus := payment.Status
+	payment.Status = models.PaymentStatus(req.Status)
+	payment.FailureReason = req.FailureReason
+	payment.UpdatedAt = time.Now()
+
+	if req.GatewayTxnID != "" {
+		payment.GatewayTxnID = req.GatewayTxnID
+	}
+
+	if req.ProcessedAt != nil {
+		payment.ProcessedAt = req.ProcessedAt
+	} else if req.Status == "completed" || req.Status == "failed" {
+		now := time.Now()
+		payment.ProcessedAt = &now
+	}
+
+	if err := pgs.paymentRepo.Update(ctx, payment); err != nil {
+		return nil, fmt.Errorf("failed to update payment: %w", err)
+	}
+
+	// Handle successful payment completion
+	if oldStatus != models.PaymentStatusCompleted && payment.Status == models.PaymentStatusCompleted {
+		if err := pgs.processSuccessfulPayment(ctx, payment); err != nil {
+			// Log error but don't fail the status update
+			fmt.Printf("Failed to process successful payment: %v", err)
+		}
+	}
+
+	// Publish event
+	pgs.publishPaymentStatusUpdatedEvent(ctx, payment)
+
+	return payment, nil
+}
+
+// HandleWebhook processes payment gateway webhooks
+func (pgs *PaymentGatewayService) HandleWebhook(ctx context.Context, req *HandleWebhookRequest) error {
+	// Validate request
+	if err := pgs.validateHandleWebhookRequest(req); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	// Get gateway
+	gateway, exists := pgs.gateways[req.Gateway]
+	if !exists {
+		return fmt.Errorf("unsupported payment gateway: %s", req.Gateway)
+	}
+
+	// Validate webhook signature
+	if err := gateway.ValidateWebhook(req.Payload, req.Signature); err != nil {
+		return fmt.Errorf("webhook validation failed: %w", err)
+	}
+
+	// Parse webhook payload (simplified - actual implementation would be gateway-specific)
+	var webhookData map[string]interface{}
+	if err := json.Unmarshal(req.Payload, &webhookData); err != nil {
+		return fmt.Errorf("failed to parse webhook payload: %w", err)
+	}
+
+	// Process webhook based on event type
+	eventType, ok := webhookData["event_type"].(string)
+	if !ok {
+		return fmt.Errorf("missing or invalid event_type in webhook")
+	}
+
+	switch eventType {
+	case "payment.completed", "payment.failed", "payment.cancelled":
+		return pgs.handlePaymentStatusWebhook(ctx, webhookData)
+	case "payment.refunded":
+		return pgs.handleRefundWebhook(ctx, webhookData)
+	default:
+		// Log unknown event type but don't fail
+		fmt.Printf("Unknown webhook event type: %s", eventType)
+		return nil
+	}
+}
+
+// GetPaymentByID retrieves a payment by ID
+func (pgs *PaymentGatewayService) GetPaymentByID(ctx context.Context, paymentID uuid.UUID) (*models.Payment, error) {
+	payment, err := pgs.paymentRepo.GetByID(ctx, paymentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get payment: %w", err)
+	}
+
+	return payment, nil
+}
+
+// GetPaymentsByWallet retrieves payments for a wallet
+func (pgs *PaymentGatewayService) GetPaymentsByWallet(ctx context.Context, walletID uuid.UUID, limit, offset int) ([]*models.Payment, int64, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	payments, total, err := pgs.paymentRepo.GetByWallet(ctx, walletID, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get payments: %w", err)
+	}
+
+	return payments, total, nil
+}
+
+// registerGateways registers available Southeast Asian payment gateways
+func (pgs *PaymentGatewayService) registerGateways() {
+	// Register payment gateways for different Southeast Asian countries
+
+	// Thailand
+	pgs.gateways["omise"] = &OmiseGateway{}           // Credit cards, e-wallets
+	pgs.gateways["2c2p"] = &TwoC2PGateway{}           // Regional payment processor
+	pgs.gateways["scb_easy"] = &SCBEasyGateway{}      // SCB Easy App
+
+	// Singapore
+	pgs.gateways["stripe_sg"] = &StripeSGGateway{}    // Stripe Singapore
+	pgs.gateways["razorpay"] = &RazorpayGateway{}     // Razorpay for SEA
+	pgs.gateways["grabpay"] = &GrabPayGateway{}       // GrabPay wallet
+
+	// Indonesia
+	pgs.gateways["midtrans"] = &MidtransGateway{}     // Leading Indonesian gateway
+	pgs.gateways["xendit"] = &XenditGateway{}         // Indonesian fintech
+	pgs.gateways["ovo"] = &OVOGateway{}               // OVO e-wallet
+	pgs.gateways["gopay"] = &GoPayGateway{}           // GoPay wallet
+	pgs.gateways["dana"] = &DANAGateway{}             // DANA e-wallet
+
+	// Malaysia
+	pgs.gateways["ipay88"] = &IPay88Gateway{}         // iPay88 Malaysia
+	pgs.gateways["fpx"] = &FPXGateway{}               // Financial Process Exchange
+	pgs.gateways["boost"] = &BoostGateway{}           // Boost e-wallet
+	pgs.gateways["tng"] = &TouchNGoGateway{}          // Touch 'n Go eWallet
+
+	// Philippines
+	pgs.gateways["paymaya"] = &PayMayaGateway{}       // PayMaya
+	pgs.gateways["gcash"] = &GCashGateway{}           // GCash e-wallet
+	pgs.gateways["dragonpay"] = &DragonPayGateway{}   // Dragonpay
+
+	// Vietnam
+	pgs.gateways["vnpay"] = &VNPayGateway{}           // VNPay
+	pgs.gateways["momo"] = &MoMoGateway{}             // MoMo e-wallet
+	pgs.gateways["zalopay"] = &ZaloPayGateway{}       // ZaloPay
+}
+
+// processSuccessfulPayment handles successful payment completion
+func (pgs *PaymentGatewayService) processSuccessfulPayment(ctx context.Context, payment *models.Payment) error {
+	// Get wallet
+	wallet, err := pgs.walletRepo.GetByID(ctx, payment.WalletID)
+	if err != nil {
+		return fmt.Errorf("failed to get wallet: %w", err)
+	}
+
+	// Add funds to wallet
+	wallet.AvailableBalance += payment.Amount
+	wallet.UpdatedAt = time.Now()
+
+	if err := pgs.walletRepo.Update(ctx, wallet); err != nil {
+		return fmt.Errorf("failed to update wallet balance: %w", err)
+	}
+
+	// Publish wallet balance updated event
+	pgs.eventPublisher.Publish(ctx, events.Event{
+		Type: "wallet.balance_updated",
+		Payload: map[string]interface{}{
+			"wallet_id":  wallet.ID,
+			"payment_id": payment.ID,
+			"amount":     payment.Amount,
+			"type":       "credit",
+			"source":     "payment",
+		},
+	})
+
+	return nil
+}
+
+// handlePaymentStatusWebhook processes payment status webhooks
+func (pgs *PaymentGatewayService) handlePaymentStatusWebhook(ctx context.Context, webhookData map[string]interface{}) error {
+	paymentIDStr, ok := webhookData["payment_id"].(string)
+	if !ok {
+		return fmt.Errorf("missing payment_id in webhook")
+	}
+
+	paymentID, err := uuid.Parse(paymentIDStr)
+	if err != nil {
+		return fmt.Errorf("invalid payment_id format: %w", err)
+	}
+
+	status, ok := webhookData["status"].(string)
+	if !ok {
+		return fmt.Errorf("missing status in webhook")
+	}
+
+	// Update payment status
+	updateReq := &UpdatePaymentStatusRequest{
+		PaymentID: paymentID,
+		Status:    status,
+	}
+
+	if gatewayTxnID, ok := webhookData["gateway_txn_id"].(string); ok {
+		updateReq.GatewayTxnID = gatewayTxnID
+	}
+
+	if failureReason, ok := webhookData["failure_reason"].(string); ok {
+		updateReq.FailureReason = failureReason
+	}
+
+	_, err = pgs.UpdatePaymentStatus(ctx, updateReq)
+	return err
+}
+
+// handleRefundWebhook processes refund webhooks
+func (pgs *PaymentGatewayService) handleRefundWebhook(ctx context.Context, webhookData map[string]interface{}) error {
+	paymentIDStr, ok := webhookData["payment_id"].(string)
+	if !ok {
+		return fmt.Errorf("missing payment_id in webhook")
+	}
+
+	paymentID, err := uuid.Parse(paymentIDStr)
+	if err != nil {
+		return fmt.Errorf("invalid payment_id format: %w", err)
+	}
+
+	amount, ok := webhookData["amount"].(float64)
+	if !ok {
+		return fmt.Errorf("missing or invalid amount in webhook")
+	}
+
+	reason, _ := webhookData["reason"].(string)
+	if reason == "" {
+		reason = "Refund processed by gateway"
+	}
+
+	// Process refund
+	refundReq := &ProcessRefundRequest{
+		PaymentID: paymentID,
+		Amount:    amount,
+		Reason:    reason,
+	}
+
+	_, err = pgs.ProcessRefund(ctx, refundReq)
+	return err
+}
+
+// Validation functions
+func (pgs *PaymentGatewayService) validateCreatePaymentRequest(req *CreatePaymentRequest) error {
+	if req.WalletID == uuid.Nil {
+		return fmt.Errorf("wallet ID is required")
+	}
+	if req.Amount <= 0 {
+		return fmt.Errorf("amount must be greater than 0")
+	}
+	if len(req.Currency) != 3 {
+		return fmt.Errorf("currency must be 3 characters")
+	}
+	if req.Gateway == "" {
+		return fmt.Errorf("gateway is required")
+	}
+	if req.Method == "" {
+		return fmt.Errorf("method is required")
+	}
+	return nil
+}
+
+func (pgs *PaymentGatewayService) validateProcessRefundRequest(req *ProcessRefundRequest) error {
+	if req.PaymentID == uuid.Nil {
+		return fmt.Errorf("payment ID is required")
+	}
+	if req.Amount <= 0 {
+		return fmt.Errorf("amount must be greater than 0")
+	}
+	if req.Reason == "" {
+		return fmt.Errorf("reason is required")
+	}
+	return nil
+}
+
+func (pgs *PaymentGatewayService) validateUpdatePaymentStatusRequest(req *UpdatePaymentStatusRequest) error {
+	if req.PaymentID == uuid.Nil {
+		return fmt.Errorf("payment ID is required")
+	}
+	if req.Status == "" {
+		return fmt.Errorf("status is required")
+	}
+	validStatuses := []string{"pending", "processing", "completed", "failed", "cancelled", "refunded", "partially_refunded"}
+	for _, status := range validStatuses {
+		if req.Status == status {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid status: %s", req.Status)
+}
+
+func (pgs *PaymentGatewayService) validateHandleWebhookRequest(req *HandleWebhookRequest) error {
+	if req.Gateway == "" {
+		return fmt.Errorf("gateway is required")
+	}
+	if len(req.Payload) == 0 {
+		return fmt.Errorf("payload is required")
+	}
+	if req.Signature == "" {
+		return fmt.Errorf("signature is required")
+	}
+	return nil
+}
+
+func (pgs *PaymentGatewayService) validateRefundEligibility(payment *models.Payment, amount float64) error {
+	if payment.Status != models.PaymentStatusCompleted {
+		return fmt.Errorf("can only refund completed payments, current status: %s", payment.Status)
+	}
+	if payment.RefundedAmount+amount > payment.Amount {
+		return fmt.Errorf("refund amount exceeds payment amount: refunded %.2f, requesting %.2f, total %.2f",
+			payment.RefundedAmount, amount, payment.Amount)
+	}
+	return nil
+}
+
+func (pgs *PaymentGatewayService) validatePaymentStatusTransition(currentStatus, newStatus models.PaymentStatus) error {
+	// Define valid transitions
+	validTransitions := map[models.PaymentStatus][]models.PaymentStatus{
+		models.PaymentStatusPending:            {models.PaymentStatusProcessing, models.PaymentStatusCancelled},
+		models.PaymentStatusProcessing:         {models.PaymentStatusCompleted, models.PaymentStatusFailed},
+		models.PaymentStatusCompleted:          {models.PaymentStatusRefunded, models.PaymentStatusPartiallyRefunded},
+		models.PaymentStatusFailed:             {},
+		models.PaymentStatusCancelled:          {},
+		models.PaymentStatusRefunded:           {},
+		models.PaymentStatusPartiallyRefunded: {models.PaymentStatusRefunded},
+	}
+
+	allowedTransitions, exists := validTransitions[currentStatus]
+	if !exists {
+		return fmt.Errorf("unknown current status: %s", currentStatus)
+	}
+
+	for _, allowed := range allowedTransitions {
+		if newStatus == allowed {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid transition from %s to %s", currentStatus, newStatus)
+}
+
+// Event publishing functions
+func (pgs *PaymentGatewayService) publishPaymentCreatedEvent(ctx context.Context, payment *models.Payment) {
+	pgs.eventPublisher.Publish(ctx, events.Event{
+		Type: "payment.created",
+		Payload: map[string]interface{}{
+			"payment_id":     payment.ID,
+			"wallet_id":      payment.WalletID,
+			"amount":         payment.Amount,
+			"currency":       payment.Currency,
+			"gateway":        payment.Gateway,
+			"method":         payment.Method,
+			"status":         payment.Status,
+			"gateway_txn_id": payment.GatewayTxnID,
+			"created_at":     payment.CreatedAt,
+		},
+	})
+}
+
+func (pgs *PaymentGatewayService) publishPaymentStatusUpdatedEvent(ctx context.Context, payment *models.Payment) {
+	pgs.eventPublisher.Publish(ctx, events.Event{
+		Type: "payment.status_updated",
+		Payload: map[string]interface{}{
+			"payment_id":     payment.ID,
+			"wallet_id":      payment.WalletID,
+			"status":         payment.Status,
+			"gateway_txn_id": payment.GatewayTxnID,
+			"failure_reason": payment.FailureReason,
+			"updated_at":     payment.UpdatedAt,
+		},
+	})
+}
+
+func (pgs *PaymentGatewayService) publishPaymentRefundedEvent(ctx context.Context, payment *models.Payment, amount float64, reason string) {
+	pgs.eventPublisher.Publish(ctx, events.Event{
+		Type: "payment.refunded",
+		Payload: map[string]interface{}{
+			"payment_id":      payment.ID,
+			"wallet_id":       payment.WalletID,
+			"refund_amount":   amount,
+			"total_refunded":  payment.RefundedAmount,
+			"refund_reason":   reason,
+			"payment_amount":  payment.Amount,
+			"refunded_at":     time.Now(),
+		},
+	})
+}
+
+// Gateway interface implementations (simplified stubs - actual implementations would integrate with real APIs)
+type OmiseGateway struct{}
+func (g *OmiseGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	// Implement Omise API integration
+	return &PaymentResponse{TransactionID: "omise_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *OmiseGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *OmiseGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *OmiseGateway) ValidateWebhook(payload []byte, signature string) error {
+	return nil // Implement webhook validation
+}
+
+// Additional gateway stubs would follow similar pattern
+type TwoC2PGateway struct{}
+func (g *TwoC2PGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "2c2p_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *TwoC2PGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *TwoC2PGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *TwoC2PGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+// Similar implementations for other gateways...
+type SCBEasyGateway struct{}
+func (g *SCBEasyGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "scb_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *SCBEasyGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *SCBEasyGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *SCBEasyGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+// Simplified implementations for other Southeast Asian gateways
+type StripeSGGateway struct{}
+func (g *StripeSGGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "stripe_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *StripeSGGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *StripeSGGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *StripeSGGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+// Additional gateway implementations would follow the same pattern...
+// For brevity, including just a few more key ones:
+
+type RazorpayGateway struct{}
+func (g *RazorpayGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "rzp_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *RazorpayGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *RazorpayGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *RazorpayGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+type GrabPayGateway struct{}
+func (g *GrabPayGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "grab_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *GrabPayGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *GrabPayGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *GrabPayGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+type MidtransGateway struct{}
+func (g *MidtransGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "midtrans_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *MidtransGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *MidtransGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *MidtransGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+type XenditGateway struct{}
+func (g *XenditGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "xendit_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *XenditGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *XenditGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *XenditGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+// Additional gateway stubs for completeness (implementing the interface)
+type OVOGateway struct{}
+func (g *OVOGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "ovo_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *OVOGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *OVOGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *OVOGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+type GoPayGateway struct{}
+func (g *GoPayGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "gopay_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *GoPayGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *GoPayGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *GoPayGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+type DANAGateway struct{}
+func (g *DANAGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "dana_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *DANAGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *DANAGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *DANAGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+type IPay88Gateway struct{}
+func (g *IPay88Gateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "ipay88_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *IPay88Gateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *IPay88Gateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *IPay88Gateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+type FPXGateway struct{}
+func (g *FPXGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "fpx_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *FPXGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *FPXGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *FPXGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+type BoostGateway struct{}
+func (g *BoostGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "boost_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *BoostGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *BoostGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *BoostGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+type TouchNGoGateway struct{}
+func (g *TouchNGoGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "tng_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *TouchNGoGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *TouchNGoGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *TouchNGoGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+type PayMayaGateway struct{}
+func (g *PayMayaGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "paymaya_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *PayMayaGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *PayMayaGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *PayMayaGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+type GCashGateway struct{}
+func (g *GCashGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "gcash_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *GCashGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *GCashGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *GCashGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+type DragonPayGateway struct{}
+func (g *DragonPayGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "dragonpay_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *DragonPayGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *DragonPayGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *DragonPayGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+type VNPayGateway struct{}
+func (g *VNPayGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "vnpay_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *VNPayGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *VNPayGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *VNPayGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+type MoMoGateway struct{}
+func (g *MoMoGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "momo_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *MoMoGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *MoMoGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *MoMoGateway) ValidateWebhook(payload []byte, signature string) error { return nil }
+
+type ZaloPayGateway struct{}
+func (g *ZaloPayGateway) ProcessPayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
+	return &PaymentResponse{TransactionID: "zalopay_" + req.PaymentID, Status: "processing"}, nil
+}
+func (g *ZaloPayGateway) RefundPayment(ctx context.Context, paymentID string, amount float64) (*RefundResponse, error) {
+	return &RefundResponse{RefundID: "ref_" + paymentID, Status: "completed", Amount: amount}, nil
+}
+func (g *ZaloPayGateway) GetPaymentStatus(ctx context.Context, paymentID string) (*PaymentStatusResponse, error) {
+	return &PaymentStatusResponse{Status: "completed"}, nil
+}
+func (g *ZaloPayGateway) ValidateWebhook(payload []byte, signature string) error { return nil }

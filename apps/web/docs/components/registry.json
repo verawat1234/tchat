@@ -1,0 +1,3669 @@
+{
+  "id": "analyzer-1758503912151",
+  "projectName": "tchat-web",
+  "version": "1.0.0",
+  "components": [
+    {
+      "id": "workspacetab-workspacetab",
+      "name": "WorkspaceTab",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/WorkspaceTab.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onBack",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "framer-motion",
+        "lucide-react",
+        "./ui/button",
+        "./ui/badge",
+        "./ui/card",
+        "./ui/progress",
+        "./ui/avatar",
+        "./ui/separator",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.214Z",
+      "updatedAt": "2025-09-22T01:18:32.214Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "workspaceswitcher-workspaceswitcher",
+      "name": "WorkspaceSwitcher",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/WorkspaceSwitcher.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "selectedWorkspace",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "userWorkspaces",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onWorkspaceChange",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "variant",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "showMetrics",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "./ui/button",
+        "./ui/badge",
+        "./ui/avatar",
+        "./ui/dropdown-menu",
+        "lucide-react",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.236Z",
+      "updatedAt": "2025-09-22T01:18:32.236Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "walletscreen-walletscreen",
+      "name": "WalletScreen",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/WalletScreen.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onBack",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./ui/button",
+        "./ui/card",
+        "./ui/badge",
+        "./ui/scroll-area",
+        "./ui/tabs",
+        "./ui/avatar",
+        "./ui/dialog",
+        "./ui/input",
+        "./ui/label",
+        "./ui/separator",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.255Z",
+      "updatedAt": "2025-09-22T01:18:32.255Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "voicecallscreen-voicecallscreen",
+      "name": "VoiceCallScreen",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/VoiceCallScreen.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "callee",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "isIncoming",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onEndCall",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onBack",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./ui/button",
+        "./ui/avatar",
+        "./ui/badge",
+        "./ui/card"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.268Z",
+      "updatedAt": "2025-09-22T01:18:32.268Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "videotab-videotab",
+      "name": "VideoTab",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/VideoTab.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onBack",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onVideoPlay",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onVideoLike",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onVideoShare",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onSubscribe",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "currentVideoId",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "watchedVideos",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "likedVideos",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "subscribedChannels",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "./ui/button",
+        "./ui/card",
+        "./ui/badge",
+        "./ui/avatar",
+        "./ui/scroll-area",
+        "./ui/tabs",
+        "./ui/input",
+        "./ui/separator",
+        "./ui/dialog",
+        "./ui/textarea",
+        "./figma/ImageWithFallback",
+        "lucide-react",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.325Z",
+      "updatedAt": "2025-09-22T01:18:32.325Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "videocallscreen-videocallscreen",
+      "name": "VideoCallScreen",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/VideoCallScreen.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "callee",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "isIncoming",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onEndCall",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onBack",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./ui/button",
+        "./ui/avatar",
+        "./ui/badge",
+        "./ui/card"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.334Z",
+      "updatedAt": "2025-09-22T01:18:32.334Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "storetab-storetab",
+      "name": "StoreTab",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/StoreTab.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onShopClick",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onProductClick",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onAddToCart",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onLiveStreamClick",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onProductShare",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onShopShare",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "cartItems",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./ui/button",
+        "./ui/input",
+        "./ui/badge",
+        "./ui/card",
+        "./ui/scroll-area",
+        "./ui/avatar",
+        "./ui/tabs",
+        "./ui/dialog",
+        "./figma/ImageWithFallback",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.363Z",
+      "updatedAt": "2025-09-22T01:18:32.363Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "socialtab-socialtab",
+      "name": "SocialTab",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/SocialTab.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onLiveStreamClick",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onPostShare",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./CreatePostSection",
+        "./DiscoverTab",
+        "./EventsTab",
+        "./ui/button",
+        "./ui/badge",
+        "./ui/card",
+        "./ui/scroll-area",
+        "./ui/avatar",
+        "./ui/tabs",
+        "./ui/input",
+        "./ui/dialog",
+        "./ui/visually-hidden",
+        "./ui/dropdown-menu",
+        "./ui/separator",
+        "./figma/ImageWithFallback",
+        "./ui/progress",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.413Z",
+      "updatedAt": "2025-09-22T01:18:32.413Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "shoppage-shoppage",
+      "name": "ShopPage",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ShopPage.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "shopId",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onBack",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onProductClick",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onAddToCart",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./ui/button",
+        "./ui/input",
+        "./ui/badge",
+        "./ui/card",
+        "./ui/scroll-area",
+        "./ui/avatar",
+        "./ui/tabs",
+        "./figma/ImageWithFallback",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.433Z",
+      "updatedAt": "2025-09-22T01:18:32.433Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "shopchatscreen-shopchatscreen",
+      "name": "ShopChatScreen",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ShopChatScreen.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "shopId",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onBack",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onCall",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onVideoCall",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onOrderNow",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./ui/button",
+        "./ui/input",
+        "./ui/avatar",
+        "./ui/badge",
+        "./ui/card",
+        "./ui/scroll-area",
+        "./ui/dropdown-menu",
+        "sonner",
+        "framer-motion"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.453Z",
+      "updatedAt": "2025-09-22T01:18:32.453Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "sharedialog-sharedialog",
+      "name": "ShareDialog",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ShareDialog.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "open",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onOpenChange",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "content",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./ui/dialog",
+        "./ui/button",
+        "./ui/input",
+        "./ui/badge",
+        "./ui/card",
+        "./ui/avatar",
+        "./ui/scroll-area",
+        "./ui/separator",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.472Z",
+      "updatedAt": "2025-09-22T01:18:32.472Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "settingsscreen-settingsscreen",
+      "name": "SettingsScreen",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/SettingsScreen.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onBack",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onLogout",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./ui/button",
+        "./ui/card",
+        "./ui/switch",
+        "./ui/badge",
+        "./ui/avatar",
+        "./ui/separator",
+        "./ui/scroll-area",
+        "./ui/select",
+        "./ui/slider",
+        "./ui/dialog",
+        "./ui/input",
+        "./ui/label",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.507Z",
+      "updatedAt": "2025-09-22T01:18:32.507Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "searchscreen-searchscreen",
+      "name": "SearchScreen",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/SearchScreen.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onBack",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./ui/button",
+        "./ui/input",
+        "./ui/badge",
+        "./ui/card",
+        "./ui/scroll-area",
+        "./ui/tabs",
+        "./ui/avatar",
+        "./ui/separator"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.520Z",
+      "updatedAt": "2025-09-22T01:18:32.520Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "richchattab-richchattab",
+      "name": "RichChatTab",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/RichChatTab.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onVideoCall",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onVoiceCall",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onNewChat",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "selectedWorkspace",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onWorkspaceChange",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "userWorkspaces",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onShopChatClick",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./ui/button",
+        "./ui/input",
+        "./ui/badge",
+        "./ui/scroll-area",
+        "./ui/avatar",
+        "./ui/card",
+        "./ui/tabs",
+        "./WorkspaceSwitcher",
+        "./MarkdownMessage",
+        "./RichChatInput",
+        "./ChatActions",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.555Z",
+      "updatedAt": "2025-09-22T01:18:32.555Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "richchatinput-richchatinput",
+      "name": "RichChatInput",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/RichChatInput.tsx",
+      "category": "input",
+      "description": "",
+      "props": [
+        {
+          "name": "messageInput",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "setMessageInput",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onSendMessage",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "replyToMessage",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "setReplyToMessage",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "editingMessage",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "setEditingMessage",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "isRecording",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "recordingDuration",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onStartRecording",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onStopRecording",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onCancelRecording",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "./ui/button",
+        "./ui/input",
+        "./ui/badge",
+        "./ui/card",
+        "./ui/textarea",
+        "./ui/dialog",
+        "./ui/dropdown-menu",
+        "lucide-react",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.598Z",
+      "updatedAt": "2025-09-22T01:18:32.598Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "qrscannerscreen-qrscannerscreen",
+      "name": "QRScannerScreen",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/QRScannerScreen.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onBack",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./ui/button",
+        "./ui/card",
+        "./ui/badge",
+        "./ui/tabs",
+        "./ui/avatar",
+        "./ui/dialog",
+        "./ui/input",
+        "./ui/label",
+        "./ui/separator",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.608Z",
+      "updatedAt": "2025-09-22T01:18:32.608Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "productpage-productpage",
+      "name": "ProductPage",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ProductPage.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "productId",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onBack",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onShopClick",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onAddToCart",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onBuyNow",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./ui/button",
+        "./ui/badge",
+        "./ui/card",
+        "./ui/scroll-area",
+        "./ui/avatar",
+        "./ui/tabs",
+        "./ui/separator",
+        "./figma/ImageWithFallback",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.623Z",
+      "updatedAt": "2025-09-22T01:18:32.623Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "notificationsscreen-notificationsscreen",
+      "name": "NotificationsScreen",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/NotificationsScreen.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onBack",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "notifications",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onNotificationUpdate",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "currentCurrency",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "currencies",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "framer-motion",
+        "./ui/button",
+        "./ui/card",
+        "./ui/badge",
+        "./ui/avatar",
+        "./ui/scroll-area",
+        "./ui/tabs",
+        "./ui/input",
+        "./ui/separator",
+        "./ui/dropdown-menu",
+        "./ui/checkbox",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.639Z",
+      "updatedAt": "2025-09-22T01:18:32.639Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "newchatscreen-newchatscreen",
+      "name": "NewChatScreen",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/NewChatScreen.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onBack",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onCreateChat",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./ui/button",
+        "./ui/input",
+        "./ui/scroll-area",
+        "./ui/avatar",
+        "./ui/badge",
+        "./ui/card",
+        "./ui/separator"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.653Z",
+      "updatedAt": "2025-09-22T01:18:32.653Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "markdownmessage-markdownmessage",
+      "name": "MarkdownMessage",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/MarkdownMessage.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "message",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onReply",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onReact",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onShare",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onCopy",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onVote",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "./ui/button",
+        "./ui/badge",
+        "./ui/card",
+        "./ui/avatar",
+        "./ui/separator",
+        "lucide-react",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.680Z",
+      "updatedAt": "2025-09-22T01:18:32.680Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "livestreamscreen-livestreamscreen",
+      "name": "LiveStreamScreen",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/LiveStreamScreen.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "streamId",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onBack",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onProductClick",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onAddToCart",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./ui/button",
+        "./ui/input",
+        "./ui/badge",
+        "./ui/card",
+        "./ui/scroll-area",
+        "./ui/avatar",
+        "./ui/dialog",
+        "./ui/tabs",
+        "./figma/ImageWithFallback",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.705Z",
+      "updatedAt": "2025-09-22T01:18:32.705Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "fullscreenvideoplayer-fullscreenvideoplayer",
+      "name": "FullscreenVideoPlayer",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/FullscreenVideoPlayer.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "video",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "isPlaying",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onClose",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onPlay",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onPause",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onLike",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onShare",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onSubscribe",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "isLiked",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "isSubscribed",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "./ui/button",
+        "./ui/badge",
+        "./ui/avatar",
+        "./ui/slider",
+        "lucide-react",
+        "./ui/dropdown-menu",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.721Z",
+      "updatedAt": "2025-09-22T01:18:32.721Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "eventstab-eventstab",
+      "name": "EventsTab",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/EventsTab.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onBack",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./ui/button",
+        "./ui/badge",
+        "./ui/card",
+        "./ui/scroll-area",
+        "./ui/avatar",
+        "./ui/tabs",
+        "./ui/dropdown-menu",
+        "./figma/ImageWithFallback",
+        "./ui/progress",
+        "./ui/separator",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.752Z",
+      "updatedAt": "2025-09-22T01:18:32.752Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "discovertab-discovertab",
+      "name": "DiscoverTab",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/DiscoverTab.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onPostShare",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./ui/button",
+        "./ui/badge",
+        "./ui/card",
+        "./ui/scroll-area",
+        "./ui/avatar",
+        "./ui/input",
+        "./ui/dropdown-menu",
+        "./figma/ImageWithFallback",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.776Z",
+      "updatedAt": "2025-09-22T01:18:32.776Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "createpostsection-createpostsection",
+      "name": "CreatePostSection",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/CreatePostSection.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onCreatePhotoPost",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onCreateGalleryPost",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onCreateLocationPost",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onCreateTextPost",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "sonner",
+        "lucide-react",
+        "./ui/button",
+        "./ui/card",
+        "./ui/avatar"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.781Z",
+      "updatedAt": "2025-09-22T01:18:32.781Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "chattab-chattab",
+      "name": "ChatTab",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ChatTab.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onVideoCall",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onVoiceCall",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onNewChat",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "selectedWorkspace",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onWorkspaceChange",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "userWorkspaces",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react",
+        "./ui/button",
+        "./ui/input",
+        "./ui/badge",
+        "./ui/scroll-area",
+        "./ui/avatar",
+        "./ui/separator",
+        "./ui/card",
+        "./ui/tabs",
+        "./ui/progress",
+        "./ui/dropdown-menu",
+        "./ui/context-menu",
+        "./ui/dialog",
+        "./ui/textarea",
+        "./ChatActions",
+        "./ChatInput",
+        "./WorkspaceSwitcher",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.840Z",
+      "updatedAt": "2025-09-22T01:18:32.840Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "chatinput-chatinput",
+      "name": "ChatInput",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ChatInput.tsx",
+      "category": "input",
+      "description": "",
+      "props": [
+        {
+          "name": "messageInput",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "setMessageInput",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onSendMessage",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "replyToMessage",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "setReplyToMessage",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "editingMessage",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "setEditingMessage",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "isRecording",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "recordingDuration",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onStartRecording",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onStopRecording",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onCancelRecording",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "./ui/button",
+        "./ui/input",
+        "./ui/badge",
+        "./ui/card",
+        "./ui/dropdown-menu",
+        "lucide-react",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.848Z",
+      "updatedAt": "2025-09-22T01:18:32.848Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "chatactions-chatmessages",
+      "name": "ChatMessages",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ChatActions.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "messages",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "selectedMessages",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "isSelectionMode",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onReplyToMessage",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onEditMessage",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onDeleteMessage",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onForwardMessage",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onCopyMessage",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onPinMessage",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onSelectMessage",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "./ui/button",
+        "./ui/dropdown-menu",
+        "./ui/context-menu",
+        "./ui/avatar",
+        "./ui/badge",
+        "lucide-react",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.856Z",
+      "updatedAt": "2025-09-22T01:18:32.856Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "cartscreen-cartscreen",
+      "name": "CartScreen",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/CartScreen.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "user",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onBack",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "cartItems",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "onUpdateCart",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "./ui/button",
+        "./ui/card",
+        "./ui/badge",
+        "./ui/separator",
+        "./ui/input",
+        "./ui/scroll-area",
+        "lucide-react",
+        "./figma/ImageWithFallback",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.864Z",
+      "updatedAt": "2025-09-22T01:18:32.864Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "authscreen-authscreen",
+      "name": "AuthScreen",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/AuthScreen.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "onAuth",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "./ui/button",
+        "./ui/input",
+        "./ui/card",
+        "./ui/tabs",
+        "./ui/badge",
+        "lucide-react",
+        "sonner"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.870Z",
+      "updatedAt": "2025-09-22T01:18:32.870Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "imagewithfallback-imagewithfallback",
+      "name": "ImageWithFallback",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/figma/ImageWithFallback.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.872Z",
+      "updatedAt": "2025-09-22T01:18:32.872Z",
+      "htmlElement": "img",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "tooltip-tooltipprovider",
+      "name": "TooltipProvider",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/tooltip.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "delayDuration",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-tooltip@1.1.8",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.874Z",
+      "updatedAt": "2025-09-22T01:18:32.874Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "toggle-toggle",
+      "name": "Toggle",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/toggle.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "variant",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "size",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-toggle@1.1.2",
+        "class-variance-authority@0.7.1",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.875Z",
+      "updatedAt": "2025-09-22T01:18:32.875Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "toggle-group-togglegroup",
+      "name": "ToggleGroup",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/toggle-group.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "variant",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "size",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "children",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-toggle-group@1.1.2",
+        "class-variance-authority@0.7.1",
+        "./utils",
+        "./toggle"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.877Z",
+      "updatedAt": "2025-09-22T01:18:32.877Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "textarea-textarea",
+      "name": "Textarea",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/textarea.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.878Z",
+      "updatedAt": "2025-09-22T01:18:32.878Z",
+      "htmlElement": "textarea",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "table-table",
+      "name": "Table",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/table.tsx",
+      "category": "data",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.880Z",
+      "updatedAt": "2025-09-22T01:18:32.880Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "switch-switch",
+      "name": "Switch",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/switch.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-switch@1.1.3",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.881Z",
+      "updatedAt": "2025-09-22T01:18:32.881Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "slider-slider",
+      "name": "Slider",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/slider.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "defaultValue",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "value",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "min",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "max",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-slider@1.2.3",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.884Z",
+      "updatedAt": "2025-09-22T01:18:32.884Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "skeleton-skeleton",
+      "name": "Skeleton",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/skeleton.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.884Z",
+      "updatedAt": "2025-09-22T01:18:32.884Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "sheet-sheet",
+      "name": "Sheet",
+      "type": "molecule",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/sheet.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-dialog@1.1.6",
+        "lucide-react@0.487.0",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.888Z",
+      "updatedAt": "2025-09-22T01:18:32.888Z",
+      "composition": [],
+      "layout": "horizontal",
+      "interactions": [],
+      "slots": []
+    },
+    {
+      "id": "separator-separator",
+      "name": "Separator",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/separator.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "orientation",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "decorative",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-separator@1.1.2",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.889Z",
+      "updatedAt": "2025-09-22T01:18:32.889Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "select-select",
+      "name": "Select",
+      "type": "molecule",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/select.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-select",
+        "lucide-react",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.892Z",
+      "updatedAt": "2025-09-22T01:18:32.892Z",
+      "composition": [],
+      "layout": "horizontal",
+      "interactions": [],
+      "slots": []
+    },
+    {
+      "id": "scroll-area-scrollarea",
+      "name": "ScrollArea",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/scroll-area.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "children",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-scroll-area@1.2.3",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.894Z",
+      "updatedAt": "2025-09-22T01:18:32.894Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "resizable-resizablepanelgroup",
+      "name": "ResizablePanelGroup",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/resizable.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react@0.487.0",
+        "react-resizable-panels@2.1.7",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.895Z",
+      "updatedAt": "2025-09-22T01:18:32.895Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "radio-group-radiogroup",
+      "name": "RadioGroup",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/radio-group.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-radio-group@1.2.3",
+        "lucide-react@0.487.0",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.896Z",
+      "updatedAt": "2025-09-22T01:18:32.896Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "progress-progress",
+      "name": "Progress",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/progress.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "value",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-progress@1.1.2",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.897Z",
+      "updatedAt": "2025-09-22T01:18:32.897Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "popover-popover",
+      "name": "Popover",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/popover.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-popover@1.1.6",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.899Z",
+      "updatedAt": "2025-09-22T01:18:32.899Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "navigation-menu-navigationmenu",
+      "name": "NavigationMenu",
+      "type": "molecule",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/navigation-menu.tsx",
+      "category": "navigation",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "children",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "viewport",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-navigation-menu@1.2.5",
+        "class-variance-authority@0.7.1",
+        "lucide-react@0.487.0",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.902Z",
+      "updatedAt": "2025-09-22T01:18:32.902Z",
+      "composition": [],
+      "layout": "horizontal",
+      "interactions": [],
+      "slots": []
+    },
+    {
+      "id": "menubar-menubar",
+      "name": "Menubar",
+      "type": "molecule",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/menubar.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-menubar@1.1.6",
+        "lucide-react@0.487.0",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.907Z",
+      "updatedAt": "2025-09-22T01:18:32.907Z",
+      "composition": [],
+      "layout": "horizontal",
+      "interactions": [],
+      "slots": []
+    },
+    {
+      "id": "label-label",
+      "name": "Label",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/label.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-label@2.1.2",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.908Z",
+      "updatedAt": "2025-09-22T01:18:32.908Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "input-otp-inputotp",
+      "name": "InputOTP",
+      "type": "molecule",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/input-otp.tsx",
+      "category": "input",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "containerClassName",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "input-otp@1.4.2",
+        "lucide-react@0.487.0",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.911Z",
+      "updatedAt": "2025-09-22T01:18:32.911Z",
+      "composition": [],
+      "layout": "horizontal",
+      "interactions": [],
+      "slots": []
+    },
+    {
+      "id": "hover-card-hovercard",
+      "name": "HoverCard",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/hover-card.tsx",
+      "category": "display",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-hover-card@1.1.6",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.912Z",
+      "updatedAt": "2025-09-22T01:18:32.912Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "form-formitem",
+      "name": "FormItem",
+      "type": "molecule",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/form.tsx",
+      "category": "form",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-label@2.1.2",
+        "@radix-ui/react-slot@1.1.2",
+        "react-hook-form@7.55.0",
+        "./utils",
+        "./label"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.917Z",
+      "updatedAt": "2025-09-22T01:18:32.917Z",
+      "composition": [],
+      "layout": "horizontal",
+      "interactions": [],
+      "slots": []
+    },
+    {
+      "id": "dropdown-menu-dropdownmenu",
+      "name": "DropdownMenu",
+      "type": "molecule",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/dropdown-menu.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-dropdown-menu@2.1.6",
+        "lucide-react@0.487.0",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.922Z",
+      "updatedAt": "2025-09-22T01:18:32.922Z",
+      "composition": [],
+      "layout": "horizontal",
+      "interactions": [],
+      "slots": []
+    },
+    {
+      "id": "drawer-drawer",
+      "name": "Drawer",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/drawer.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "vaul@1.1.2",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.926Z",
+      "updatedAt": "2025-09-22T01:18:32.926Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "dialog-dialog",
+      "name": "Dialog",
+      "type": "molecule",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/dialog.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-dialog",
+        "lucide-react",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.931Z",
+      "updatedAt": "2025-09-22T01:18:32.931Z",
+      "composition": [],
+      "layout": "horizontal",
+      "interactions": [],
+      "slots": []
+    },
+    {
+      "id": "context-menu-contextmenu",
+      "name": "ContextMenu",
+      "type": "molecule",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/context-menu.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-context-menu@2.2.6",
+        "lucide-react@0.487.0",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.936Z",
+      "updatedAt": "2025-09-22T01:18:32.936Z",
+      "composition": [],
+      "layout": "horizontal",
+      "interactions": [],
+      "slots": []
+    },
+    {
+      "id": "command-command",
+      "name": "Command",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/command.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "cmdk@1.1.1",
+        "lucide-react@0.487.0",
+        "./utils",
+        "./dialog"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.939Z",
+      "updatedAt": "2025-09-22T01:18:32.939Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "collapsible-collapsible",
+      "name": "Collapsible",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/collapsible.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "@radix-ui/react-collapsible@1.1.3"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.940Z",
+      "updatedAt": "2025-09-22T01:18:32.940Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "checkbox-checkbox",
+      "name": "Checkbox",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/checkbox.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-checkbox@1.1.4",
+        "lucide-react@0.487.0",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.941Z",
+      "updatedAt": "2025-09-22T01:18:32.941Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "carousel-carousel",
+      "name": "Carousel",
+      "type": "molecule",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/carousel.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "orientation",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "opts",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "setApi",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "plugins",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "children",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "embla-carousel-react@8.6.0",
+        "lucide-react@0.487.0",
+        "./utils",
+        "./button"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.952Z",
+      "updatedAt": "2025-09-22T01:18:32.952Z",
+      "composition": [],
+      "layout": "horizontal",
+      "interactions": [],
+      "slots": []
+    },
+    {
+      "id": "calendar-calendar",
+      "name": "Calendar",
+      "type": "molecule",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/calendar.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "classNames",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "showOutsideDays",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "lucide-react@0.487.0",
+        "react-day-picker@8.10.1",
+        "./utils",
+        "./button"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.954Z",
+      "updatedAt": "2025-09-22T01:18:32.954Z",
+      "composition": [],
+      "layout": "horizontal",
+      "interactions": [],
+      "slots": []
+    },
+    {
+      "id": "breadcrumb-breadcrumb",
+      "name": "Breadcrumb",
+      "type": "molecule",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/breadcrumb.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-slot@1.1.2",
+        "lucide-react@0.487.0",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.958Z",
+      "updatedAt": "2025-09-22T01:18:32.958Z",
+      "composition": [],
+      "layout": "horizontal",
+      "interactions": [],
+      "slots": []
+    },
+    {
+      "id": "avatar-avatar",
+      "name": "Avatar",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/avatar.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-avatar",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.959Z",
+      "updatedAt": "2025-09-22T01:18:32.959Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "aspect-ratio-aspectratio",
+      "name": "AspectRatio",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/aspect-ratio.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "@radix-ui/react-aspect-ratio@1.1.2"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.960Z",
+      "updatedAt": "2025-09-22T01:18:32.960Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "alert-alert",
+      "name": "Alert",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/alert.tsx",
+      "category": "general",
+      "description": "",
+      "props": [
+        {
+          "name": "className",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        },
+        {
+          "name": "variant",
+          "type": "any",
+          "required": true,
+          "description": "",
+          "examples": []
+        }
+      ],
+      "dependencies": [
+        "react",
+        "class-variance-authority@0.7.1",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.962Z",
+      "updatedAt": "2025-09-22T01:18:32.962Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "alert-dialog-alertdialog",
+      "name": "AlertDialog",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/alert-dialog.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-alert-dialog@1.1.6",
+        "./utils",
+        "./button"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.964Z",
+      "updatedAt": "2025-09-22T01:18:32.964Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "accordion-accordion",
+      "name": "Accordion",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/accordion.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@radix-ui/react-accordion@1.2.3",
+        "lucide-react@0.487.0",
+        "./utils"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.966Z",
+      "updatedAt": "2025-09-22T01:18:32.966Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "tabs-tabs",
+      "name": "Tabs",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/tabs/tabs.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@/utils/cn",
+        "../../../../specs/001-agent-frontend-specialist/contracts/tabs"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.974Z",
+      "updatedAt": "2025-09-22T01:18:32.974Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "sidebar-sidebar",
+      "name": "Sidebar",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/sidebar/sidebar.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@/utils/cn",
+        "../../../../specs/001-agent-frontend-specialist/contracts/sidebar"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.990Z",
+      "updatedAt": "2025-09-22T01:18:32.990Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "pagination-paginationbutton",
+      "name": "PaginationButton",
+      "type": "molecule",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/pagination/pagination.tsx",
+      "category": "action",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@/utils/cn",
+        "../../../../specs/001-agent-frontend-specialist/contracts/pagination"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:32.998Z",
+      "updatedAt": "2025-09-22T01:18:32.998Z",
+      "composition": [],
+      "layout": "horizontal",
+      "interactions": [],
+      "slots": []
+    },
+    {
+      "id": "layout-container",
+      "name": "Container",
+      "type": "atom",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/layout/layout.tsx",
+      "category": "layout",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@/utils/cn",
+        "../../../../specs/001-agent-frontend-specialist/contracts/layout"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:33.010Z",
+      "updatedAt": "2025-09-22T01:18:33.010Z",
+      "htmlElement": "div",
+      "variants": [],
+      "accessibility": {
+        "ariaLabel": false,
+        "ariaDescribedBy": false,
+        "role": null,
+        "keyboardNav": false,
+        "wcagLevel": "AA"
+      }
+    },
+    {
+      "id": "header-header",
+      "name": "Header",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/header/header.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@/utils/cn",
+        "../../../../specs/001-agent-frontend-specialist/contracts/header"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:33.020Z",
+      "updatedAt": "2025-09-22T01:18:33.020Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "chat-message-chatmessage",
+      "name": "ChatMessage",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/chat-message/chat-message.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@/utils/cn",
+        "../../../../specs/001-agent-frontend-specialist/contracts/chat-message"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:33.034Z",
+      "updatedAt": "2025-09-22T01:18:33.034Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "card-card",
+      "name": "Card",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/card/card.tsx",
+      "category": "display",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@/utils/cn",
+        "../../../../specs/001-agent-frontend-specialist/contracts/card"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:33.042Z",
+      "updatedAt": "2025-09-22T01:18:33.042Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    },
+    {
+      "id": "badge-badge",
+      "name": "Badge",
+      "type": "organism",
+      "filePath": "/Users/weerawat/Tchat/apps/web/src/components/ui/badge/badge.tsx",
+      "category": "general",
+      "description": "",
+      "props": [],
+      "dependencies": [
+        "react",
+        "@/utils/cn",
+        "../../../../specs/001-agent-frontend-specialist/contracts/badge"
+      ],
+      "usageCount": 0,
+      "deprecated": false,
+      "version": "1.0.0",
+      "createdAt": "2025-09-22T01:18:33.046Z",
+      "updatedAt": "2025-09-22T01:18:33.046Z",
+      "contains": [],
+      "standalone": true,
+      "pageSection": false,
+      "dataSource": null
+    }
+  ],
+  "lastUpdated": "2025-09-22T01:18:33.046Z",
+  "statistics": {
+    "totalComponents": 76,
+    "atomCount": 23,
+    "moleculeCount": 13,
+    "organismCount": 40,
+    "duplicatesFound": 5,
+    "inconsistenciesFound": 76,
+    "averageUsageCount": 0,
+    "mostUsedComponents": [
+      "workspacetab-workspacetab",
+      "workspaceswitcher-workspaceswitcher",
+      "walletscreen-walletscreen",
+      "voicecallscreen-voicecallscreen",
+      "videotab-videotab",
+      "videocallscreen-videocallscreen",
+      "storetab-storetab",
+      "socialtab-socialtab",
+      "shoppage-shoppage",
+      "shopchatscreen-shopchatscreen"
+    ]
+  }
+}

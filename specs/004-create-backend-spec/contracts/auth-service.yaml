@@ -1,0 +1,332 @@
+openapi: 3.0.3
+info:
+  title: Auth Service API
+  description: Authentication and user management service for Telegram SEA Edition
+  version: 1.0.0
+  contact:
+    name: Backend Team
+
+servers:
+  - url: https://auth.tchat.sea
+    description: Production server
+  - url: https://auth-staging.tchat.sea
+    description: Staging server
+
+paths:
+  /auth/otp/send:
+    post:
+      summary: Send OTP for authentication
+      operationId: sendOTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - identifier
+                - type
+              properties:
+                identifier:
+                  type: string
+                  description: Phone number or email
+                  example: "+66812345678"
+                type:
+                  type: string
+                  enum: [phone, email]
+                  description: Type of identifier
+                country:
+                  type: string
+                  enum: [TH, ID, MY, VN, SG, PH]
+                  description: Country code for localization
+      responses:
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  session_id:
+                    type: string
+                    format: uuid
+                  expires_at:
+                    type: string
+                    format: date-time
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/otp/verify:
+    post:
+      summary: Verify OTP and authenticate user
+      operationId: verifyOTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - session_id
+                - code
+              properties:
+                session_id:
+                  type: string
+                  format: uuid
+                code:
+                  type: string
+                  pattern: '^[0-9]{6}$'
+                  description: 6-digit OTP code
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    description: JWT access token (15 min expiry)
+                  refresh_token:
+                    type: string
+                    description: Refresh token for token renewal
+                  user:
+                    $ref: '#/components/schemas/User'
+                  expires_at:
+                    type: string
+                    format: date-time
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/token/refresh:
+    post:
+      summary: Refresh access token using refresh token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  expires_at:
+                    type: string
+                    format: date-time
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/profile:
+    get:
+      summary: Get user profile
+      operationId: getUserProfile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      summary: Update user profile
+      operationId: updateUserProfile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                avatar:
+                  type: string
+                  format: uri
+                locale:
+                  type: string
+                  enum: [th-TH, id-ID, ms-MY, vi-VN, en-US]
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/kyc:
+    post:
+      summary: Submit KYC verification
+      operationId: submitKYC
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tier
+                - documents
+              properties:
+                tier:
+                  type: integer
+                  enum: [1, 2, 3]
+                  description: Target KYC tier
+                documents:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                        enum: [id_card, passport, utility_bill, bank_statement]
+                      file_url:
+                        type: string
+                        format: uri
+      responses:
+        '200':
+          description: KYC submission successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  kyc_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [pending, approved, rejected]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          format: email
+          nullable: true
+        name:
+          type: string
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+        country:
+          type: string
+          enum: [TH, ID, MY, VN, SG, PH]
+        locale:
+          type: string
+          enum: [th-TH, id-ID, ms-MY, vi-VN, en-US]
+        kyc_tier:
+          type: integer
+          enum: [1, 2, 3]
+        status:
+          type: string
+          enum: [online, offline, away, busy]
+        is_verified:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              message:
+                type: string
+              details:
+                type: object
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "unauthorized"
+              message:
+                type: string
+                example: "Invalid or expired token"
+
+    RateLimited:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "rate_limited"
+              message:
+                type: string
+                example: "Too many requests"
+              retry_after:
+                type: integer
+                description: Seconds to wait before retry
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

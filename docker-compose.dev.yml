@@ -1,0 +1,251 @@
+# Docker Compose Development Environment for Tchat Backend
+# Southeast Asian Enterprise Platform with Regional Data Compliance
+# Supports: PostgreSQL, ScyllaDB, Redis, Kafka for microservices architecture
+
+version: '3.8'
+
+services:
+  # PostgreSQL - Primary transactional database
+  postgres:
+    image: postgres:15-alpine
+    container_name: tchat-postgres-dev
+    environment:
+      POSTGRES_DB: tchat_dev
+      POSTGRES_USER: tchat_user
+      POSTGRES_PASSWORD: tchat_dev_password
+      POSTGRES_MULTIPLE_DATABASES: auth_dev,payment_dev,commerce_dev,notification_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/infrastructure/postgres/init:/docker-entrypoint-initdb.d
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tchat_user -d tchat_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ScyllaDB - High-performance message storage
+  scylla:
+    image: scylladb/scylla:5.4
+    container_name: tchat-scylla-dev
+    command: --smp 1 --memory 1G --overprovisioned 1
+    ports:
+      - "9042:9042"
+      - "10000:10000"  # REST API
+    volumes:
+      - scylla_data:/var/lib/scylla
+      - ./backend/infrastructure/scylla/schema:/docker-entrypoint-initdb.d
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe cluster'"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Redis - Cache and session management
+  redis:
+    image: redis:7-alpine
+    container_name: tchat-redis-dev
+    command: redis-server --appendonly yes --requirepass tchat_redis_password
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./backend/infrastructure/redis/redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Kafka - Event streaming and service communication
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: tchat-kafka-dev
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_NUM_PARTITIONS: 6  # One per Southeast Asian country
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - tchat-network
+    healthcheck:
+      test: kafka-topics --bootstrap-server kafka:9092 --list
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Zookeeper - Kafka coordination
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: tchat-zookeeper-dev
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo 'ruok' | nc localhost 2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Kafka Connect (for external service integration)
+  kafka-connect:
+    image: confluentinc/cp-kafka-connect:7.4.0
+    container_name: tchat-kafka-connect-dev
+    depends_on:
+      - kafka
+    ports:
+      - "8083:8083"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka:9092
+      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
+      CONNECT_GROUP_ID: tchat-connect-group
+      CONNECT_CONFIG_STORAGE_TOPIC: tchat-connect-configs
+      CONNECT_OFFSET_STORAGE_TOPIC: tchat-connect-offsets
+      CONNECT_STATUS_STORAGE_TOPIC: tchat-connect-status
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/etc/kafka-connect/jars"
+    networks:
+      - tchat-network
+
+  # MinIO - S3-compatible object storage for development
+  minio:
+    image: minio/minio:latest
+    container_name: tchat-minio-dev
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: tchat_minio_user
+      MINIO_ROOT_PASSWORD: tchat_minio_password
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Jaeger - Distributed tracing for microservices
+  jaeger:
+    image: jaegertracing/all-in-one:1.49
+    container_name: tchat-jaeger-dev
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"  # HTTP collector
+    environment:
+      COLLECTOR_OTLP_ENABLED: true
+    networks:
+      - tchat-network
+
+  # Prometheus - Metrics collection
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: tchat-prometheus-dev
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./backend/infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - tchat-network
+
+  # Grafana - Metrics visualization
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: tchat-grafana-dev
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: tchat_grafana_password
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./backend/infrastructure/grafana/dashboards:/var/lib/grafana/dashboards
+      - ./backend/infrastructure/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - tchat-network
+
+  # Development utilities container
+  tchat-dev-tools:
+    image: alpine:3.18
+    container_name: tchat-dev-tools
+    entrypoint: ["/bin/sh", "-c", "while true; do sleep 30; done"]
+    volumes:
+      - ./:/app
+    working_dir: /app
+    networks:
+      - tchat-network
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:
+    name: tchat_postgres_dev_data
+  scylla_data:
+    name: tchat_scylla_dev_data
+  redis_data:
+    name: tchat_redis_dev_data
+  kafka_data:
+    name: tchat_kafka_dev_data
+  zookeeper_data:
+    name: tchat_zookeeper_dev_data
+  zookeeper_logs:
+    name: tchat_zookeeper_dev_logs
+  minio_data:
+    name: tchat_minio_dev_data
+  prometheus_data:
+    name: tchat_prometheus_dev_data
+  grafana_data:
+    name: tchat_grafana_dev_data
+
+networks:
+  tchat-network:
+    name: tchat-dev-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

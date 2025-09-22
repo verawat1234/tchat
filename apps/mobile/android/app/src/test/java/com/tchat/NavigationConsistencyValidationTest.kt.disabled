@@ -1,0 +1,494 @@
+package com.tchat
+
+import com.tchat.models.*
+import com.tchat.services.*
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.test.runTest
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.Assert.*
+import kotlin.system.measureTimeMillis
+
+/**
+ * Cross-platform navigation consistency validation tests
+ */
+class NavigationConsistencyValidationTest {
+
+    private lateinit var navigationCoordinator: NavigationCoordinator
+    private lateinit var routeRegistry: RouteRegistry
+    private lateinit var deepLinkProcessor: DeepLinkProcessor
+
+    @Before
+    fun setUp() {
+        navigationCoordinator = NavigationCoordinator()
+        routeRegistry = RouteRegistry()
+        deepLinkProcessor = DeepLinkProcessor()
+    }
+
+    @After
+    fun tearDown() {
+        // Cleanup resources
+    }
+
+    // MARK: - Route Registration Consistency Tests
+
+    @Test
+    fun testRouteRegistrationConsistency() = runTest {
+        // Test that routes are registered consistently across platforms
+        val webRoutes = getWebRoutes()
+        val mobileRoutes = routeRegistry.getAllRoutes()
+
+        // Validate core routes exist
+        val coreRoutes = listOf("/", "/chat", "/settings", "/profile", "/notifications")
+
+        for (coreRoute in coreRoutes) {
+            assertTrue(
+                "Core route $coreRoute should be registered in mobile app",
+                mobileRoutes.any { it.path == coreRoute }
+            )
+        }
+
+        // Validate route count is reasonable
+        assertTrue("Should have at least 5 routes registered", mobileRoutes.size > 5)
+        assertTrue("Should not have excessive routes", mobileRoutes.size < 50)
+    }
+
+    @Test
+    fun testDeepLinkConsistency() = runTest {
+        // Test deep link processing consistency
+        val testDeepLinks = listOf(
+            "tchat://chat/room/123",
+            "tchat://profile/user/456",
+            "tchat://settings/notifications",
+            "https://tchat.app/chat/room/789",
+            "https://tchat.app/profile/user/101"
+        )
+
+        for (deepLinkURL in testDeepLinks) {
+            try {
+                val request = DeepLinkResolutionRequest(
+                    url = deepLinkURL,
+                    platform = "android",
+                    userId = "test_user",
+                    sessionId = "test_session",
+                    timestamp = System.currentTimeMillis()
+                )
+
+                val resolution = deepLinkProcessor.processDeepLink(request)
+
+                // Validate resolution structure
+                assertNotNull("Deep link should resolve to a target route", resolution.targetRoute)
+                assertNotNull("Should have navigation instructions", resolution.navigationInstructions)
+
+                // Validate route format
+                resolution.targetRoute?.let { targetRoute ->
+                    assertTrue("Target route should start with /", targetRoute.startsWith("/"))
+                    assertFalse("Target route should not have double slashes", targetRoute.contains("//"))
+                }
+
+            } catch (e: Exception) {
+                fail("Deep link processing failed for $deepLinkURL: ${e.message}")
+            }
+        }
+    }
+
+    // MARK: - Navigation Performance Tests
+
+    @Test
+    fun testNavigationPerformance() = runTest {
+        // Test navigation performance requirements
+        val navigationTimes = mutableListOf<Long>()
+
+        // Test multiple navigation operations
+        repeat(10) { i ->
+            val navigationTime = measureTimeMillis {
+                val route = NavigationRoute(
+                    id = "test_route_$i",
+                    path = "/test/$i",
+                    name = "Test Route $i",
+                    component = "TestComponent",
+                    parameters = emptyMap(),
+                    metadata = emptyMap()
+                )
+
+                navigationCoordinator.navigateToRoute(route)
+            }
+
+            navigationTimes.add(navigationTime)
+        }
+
+        // Validate performance requirements
+        val averageTime = navigationTimes.average()
+        val maxTime = navigationTimes.maxOrNull() ?: 0L
+
+        assertTrue("Average navigation time should be < 100ms", averageTime < 100)
+        assertTrue("Maximum navigation time should be < 200ms", maxTime < 200)
+    }
+
+    @Test
+    fun testMemoryUsageDuringNavigation() = runTest {
+        // Test memory usage during navigation
+        val runtime = Runtime.getRuntime()
+        val initialMemory = runtime.totalMemory() - runtime.freeMemory()
+
+        // Perform multiple navigation operations
+        repeat(20) { i ->
+            val route = NavigationRoute(
+                id = "memory_test_$i",
+                path = "/memory_test/$i",
+                name = "Memory Test $i",
+                component = "TestComponent",
+                parameters = emptyMap(),
+                metadata = emptyMap()
+            )
+
+            navigationCoordinator.navigateToRoute(route)
+
+            // Navigate back to clear stack
+            navigationCoordinator.goBack()
+        }
+
+        // Force garbage collection
+        System.gc()
+        Thread.sleep(100)
+
+        val finalMemory = runtime.totalMemory() - runtime.freeMemory()
+        val memoryIncrease = finalMemory - initialMemory
+
+        // Memory increase should be reasonable (< 10MB)
+        assertTrue("Memory increase should be < 10MB", memoryIncrease < 10_000_000)
+    }
+
+    // MARK: - Cross-Platform State Consistency Tests
+
+    @Test
+    fun testNavigationStateSync() = runTest {
+        // Test navigation state synchronization
+        val navigationState = NavigationState(
+            currentRoute = "/test/sync",
+            routeStack = listOf("/", "/test", "/test/sync"),
+            routeParams = mapOf("id" to "123"),
+            navigationHistory = emptyList(),
+            platform = "android",
+            userId = "test_user",
+            sessionId = "test_session",
+            timestamp = System.currentTimeMillis(),
+            version = 1
+        )
+
+        // Update navigation state
+        navigationCoordinator.updateNavigationState(navigationState)
+
+        // Verify state update
+        val currentState = navigationCoordinator.navigationState.first()
+        assertEquals("/test/sync", currentState.currentRoute)
+        assertEquals(3, currentState.routeStack.size)
+        assertEquals("123", currentState.routeParams["id"])
+    }
+
+    @Test
+    fun testUIComponentStateConsistency() = runTest {
+        // Test UI component state consistency across navigation
+        val stateManager = UIStateManager()
+
+        // Create test component state
+        val componentState = ComponentState(
+            instanceId = "test_component_1",
+            componentId = "ChatRoom",
+            state = mapOf(
+                "messageCount" to 42,
+                "scrollPosition" to 150.0,
+                "selectedMessage" to "msg_123"
+            ),
+            userId = "test_user",
+            sessionId = "test_session",
+            platform = "android",
+            timestamp = System.currentTimeMillis(),
+            version = 1,
+            isSynchronized = false
+        )
+
+        // Save component state
+        stateManager.createComponentState(componentState)
+
+        // Navigate away and back
+        val chatRoute = NavigationRoute(
+            id = "chat_room",
+            path = "/chat/room/123",
+            name = "Chat Room",
+            component = "ChatRoom",
+            parameters = mapOf("roomId" to "123"),
+            metadata = emptyMap()
+        )
+
+        navigationCoordinator.navigateToRoute(chatRoute)
+        navigationCoordinator.goBack()
+        navigationCoordinator.navigateToRoute(chatRoute)
+
+        // Verify state persistence
+        val retrievedState = stateManager.getComponentState("test_component_1")
+        assertNotNull("Component state should be persisted", retrievedState)
+        assertEquals(42, retrievedState?.state?.get("messageCount"))
+        assertEquals(150.0, retrievedState?.state?.get("scrollPosition"))
+    }
+
+    // MARK: - Platform-Specific Feature Tests
+
+    @Test
+    fun testPlatformAdapterConsistency() = runTest {
+        // Test platform adapter consistency
+        val platformAdapter = PlatformAdapterImpl()
+
+        // Test gesture support consistency
+        val supportedGestures = platformAdapter.getSupportedGestures()
+        val expectedGestures = listOf("tap", "swipe", "longPress", "pan", "pinch")
+
+        for (gesture in expectedGestures) {
+            val gestureDefinition = supportedGestures.find { it.name == gesture }
+            assertNotNull("Platform should support $gesture gesture", gestureDefinition)
+        }
+
+        // Test animation support consistency
+        val supportedAnimations = platformAdapter.getSupportedAnimations()
+        val expectedAnimations = listOf("fade", "slide", "scale", "spring")
+
+        for (animation in expectedAnimations) {
+            val animationDefinition = supportedAnimations.find { it.name == animation }
+            assertNotNull("Platform should support $animation animation", animationDefinition)
+        }
+
+        // Test platform capabilities
+        val capabilities = platformAdapter.getPlatformCapabilities()
+        assertEquals("android", capabilities.platform)
+        assertTrue(capabilities.capabilities.isNotEmpty())
+    }
+
+    @Test
+    fun testDeviceFeatureDetection() = runTest {
+        // Test device feature detection consistency
+        val platformAdapter = PlatformAdapterImpl()
+
+        // Test common hardware features
+        val cameraSupport = platformAdapter.hasHardwareFeature("camera")
+        val hapticSupport = platformAdapter.hasHardwareFeature("hapticFeedback")
+
+        // These should return boolean values without crashing
+        assertNotNull(cameraSupport)
+        assertNotNull(hapticSupport)
+
+        // Test device metadata
+        val deviceMetadata = platformAdapter.getDeviceMetadata()
+        assertNotNull(deviceMetadata["model"])
+        assertNotNull(deviceMetadata["manufacturer"])
+        assertNotNull(deviceMetadata["androidVersion"])
+    }
+
+    // MARK: - API Integration Consistency Tests
+
+    @Test
+    fun testAPIClientConsistency() = runTest {
+        // Test API client consistency
+        val navigationAPIClient = NavigationSyncAPIClient()
+        val componentAPIClient = UIComponentSyncAPIClient()
+
+        // Test client initialization
+        assertNotNull(navigationAPIClient)
+        assertNotNull(componentAPIClient)
+
+        // Test client configuration
+        val navigationFactory = NavigationSyncAPIClientFactory().create(Environment.DEVELOPMENT)
+        val componentFactory = UIComponentSyncAPIClientFactory().create(Environment.DEVELOPMENT)
+
+        assertNotNull(navigationFactory)
+        assertNotNull(componentFactory)
+    }
+
+    // MARK: - Performance Benchmarking
+
+    @Test
+    fun testNavigationStackPerformance() = runTest {
+        // Measure navigation stack performance
+        val registrationTime = measureTimeMillis {
+            repeat(100) { i ->
+                val route = NavigationRoute(
+                    id = "perf_test_$i",
+                    path = "/perf/$i",
+                    name = "Performance Test $i",
+                    component = "TestComponent",
+                    parameters = mapOf("index" to i),
+                    metadata = emptyMap()
+                )
+
+                routeRegistry.registerRoute(route)
+            }
+        }
+
+        // Performance should be reasonable
+        assertTrue("Route registration should be fast", registrationTime < 1000) // < 1 second
+    }
+
+    @Test
+    fun testDeepLinkProcessingPerformance() = runTest {
+        // Measure deep link processing performance
+        val testURLs = (0 until 50).map { "tchat://test/route/$it" }
+
+        val processingTime = measureTimeMillis {
+            for (urlString in testURLs) {
+                val request = DeepLinkResolutionRequest(
+                    url = urlString,
+                    platform = "android",
+                    userId = "perf_test",
+                    sessionId = "perf_session",
+                    timestamp = System.currentTimeMillis()
+                )
+
+                // Synchronous processing for measurement
+                deepLinkProcessor.resolveURL(urlString)
+            }
+        }
+
+        // Performance should be reasonable
+        assertTrue("Deep link processing should be fast", processingTime < 500) // < 500ms
+    }
+
+    @Test
+    fun testConcurrentNavigationPerformance() = runTest {
+        // Test concurrent navigation operations
+        val concurrentTime = measureTimeMillis {
+            val routes = (0 until 20).map { i ->
+                NavigationRoute(
+                    id = "concurrent_test_$i",
+                    path = "/concurrent/$i",
+                    name = "Concurrent Test $i",
+                    component = "TestComponent",
+                    parameters = mapOf("index" to i),
+                    metadata = emptyMap()
+                )
+            }
+
+            // Simulate concurrent navigation requests
+            routes.forEach { route ->
+                navigationCoordinator.navigateToRoute(route)
+            }
+        }
+
+        // Concurrent operations should complete quickly
+        assertTrue("Concurrent navigation should be efficient", concurrentTime < 200) // < 200ms
+    }
+
+    @Test
+    fun testStateManagerPerformance() = runTest {
+        // Test state manager performance with multiple components
+        val stateManager = UIStateManager()
+
+        val stateOperationTime = measureTimeMillis {
+            repeat(50) { i ->
+                val componentState = ComponentState(
+                    instanceId = "perf_component_$i",
+                    componentId = "PerformanceComponent",
+                    state = mapOf(
+                        "data" to "test_data_$i",
+                        "counter" to i,
+                        "active" to true
+                    ),
+                    userId = "perf_user",
+                    sessionId = "perf_session",
+                    platform = "android",
+                    timestamp = System.currentTimeMillis(),
+                    version = 1,
+                    isSynchronized = false
+                )
+
+                stateManager.createComponentState(componentState)
+                stateManager.getComponentState("perf_component_$i")
+            }
+        }
+
+        // State operations should be fast
+        assertTrue("State manager operations should be efficient", stateOperationTime < 1000) // < 1 second
+    }
+
+    // MARK: - Error Handling and Edge Cases
+
+    @Test
+    fun testInvalidDeepLinkHandling() = runTest {
+        // Test handling of invalid deep links
+        val invalidDeepLinks = listOf(
+            "invalid://url",
+            "tchat://",
+            "tchat://invalid-path-without-slash",
+            "",
+            "not-a-url-at-all"
+        )
+
+        for (invalidURL in invalidDeepLinks) {
+            try {
+                val request = DeepLinkResolutionRequest(
+                    url = invalidURL,
+                    platform = "android",
+                    userId = "test_user",
+                    sessionId = "test_session",
+                    timestamp = System.currentTimeMillis()
+                )
+
+                val resolution = deepLinkProcessor.processDeepLink(request)
+
+                // Should either handle gracefully or throw appropriate exception
+                if (resolution.targetRoute != null) {
+                    // If resolved, should be a valid fallback route
+                    assertTrue("Fallback route should be valid", resolution.targetRoute!!.startsWith("/"))
+                }
+
+            } catch (e: Exception) {
+                // Exception handling is also acceptable for invalid URLs
+                assertTrue("Should throw appropriate exception type",
+                    e is DeepLinkProcessingException || e is IllegalArgumentException)
+            }
+        }
+    }
+
+    @Test
+    fun testNavigationMemoryLeakPrevention() = runTest {
+        // Test that navigation doesn't create memory leaks
+        val runtime = Runtime.getRuntime()
+
+        // Baseline memory
+        System.gc()
+        Thread.sleep(100)
+        val baselineMemory = runtime.totalMemory() - runtime.freeMemory()
+
+        // Perform navigation cycles
+        repeat(100) { i ->
+            val route = NavigationRoute(
+                id = "leak_test_$i",
+                path = "/leak_test/$i",
+                name = "Leak Test $i",
+                component = "TestComponent",
+                parameters = mapOf("data" to "large_data_string_$i".repeat(100)),
+                metadata = emptyMap()
+            )
+
+            navigationCoordinator.navigateToRoute(route)
+            navigationCoordinator.goBack()
+        }
+
+        // Force cleanup
+        System.gc()
+        Thread.sleep(200)
+
+        val finalMemory = runtime.totalMemory() - runtime.freeMemory()
+        val memoryIncrease = finalMemory - baselineMemory
+
+        // Memory increase should be minimal
+        assertTrue("Memory increase should be minimal (< 5MB)", memoryIncrease < 5_000_000)
+    }
+
+    // MARK: - Helper Methods
+
+    private fun getWebRoutes(): List<String> {
+        // Simulate getting routes from web application
+        return listOf("/", "/chat", "/settings", "/profile", "/notifications", "/help")
+    }
+}

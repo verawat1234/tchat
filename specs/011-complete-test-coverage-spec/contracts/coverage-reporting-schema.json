@@ -1,0 +1,489 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://tchat.dev/schemas/coverage-report.json",
+  "title": "Test Coverage Report Schema",
+  "description": "Schema for test coverage reports across Tchat microservices",
+  "type": "object",
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "pattern": "^cov_[a-zA-Z0-9]{12}$",
+          "description": "Unique coverage report identifier"
+        },
+        "serviceId": {
+          "type": "string",
+          "enum": ["auth-service", "messaging-service", "payment-service", "commerce-service", "notification-service", "content-service", "api-gateway"],
+          "description": "Target microservice identifier"
+        },
+        "reportType": {
+          "type": "string",
+          "enum": ["unit", "integration", "contract", "security", "performance", "combined"],
+          "description": "Type of coverage report"
+        },
+        "generatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Report generation timestamp"
+        },
+        "gitCommit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$",
+          "description": "Git commit SHA for code version"
+        },
+        "branch": {
+          "type": "string",
+          "description": "Git branch name"
+        },
+        "environment": {
+          "type": "string",
+          "enum": ["local", "development", "staging", "production"],
+          "description": "Test execution environment"
+        }
+      },
+      "required": ["reportId", "serviceId", "reportType", "generatedAt", "gitCommit", "environment"],
+      "additionalProperties": false
+    },
+    "overall": {
+      "type": "object",
+      "properties": {
+        "lines": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Line coverage percentage"
+        },
+        "functions": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Function coverage percentage"
+        },
+        "branches": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Branch coverage percentage"
+        },
+        "statements": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Statement coverage percentage"
+        }
+      },
+      "required": ["lines", "functions", "branches", "statements"],
+      "additionalProperties": false
+    },
+    "byTestType": {
+      "type": "object",
+      "properties": {
+        "unit": {
+          "$ref": "#/definitions/coverageMetrics"
+        },
+        "integration": {
+          "$ref": "#/definitions/coverageMetrics"
+        },
+        "contract": {
+          "$ref": "#/definitions/coverageMetrics"
+        },
+        "security": {
+          "$ref": "#/definitions/coverageMetrics"
+        },
+        "performance": {
+          "$ref": "#/definitions/coverageMetrics"
+        }
+      },
+      "additionalProperties": false
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Relative file path from service root"
+          },
+          "lines": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "File line coverage percentage"
+          },
+          "functions": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "File function coverage percentage"
+          },
+          "branches": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "File branch coverage percentage"
+          },
+          "uncoveredLines": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Line numbers not covered by tests"
+          },
+          "uncoveredFunctions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Function names not covered by tests"
+          },
+          "criticalPath": {
+            "type": "boolean",
+            "description": "Whether file is part of critical business logic"
+          },
+          "complexity": {
+            "type": "object",
+            "properties": {
+              "cyclomatic": {
+                "type": "number",
+                "minimum": 1,
+                "description": "Cyclomatic complexity score"
+              },
+              "cognitive": {
+                "type": "number",
+                "minimum": 1,
+                "description": "Cognitive complexity score"
+              }
+            },
+            "required": ["cyclomatic", "cognitive"]
+          }
+        },
+        "required": ["path", "lines", "functions", "branches", "uncoveredLines", "criticalPath"],
+        "additionalProperties": false
+      }
+    },
+    "targets": {
+      "type": "object",
+      "properties": {
+        "unit": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Unit test coverage target percentage"
+        },
+        "integration": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Integration test coverage target percentage"
+        },
+        "critical": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Critical path coverage target percentage"
+        },
+        "overall": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Overall coverage target percentage"
+        }
+      },
+      "required": ["unit", "integration", "critical", "overall"],
+      "additionalProperties": false
+    },
+    "trends": {
+      "type": "object",
+      "properties": {
+        "lastWeek": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Coverage percentage one week ago"
+        },
+        "lastMonth": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Coverage percentage one month ago"
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["increasing", "decreasing", "stable"],
+          "description": "Coverage trend direction"
+        },
+        "changeRate": {
+          "type": "number",
+          "description": "Percentage point change per week"
+        }
+      },
+      "required": ["lastWeek", "lastMonth", "direction", "changeRate"],
+      "additionalProperties": false
+    },
+    "thresholds": {
+      "type": "object",
+      "properties": {
+        "lines": {
+          "type": "object",
+          "properties": {
+            "minimum": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "target": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "met": {
+              "type": "boolean"
+            }
+          },
+          "required": ["minimum", "target", "met"]
+        },
+        "functions": {
+          "type": "object",
+          "properties": {
+            "minimum": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "target": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "met": {
+              "type": "boolean"
+            }
+          },
+          "required": ["minimum", "target", "met"]
+        },
+        "branches": {
+          "type": "object",
+          "properties": {
+            "minimum": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "target": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "met": {
+              "type": "boolean"
+            }
+          },
+          "required": ["minimum", "target", "met"]
+        }
+      },
+      "required": ["lines", "functions", "branches"],
+      "additionalProperties": false
+    },
+    "qualityGates": {
+      "type": "object",
+      "properties": {
+        "passed": {
+          "type": "boolean",
+          "description": "Whether all quality gates passed"
+        },
+        "gates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Quality gate name"
+              },
+              "condition": {
+                "type": "string",
+                "description": "Gate condition (e.g., 'coverage >= 80%')"
+              },
+              "actualValue": {
+                "type": "number",
+                "description": "Actual measured value"
+              },
+              "expectedValue": {
+                "type": "number",
+                "description": "Expected threshold value"
+              },
+              "passed": {
+                "type": "boolean",
+                "description": "Whether this gate passed"
+              },
+              "critical": {
+                "type": "boolean",
+                "description": "Whether this is a critical gate"
+              }
+            },
+            "required": ["name", "condition", "actualValue", "expectedValue", "passed", "critical"]
+          }
+        }
+      },
+      "required": ["passed", "gates"],
+      "additionalProperties": false
+    },
+    "regional": {
+      "type": "object",
+      "properties": {
+        "coverage": {
+          "type": "object",
+          "properties": {
+            "TH": {
+              "$ref": "#/definitions/regionalCoverage"
+            },
+            "SG": {
+              "$ref": "#/definitions/regionalCoverage"
+            },
+            "ID": {
+              "$ref": "#/definitions/regionalCoverage"
+            },
+            "MY": {
+              "$ref": "#/definitions/regionalCoverage"
+            },
+            "PH": {
+              "$ref": "#/definitions/regionalCoverage"
+            },
+            "VN": {
+              "$ref": "#/definitions/regionalCoverage"
+            }
+          },
+          "additionalProperties": false
+        },
+        "compliance": {
+          "type": "object",
+          "properties": {
+            "GDPR": {
+              "$ref": "#/definitions/complianceStatus"
+            },
+            "PDPA_TH": {
+              "$ref": "#/definitions/complianceStatus"
+            },
+            "PDPA_SG": {
+              "$ref": "#/definitions/complianceStatus"
+            },
+            "PDPA_MY": {
+              "$ref": "#/definitions/complianceStatus"
+            },
+            "PDP_ID": {
+              "$ref": "#/definitions/complianceStatus"
+            },
+            "DPA_PH": {
+              "$ref": "#/definitions/complianceStatus"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["metadata", "overall", "files", "targets", "thresholds", "qualityGates"],
+  "additionalProperties": false,
+  "definitions": {
+    "coverageMetrics": {
+      "type": "object",
+      "properties": {
+        "lines": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "functions": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "branches": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "statements": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        }
+      },
+      "required": ["lines", "functions", "branches"],
+      "additionalProperties": false
+    },
+    "regionalCoverage": {
+      "type": "object",
+      "properties": {
+        "dataResidency": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Test coverage for data residency requirements"
+        },
+        "privacy": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Test coverage for privacy law compliance"
+        },
+        "payment": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Test coverage for payment regulations"
+        },
+        "localization": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Test coverage for localization features"
+        }
+      },
+      "required": ["dataResidency", "privacy", "payment", "localization"],
+      "additionalProperties": false
+    },
+    "complianceStatus": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["compliant", "non_compliant", "pending", "not_applicable"],
+          "description": "Compliance validation status"
+        },
+        "lastValidated": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last compliance validation timestamp"
+        },
+        "coverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Test coverage for compliance requirements"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Test cases providing compliance evidence"
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Outstanding compliance issues"
+        }
+      },
+      "required": ["status", "lastValidated", "coverage", "evidence"],
+      "additionalProperties": false
+    }
+  }
+}

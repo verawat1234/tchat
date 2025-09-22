@@ -1,0 +1,53 @@
+{
+  "paths": {
+    "components": "src/components",
+    "output": "docs/components",
+    "registry": "docs/components/registry.json"
+  },
+  "analysis": {
+    "recursive": true,
+    "maxDepth": 10,
+    "exclude": ["*.test.tsx", "*.stories.tsx", "__mocks__/*"],
+    "includeTests": false,
+    "categorization": {
+      "atomPatterns": ["Button*.tsx", "Input*.tsx", "Icon*.tsx", "Text*.tsx"],
+      "moleculePatterns": ["*Form.tsx", "*Card.tsx", "*List.tsx", "*Group.tsx"],
+      "organismPatterns": ["*Section.tsx", "*Layout.tsx", "*Page.tsx", "*Container.tsx"]
+    }
+  },
+  "validation": {
+    "rules": {
+      "naming": {
+        "enabled": true,
+        "pattern": "^[A-Z][a-zA-Z]*$"
+      },
+      "accessibility": {
+        "enabled": true,
+        "wcagLevel": "AA"
+      },
+      "documentation": {
+        "enabled": true,
+        "requireDescription": true,
+        "requireExamples": false
+      }
+    },
+    "autoFix": false,
+    "severity": "warning"
+  },
+  "duplicates": {
+    "threshold": 75,
+    "autoMerge": false,
+    "factors": {
+      "structural": 0.4,
+      "visual": 0.3,
+      "functional": 0.3
+    }
+  },
+  "output": {
+    "format": "both",
+    "includeVisuals": true,
+    "includeExamples": true,
+    "colors": true,
+    "verbose": false
+  }
+}

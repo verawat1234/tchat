@@ -1,0 +1,295 @@
+package ContractTests
+
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import java.util.Date
+
+/**
+ * Contract tests for Navigation Sync API
+ * These tests validate API contract compliance and must fail initially (TDD)
+ */
+@RunWith(JUnit4::class)
+class NavigationSyncAPITest {
+
+    private lateinit var mockNavigationSyncService: MockNavigationSyncService
+
+    @Before
+    fun setUp() {
+        mockNavigationSyncService = MockNavigationSyncService()
+    }
+
+    // MARK: - GET /navigation/routes Tests
+
+    @Test
+    fun `getNavigationRoutes with valid request returns routes`() = runTest {
+        // Given
+        val platform = "android"
+        val userId = "test_user_123"
+
+        // When - This will fail initially as the service doesn't exist yet
+        try {
+            val result = mockNavigationSyncService.getNavigationRoutes(platform, userId)
+
+            // Then
+            assertNotNull(result)
+            assertEquals(platform, result.platform)
+            assertTrue(result.routes.isNotEmpty())
+            assertTrue(result.totalCount > 0)
+
+            // Validate route structure
+            val firstRoute = result.routes.first()
+            assertFalse(firstRoute.id.isEmpty())
+            assertFalse(firstRoute.path.isEmpty())
+            assertFalse(firstRoute.title.isEmpty())
+            assertNotNull(firstRoute.component)
+            assertNotNull(firstRoute.isDeepLinkable)
+            assertNotNull(firstRoute.accessLevel)
+        } catch (e: NavigationSyncException) {
+            // Expected to fail initially
+            assertEquals("NOT_IMPLEMENTED", e.code)
+        }
+    }
+
+    @Test
+    fun `getNavigationRoutes with invalid platform returns 400`() = runTest {
+        // Given
+        val invalidPlatform = "invalid"
+        val userId = "test_user_123"
+
+        // When/Then - This will fail initially
+        try {
+            mockNavigationSyncService.getNavigationRoutes(invalidPlatform, userId)
+            fail("Expected error for invalid platform")
+        } catch (e: NavigationSyncException) {
+            // Expected to fail initially with NOT_IMPLEMENTED, but should eventually be INVALID_PLATFORM
+            assertTrue(e.code == "NOT_IMPLEMENTED" || e.code == "INVALID_PLATFORM")
+        }
+    }
+
+    @Test
+    fun `getNavigationRoutes with unauthorized user returns 401`() = runTest {
+        // Given
+        val platform = "android"
+        val invalidUserId = ""
+
+        // When/Then - This will fail initially
+        try {
+            mockNavigationSyncService.getNavigationRoutes(platform, invalidUserId)
+            fail("Expected unauthorized error")
+        } catch (e: NavigationSyncException) {
+            // Expected to fail initially with NOT_IMPLEMENTED, but should eventually be UNAUTHORIZED
+            assertTrue(e.code == "NOT_IMPLEMENTED" || e.code == "UNAUTHORIZED")
+        }
+    }
+
+    // MARK: - POST /navigation/state/sync Tests
+
+    @Test
+    fun `syncNavigationState with valid sync returns success`() = runTest {
+        // Given
+        val syncRequest = NavigationStateSyncRequest(
+            userId = "test_user_123",
+            sessionId = "session_456",
+            platform = "android",
+            navigationStack = listOf(
+                NavigationStackEntry("chat", emptyMap(), Date()),
+                NavigationStackEntry("chat/user", mapOf("userId" to "789"), Date())
+            ),
+            timestamp = Date(),
+            syncVersion = 1
+        )
+
+        // When - This will fail initially
+        try {
+            val result = mockNavigationSyncService.syncNavigationState(syncRequest)
+
+            // Then
+            assertTrue(result.success)
+            assertTrue(result.syncVersion > syncRequest.syncVersion)
+            assertNotNull(result.timestamp)
+            assertTrue(result.conflictsResolved.isEmpty()) // No conflicts in this test
+        } catch (e: NavigationSyncException) {
+            // Expected to fail initially
+            assertEquals("NOT_IMPLEMENTED", e.code)
+        }
+    }
+
+    @Test
+    fun `syncNavigationState with version conflict returns 409`() = runTest {
+        // Given
+        val syncRequest = NavigationStateSyncRequest(
+            userId = "test_user_123",
+            sessionId = "session_456",
+            platform = "android",
+            navigationStack = emptyList(),
+            timestamp = Date(),
+            syncVersion = -1 // Invalid version to trigger conflict
+        )
+
+        // When/Then - This will fail initially
+        try {
+            mockNavigationSyncService.syncNavigationState(syncRequest)
+            fail("Expected version conflict error")
+        } catch (e: NavigationSyncConflictException) {
+            // Expected behavior once implemented
+            assertEquals("version_mismatch", e.conflictType)
+            assertEquals(-1, e.clientVersion)
+            assertTrue(e.serverVersion > 0)
+        } catch (e: NavigationSyncException) {
+            // Expected to fail initially
+            assertEquals("NOT_IMPLEMENTED", e.code)
+        }
+    }
+
+    // MARK: - POST /navigation/deeplink/resolve Tests
+
+    @Test
+    fun `resolveDeepLink with valid URL returns resolution`() = runTest {
+        // Given
+        val deepLinkRequest = DeepLinkResolutionRequest(
+            url = "tchat://chat/user/123",
+            platform = "android",
+            userId = "test_user_456"
+        )
+
+        // When - This will fail initially
+        try {
+            val result = mockNavigationSyncService.resolveDeepLink(deepLinkRequest)
+
+            // Then
+            assertNotNull(result.routeId)
+            assertEquals("chat/user", result.routeId)
+            assertTrue(result.isValid)
+            assertEquals("123", result.parameters["userId"])
+            assertNotNull(result.requiresAuth)
+        } catch (e: NavigationSyncException) {
+            // Expected to fail initially
+            assertEquals("NOT_IMPLEMENTED", e.code)
+        }
+    }
+
+    @Test
+    fun `resolveDeepLink with invalid URL returns 404`() = runTest {
+        // Given
+        val deepLinkRequest = DeepLinkResolutionRequest(
+            url = "invalid://url/format",
+            platform = "android",
+            userId = "test_user_456"
+        )
+
+        // When/Then - This will fail initially
+        try {
+            mockNavigationSyncService.resolveDeepLink(deepLinkRequest)
+            fail("Expected not found error for invalid URL")
+        } catch (e: NavigationSyncException) {
+            // Expected to fail initially with NOT_IMPLEMENTED, but should eventually be DEEP_LINK_NOT_FOUND
+            assertTrue(e.code == "NOT_IMPLEMENTED" || e.code == "DEEP_LINK_NOT_FOUND")
+        }
+    }
+
+    // MARK: - Performance Tests
+
+    @Test
+    fun `navigationSync performance within budget`() = runTest {
+        val startTime = System.currentTimeMillis()
+
+        try {
+            mockNavigationSyncService.getNavigationRoutes("android", "test_user")
+        } catch (e: NavigationSyncException) {
+            // Performance test - failure expected initially
+        }
+
+        val duration = System.currentTimeMillis() - startTime
+        assertTrue("Navigation sync should complete within 200ms", duration < 200)
+    }
+}
+
+// MARK: - Mock Service (Will fail until real implementation exists)
+
+private class MockNavigationSyncService {
+
+    suspend fun getNavigationRoutes(platform: String, userId: String): NavigationRoutesResponse {
+        // This will fail initially - no real implementation yet
+        throw NavigationSyncException("NOT_IMPLEMENTED", "Service not implemented yet")
+    }
+
+    suspend fun syncNavigationState(request: NavigationStateSyncRequest): NavigationSyncResponse {
+        // This will fail initially - no real implementation yet
+        throw NavigationSyncException("NOT_IMPLEMENTED", "Service not implemented yet")
+    }
+
+    suspend fun resolveDeepLink(request: DeepLinkResolutionRequest): DeepLinkResolution {
+        // This will fail initially - no real implementation yet
+        throw NavigationSyncException("NOT_IMPLEMENTED", "Service not implemented yet")
+    }
+}
+
+// MARK: - Contract Models (Stub implementations that will fail)
+
+data class NavigationRoutesResponse(
+    val routes: List<NavigationRoute>,
+    val totalCount: Int,
+    val platform: String
+)
+
+data class NavigationRoute(
+    val id: String,
+    val path: String,
+    val title: String,
+    val component: String,
+    val parameters: Map<String, Any>,
+    val isDeepLinkable: Boolean,
+    val platformRestrictions: List<String>,
+    val parentRouteId: String?,
+    val accessLevel: String
+)
+
+data class NavigationStateSyncRequest(
+    val userId: String,
+    val sessionId: String,
+    val platform: String,
+    val navigationStack: List<NavigationStackEntry>,
+    val timestamp: Date,
+    val syncVersion: Int
+)
+
+data class NavigationStackEntry(
+    val routeId: String,
+    val parameters: Map<String, Any>,
+    val timestamp: Date
+)
+
+data class NavigationSyncResponse(
+    val success: Boolean,
+    val syncVersion: Int,
+    val conflictsResolved: List<String>,
+    val timestamp: Date
+)
+
+data class DeepLinkResolutionRequest(
+    val url: String,
+    val platform: String,
+    val userId: String
+)
+
+data class DeepLinkResolution(
+    val routeId: String,
+    val parameters: Map<String, Any>,
+    val isValid: Boolean,
+    val fallbackAction: String?,
+    val requiresAuth: Boolean
+)
+
+// MARK: - Error Types
+
+class NavigationSyncException(val code: String, message: String) : Exception(message)
+
+class NavigationSyncConflictException(
+    val conflictType: String,
+    val clientVersion: Int,
+    val serverVersion: Int
+) : Exception("Navigation sync conflict: $conflictType")

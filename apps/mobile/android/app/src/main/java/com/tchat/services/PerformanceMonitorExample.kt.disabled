@@ -1,0 +1,441 @@
+package com.tchat.services
+
+import android.content.Context
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.IOException
+
+/**
+ * Example demonstrating how to integrate PerformanceMonitor in your Android app
+ * 
+ * This example shows:
+ * 1. Setting up PerformanceMonitor in MainActivity
+ * 2. Tracking app launch time
+ * 3. Monitoring navigation performance
+ * 4. Tracking API calls
+ * 5. Monitoring scroll performance
+ * 6. Viewing performance metrics in UI
+ */
+
+/**
+ * Example MainActivity with PerformanceMonitor integration
+ */
+class ExampleMainActivity : ComponentActivity() {
+    
+    private lateinit var performanceMonitor: PerformanceMonitor
+    private lateinit var analyticsService: AnalyticsService
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        // Initialize PerformanceMonitor
+        setupPerformanceMonitoring()
+        
+        setContent {
+            ExampleApp()
+        }
+        
+        // Track app launch completion
+        performanceMonitor.trackAppLaunchComplete()
+    }
+    
+    private fun setupPerformanceMonitoring() {
+        // Check if device is suitable for monitoring
+        if (PerformanceMonitorUtils.isDeviceSuitableForMonitoring(this)) {
+            // Create analytics service
+            analyticsService = PerformanceMonitorUtils.createBasicAnalyticsService()
+            
+            // Initialize performance monitor
+            performanceMonitor = PerformanceMonitor(applicationContext)
+            
+            // Start monitoring
+            performanceMonitor.startMonitoring()
+            
+            // Setup periodic analytics reporting
+            setupPeriodicReporting()
+        }
+    }
+    
+    private fun setupPeriodicReporting() {
+        // Report metrics every 5 minutes in production
+        // For demo purposes, we'll report more frequently
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            while (true) {
+                delay(60000) // 1 minute
+                performanceMonitor.reportToAnalytics(analyticsService)
+            }
+        }
+    }
+}
+
+/**
+ * Example app composable demonstrating performance tracking
+ */
+@Composable
+fun ExampleApp() {
+    val context = LocalContext.current
+    val performanceMonitor = remember { PerformanceMonitor(context) }
+    
+    var currentScreen by remember { mutableStateOf("Home") }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // Navigation example
+        NavigationExample(
+            currentScreen = currentScreen,
+            onNavigate = { newScreen ->
+                // Track navigation performance
+                performanceMonitor.trackNavigation(currentScreen, newScreen)
+                currentScreen = newScreen
+                performanceMonitor.completeNavigation(currentScreen, newScreen)
+            }
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Performance metrics display
+        PerformanceMetricsDisplay(performanceMonitor)
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // API call example
+        ApiCallExample(performanceMonitor)
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Scroll performance example
+        ScrollPerformanceExample(performanceMonitor)
+    }
+}
+
+/**
+ * Navigation example with performance tracking
+ */
+@Composable
+fun NavigationExample(
+    currentScreen: String,
+    onNavigate: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "Navigation Tracking",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text("Current Screen: $currentScreen")
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(onClick = { onNavigate("Home") }) {
+                    Text("Home")
+                }
+                Button(onClick = { onNavigate("Profile") }) {
+                    Text("Profile")
+                }
+                Button(onClick = { onNavigate("Settings") }) {
+                    Text("Settings")
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Performance metrics display
+ */
+@Composable
+fun PerformanceMetricsDisplay(performanceMonitor: PerformanceMonitor) {
+    val performanceMetrics by performanceMonitor.performanceMetrics.collectAsStateWithLifecycle()
+    val memoryMetrics by performanceMonitor.memoryMetrics.collectAsStateWithLifecycle()
+    val alerts by performanceMonitor.alerts.collectAsStateWithLifecycle()
+    
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "Performance Metrics",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // App launch time
+            performanceMetrics.appLaunch?.let { launch ->
+                Text("App Launch: ${launch.type.name} - ${launch.duration}ms")
+            }
+            
+            // FPS
+            Text("Current FPS: ${performanceMetrics.currentFPS}")
+            
+            // Memory usage
+            Text("Memory: ${memoryMetrics.currentUsageMB}MB / ${memoryMetrics.maxMemoryMB}MB")
+            
+            // Peak memory
+            Text("Peak Memory: ${memoryMetrics.peakUsageMB}MB")
+            
+            // Alerts
+            if (alerts.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Alerts (${alerts.size})",
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                alerts.take(3).forEach { alert ->
+                    Text(
+                        text = "• ${getAlertDescription(alert)}",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+            
+            // Performance summary
+            val summary = performanceMonitor.getPerformanceSummary()
+            val healthScore = summary.getOverallHealthScore()
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Health Score: ${String.format("%.1f", healthScore)}%",
+                color = when {
+                    healthScore >= 80 -> MaterialTheme.colorScheme.primary
+                    healthScore >= 60 -> MaterialTheme.colorScheme.secondary
+                    else -> MaterialTheme.colorScheme.error
+                },
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+/**
+ * API call tracking example
+ */
+@Composable
+fun ApiCallExample(performanceMonitor: PerformanceMonitor) {
+    var apiCallCount by remember { mutableStateOf(0) }
+    val apiMetrics by performanceMonitor.apiMetrics.collectAsStateWithLifecycle()
+    
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "API Call Tracking",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Button(
+                onClick = {
+                    // Simulate API call
+                    val callId = performanceMonitor.trackApiCall("/api/users", "GET")
+                    
+                    // Simulate API delay
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        delay((100..500).random().toLong())
+                        performanceMonitor.completeApiCall(callId, true, 200)
+                    }
+                    
+                    apiCallCount++
+                }
+            ) {
+                Text("Make API Call")
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text("API Calls Made: $apiCallCount")
+            
+            if (apiMetrics.isNotEmpty()) {
+                val avgResponseTime = apiMetrics.map { it.duration }.average()
+                val successRate = apiMetrics.count { it.success }.toFloat() / apiMetrics.size * 100
+                
+                Text("Average Response Time: ${String.format("%.0f", avgResponseTime)}ms")
+                Text("Success Rate: ${String.format("%.1f", successRate)}%")
+            }
+        }
+    }
+}
+
+/**
+ * Scroll performance tracking example
+ */
+@Composable
+fun ScrollPerformanceExample(performanceMonitor: PerformanceMonitor) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "Scroll Performance",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Track scroll performance
+            TrackScrollPerformance(performanceMonitor)
+            
+            LazyColumn(
+                modifier = Modifier.height(200.dp)
+            ) {
+                items(50) { index ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "Item ${index + 1}",
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text("Current FPS: ${performanceMonitor.getCurrentFPS()}")
+        }
+    }
+}
+
+/**
+ * Helper function to get alert descriptions
+ */
+private fun getAlertDescription(alert: PerformanceAlert): String {
+    return when (alert) {
+        is PerformanceAlert.LaunchTimeExceeded ->
+            "${alert.launchType.name} launch took ${alert.actualTime}ms (target: ${alert.targetTime}ms)"
+        is PerformanceAlert.NavigationSlow ->
+            "Navigation from ${alert.fromScreen} to ${alert.toScreen} took ${alert.actualTime}ms"
+        is PerformanceAlert.MemoryExceeded ->
+            "Memory usage ${alert.currentMemoryMB}MB exceeds target ${alert.targetMemoryMB}MB"
+        is PerformanceAlert.MemoryHigh ->
+            "Memory usage ${alert.currentMemoryMB}MB above baseline ${alert.baselineMemoryMB}MB"
+        is PerformanceAlert.LowFPS ->
+            "FPS dropped to ${alert.currentFPS} (target: ${alert.targetFPS})"
+        is PerformanceAlert.LowMemoryWarning ->
+            "Device is running low on memory"
+    }
+}
+
+/**
+ * Example of integrating with OkHttp for automatic API tracking
+ */
+class PerformanceTrackingInterceptor(
+    private val performanceMonitor: PerformanceMonitor
+) : okhttp3.Interceptor {
+    
+    override fun intercept(chain: okhttp3.Interceptor.Chain): okhttp3.Response {
+        val request = chain.request()
+        val callId = performanceMonitor.trackApiCall(
+            endpoint = request.url.encodedPath,
+            method = request.method
+        )
+        
+        return try {
+            val response = chain.proceed(request)
+            performanceMonitor.completeApiCall(callId, response.isSuccessful, response.code)
+            response
+        } catch (e: IOException) {
+            performanceMonitor.completeApiCall(callId, false, null)
+            throw e
+        }
+    }
+}
+
+/**
+ * Example of setting up OkHttp with performance tracking
+ */
+fun createOkHttpClientWithPerformanceTracking(performanceMonitor: PerformanceMonitor): OkHttpClient {
+    return OkHttpClient.Builder()
+        .addInterceptor(PerformanceTrackingInterceptor(performanceMonitor))
+        .build()
+}
+
+/**
+ * Example of integrating with Jetpack Navigation
+ */
+@Composable
+fun NavigationPerformanceTracker(
+    currentRoute: String?,
+    performanceMonitor: PerformanceMonitor
+) {
+    var previousRoute by remember { mutableStateOf<String?>(null) }
+    
+    LaunchedEffect(currentRoute) {
+        currentRoute?.let { route ->
+            previousRoute?.let { prevRoute ->
+                performanceMonitor.completeNavigation(prevRoute, route)
+            }
+            previousRoute = route
+        }
+    }
+}
+
+/**
+ * Usage in your MainActivity:
+ * 
+ * class MainActivity : ComponentActivity() {
+ *     private lateinit var performanceMonitor: PerformanceMonitor
+ *     
+ *     override fun onCreate(savedInstanceState: Bundle?) {
+ *         super.onCreate(savedInstanceState)
+ *         
+ *         // Initialize performance monitoring
+ *         performanceMonitor = PerformanceMonitor(applicationContext)
+ *         performanceMonitor.startMonitoring()
+ *         
+ *         setContent {
+ *             MyApp()
+ *         }
+ *         
+ *         // Track app launch completion
+ *         performanceMonitor.trackAppLaunchComplete()
+ *     }
+ * }
+ */

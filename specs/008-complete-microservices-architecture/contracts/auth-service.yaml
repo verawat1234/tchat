@@ -1,0 +1,335 @@
+openapi: 3.0.3
+info:
+  title: Tchat Auth Service API
+  description: Authentication and user management service for Southeast Asian markets
+  version: 1.0.0
+  contact:
+    name: Tchat Development Team
+    email: api@tchat.sea
+
+servers:
+  - url: http://localhost:8081/api/v1
+    description: Local development
+  - url: https://auth.tchat.sea/api/v1
+    description: Production
+
+paths:
+  /auth/otp/send:
+    post:
+      summary: Send OTP to phone number
+      description: Send verification code to user's mobile phone
+      operationId: sendOTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone_number
+                - country_code
+              properties:
+                phone_number:
+                  type: string
+                  pattern: '^[0-9]{8,15}$'
+                  example: "812345678"
+                country_code:
+                  type: string
+                  enum: [TH, SG, ID, MY, PH, VN]
+                  example: "TH"
+                locale:
+                  type: string
+                  enum: [en, th, id, ms, fil, vi]
+                  default: "en"
+      responses:
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "OTP sent successfully"
+                  expires_in:
+                    type: integer
+                    example: 300
+                  retry_after:
+                    type: integer
+                    example: 60
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimit'
+
+  /auth/otp/verify:
+    post:
+      summary: Verify OTP and authenticate user
+      description: Verify OTP code and return authentication tokens
+      operationId: verifyOTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone_number
+                - country_code
+                - otp_code
+              properties:
+                phone_number:
+                  type: string
+                  example: "812345678"
+                country_code:
+                  type: string
+                  enum: [TH, SG, ID, MY, PH, VN]
+                  example: "TH"
+                otp_code:
+                  type: string
+                  pattern: '^[0-9]{6}$'
+                  example: "123456"
+                device_info:
+                  type: object
+                  properties:
+                    device_id:
+                      type: string
+                      example: "mobile_app_ios_abc123"
+                    platform:
+                      type: string
+                      enum: [web, mobile_ios, mobile_android]
+                      example: "mobile_ios"
+                    app_version:
+                      type: string
+                      example: "1.0.0"
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      summary: Refresh access token
+      description: Use refresh token to get new access token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  example: "rt_abc123def456..."
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  expires_in:
+                    type: integer
+                    example: 3600
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      summary: Logout user
+      description: Invalidate current session and tokens
+      operationId: logout
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Logout successful"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/profile:
+    get:
+      summary: Get user profile
+      description: Retrieve authenticated user's profile information
+      operationId: getUserProfile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      summary: Update user profile
+      description: Update authenticated user's profile information
+      operationId: updateUserProfile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                display_name:
+                  type: string
+                  maxLength: 100
+                  example: "John Doe"
+                locale:
+                  type: string
+                  enum: [en, th, id, ms, fil, vi]
+                  example: "en"
+                timezone:
+                  type: string
+                  example: "Asia/Bangkok"
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        phone_number:
+          type: string
+          example: "+66812345678"
+        country_code:
+          type: string
+          example: "TH"
+        status:
+          type: string
+          enum: [active, suspended, deleted]
+          example: "active"
+        profile:
+          type: object
+          properties:
+            display_name:
+              type: string
+              example: "John Doe"
+            avatar_url:
+              type: string
+              format: uri
+              example: "https://cdn.tchat.sea/avatars/user123.jpg"
+            locale:
+              type: string
+              example: "en"
+            timezone:
+              type: string
+              example: "Asia/Bangkok"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT access token (expires in 1 hour)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          description: Refresh token (expires in 30 days)
+          example: "rt_abc123def456..."
+        expires_in:
+          type: integer
+          description: Access token expiration in seconds
+          example: 3600
+        user:
+          $ref: '#/components/schemas/User'
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        details:
+          type: string
+          description: Additional error details
+        code:
+          type: string
+          description: Error code for programmatic handling
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Validation failed"
+            details: "Phone number format is invalid"
+            code: "VALIDATION_ERROR"
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Authentication required"
+            code: "UNAUTHORIZED"
+
+    RateLimit:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Rate limit exceeded"
+            details: "Too many OTP requests. Try again in 60 seconds."
+            code: "RATE_LIMIT_EXCEEDED"

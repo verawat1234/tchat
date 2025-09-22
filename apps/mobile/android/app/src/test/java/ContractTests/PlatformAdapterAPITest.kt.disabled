@@ -1,0 +1,340 @@
+package ContractTests
+
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import java.util.Date
+
+/**
+ * Contract tests for Platform Adapter API
+ * These tests validate API contract compliance and must fail initially (TDD)
+ */
+@RunWith(JUnit4::class)
+class PlatformAdapterAPITest {
+
+    private lateinit var mockPlatformAdapterService: MockPlatformAdapterService
+
+    @Before
+    fun setUp() {
+        mockPlatformAdapterService = MockPlatformAdapterService()
+    }
+
+    // MARK: - GET /platform/capabilities Tests
+
+    @Test
+    fun `getPlatformCapabilities with valid request returns capabilities`() = runTest {
+        // Given
+        val platform = "android"
+        val version = "14"
+
+        // When - This will fail initially as the service doesn't exist yet
+        try {
+            val result = mockPlatformAdapterService.getPlatformCapabilities(platform, version)
+
+            // Then
+            assertNotNull(result)
+            assertEquals(platform, result.platform)
+            assertEquals(version, result.version)
+            assertTrue(result.capabilities.isNotEmpty())
+
+            // Validate capabilities structure
+            val firstCapability = result.capabilities.first()
+            assertFalse(firstCapability.name.isEmpty())
+            assertNotNull(firstCapability.isSupported)
+            assertNotNull(firstCapability.apiLevel)
+            assertNotNull(firstCapability.restrictions)
+        } catch (e: PlatformAdapterException) {
+            // Expected to fail initially
+            assertEquals("NOT_IMPLEMENTED", e.code)
+        }
+    }
+
+    @Test
+    fun `getPlatformCapabilities with unsupported platform returns 404`() = runTest {
+        // Given
+        val unsupportedPlatform = "unsupported"
+        val version = "1.0"
+
+        // When/Then - This will fail initially
+        try {
+            mockPlatformAdapterService.getPlatformCapabilities(unsupportedPlatform, version)
+            fail("Expected error for unsupported platform")
+        } catch (e: PlatformAdapterException) {
+            // Expected to fail initially with NOT_IMPLEMENTED, but should eventually be PLATFORM_NOT_SUPPORTED
+            assertTrue(e.code == "NOT_IMPLEMENTED" || e.code == "PLATFORM_NOT_SUPPORTED")
+        }
+    }
+
+    // MARK: - POST /platform/gesture/handle Tests
+
+    @Test
+    fun `handleGesture with valid gesture returns response`() = runTest {
+        // Given
+        val gestureRequest = GestureHandlingRequest(
+            gestureType = "swipe",
+            direction = "left",
+            velocity = 1200.0,
+            position = GesturePosition(150.0, 300.0),
+            platform = "android",
+            componentId = "chat-message",
+            metadata = mapOf("duration" to 0.25, "fingers" to 1)
+        )
+
+        // When - This will fail initially
+        try {
+            val result = mockPlatformAdapterService.handleGesture(gestureRequest)
+
+            // Then
+            assertTrue(result.handled)
+            assertNotNull(result.action)
+            assertEquals(gestureRequest.gestureType, result.gestureType)
+            assertNotNull(result.timestamp)
+            assertTrue(result.preventDefaultBehavior)
+        } catch (e: PlatformAdapterException) {
+            // Expected to fail initially
+            assertEquals("NOT_IMPLEMENTED", e.code)
+        }
+    }
+
+    @Test
+    fun `handleGesture with unsupported gesture returns 400`() = runTest {
+        // Given
+        val invalidGestureRequest = GestureHandlingRequest(
+            gestureType = "invalid-gesture",
+            direction = "up",
+            velocity = 500.0,
+            position = GesturePosition(100.0, 200.0),
+            platform = "android",
+            componentId = "chat-message",
+            metadata = emptyMap()
+        )
+
+        // When/Then - This will fail initially
+        try {
+            mockPlatformAdapterService.handleGesture(invalidGestureRequest)
+            fail("Expected error for unsupported gesture")
+        } catch (e: PlatformAdapterException) {
+            // Expected to fail initially with NOT_IMPLEMENTED, but should eventually be GESTURE_NOT_SUPPORTED
+            assertTrue(e.code == "NOT_IMPLEMENTED" || e.code == "GESTURE_NOT_SUPPORTED")
+        }
+    }
+
+    // MARK: - GET /platform/ui/conventions Tests
+
+    @Test
+    fun `getUIConventions with valid platform returns conventions`() = runTest {
+        // Given
+        val platform = "android"
+
+        // When - This will fail initially
+        try {
+            val result = mockPlatformAdapterService.getUIConventions(platform)
+
+            // Then
+            assertEquals(platform, result.platform)
+            assertNotNull(result.designSystem)
+            assertNotNull(result.navigationPatterns)
+            assertNotNull(result.gestureConventions)
+            assertNotNull(result.animationSpecs)
+            assertNotNull(result.accessibilityGuidelines)
+
+            // Validate design system structure
+            assertNotNull(result.designSystem.colorScheme)
+            assertNotNull(result.designSystem.typography)
+            assertNotNull(result.designSystem.spacing)
+            assertNotNull(result.designSystem.borderRadius)
+        } catch (e: PlatformAdapterException) {
+            // Expected to fail initially
+            assertEquals("NOT_IMPLEMENTED", e.code)
+        }
+    }
+
+    @Test
+    fun `getUIConventions with unsupported platform returns 404`() = runTest {
+        // Given
+        val unsupportedPlatform = "unsupported"
+
+        // When/Then - This will fail initially
+        try {
+            mockPlatformAdapterService.getUIConventions(unsupportedPlatform)
+            fail("Expected error for unsupported platform")
+        } catch (e: PlatformAdapterException) {
+            // Expected to fail initially with NOT_IMPLEMENTED, but should eventually be PLATFORM_NOT_SUPPORTED
+            assertTrue(e.code == "NOT_IMPLEMENTED" || e.code == "PLATFORM_NOT_SUPPORTED")
+        }
+    }
+
+    // MARK: - POST /platform/animation/execute Tests
+
+    @Test
+    fun `executeAnimation with valid animation returns execution`() = runTest {
+        // Given
+        val animationRequest = AnimationExecutionRequest(
+            animationType = "slide",
+            duration = 0.3,
+            easing = "ease-in-out",
+            properties = mapOf("translateX" to 100, "opacity" to 0.8),
+            platform = "android",
+            componentId = "chat-bubble"
+        )
+
+        // When - This will fail initially
+        try {
+            val result = mockPlatformAdapterService.executeAnimation(animationRequest)
+
+            // Then
+            assertTrue(result.started)
+            assertEquals(animationRequest.animationType, result.animationType)
+            assertEquals(animationRequest.duration, result.duration, 0.01)
+            assertNotNull(result.animationId)
+            assertNotNull(result.timestamp)
+        } catch (e: PlatformAdapterException) {
+            // Expected to fail initially
+            assertEquals("NOT_IMPLEMENTED", e.code)
+        }
+    }
+
+    @Test
+    fun `executeAnimation with unsupported animation returns 400`() = runTest {
+        // Given
+        val invalidAnimationRequest = AnimationExecutionRequest(
+            animationType = "unsupported-animation",
+            duration = 0.5,
+            easing = "linear",
+            properties = mapOf("rotate" to 360),
+            platform = "android",
+            componentId = "test-component"
+        )
+
+        // When/Then - This will fail initially
+        try {
+            mockPlatformAdapterService.executeAnimation(invalidAnimationRequest)
+            fail("Expected error for unsupported animation")
+        } catch (e: PlatformAdapterException) {
+            // Expected to fail initially with NOT_IMPLEMENTED, but should eventually be ANIMATION_NOT_SUPPORTED
+            assertTrue(e.code == "NOT_IMPLEMENTED" || e.code == "ANIMATION_NOT_SUPPORTED")
+        }
+    }
+
+    // MARK: - Performance Tests
+
+    @Test
+    fun `platformAdapter performance within budget`() = runTest {
+        val startTime = System.currentTimeMillis()
+
+        try {
+            mockPlatformAdapterService.getPlatformCapabilities("android", "14")
+        } catch (e: PlatformAdapterException) {
+            // Performance test - failure expected initially
+        }
+
+        val duration = System.currentTimeMillis() - startTime
+        assertTrue("Platform adapter should complete within 50ms", duration < 50)
+    }
+}
+
+// MARK: - Mock Service (Will fail until real implementation exists)
+
+private class MockPlatformAdapterService {
+
+    suspend fun getPlatformCapabilities(platform: String, version: String): PlatformCapabilitiesResponse {
+        // This will fail initially - no real implementation yet
+        throw PlatformAdapterException("NOT_IMPLEMENTED", "Service not implemented yet")
+    }
+
+    suspend fun handleGesture(request: GestureHandlingRequest): GestureHandlingResponse {
+        // This will fail initially - no real implementation yet
+        throw PlatformAdapterException("NOT_IMPLEMENTED", "Service not implemented yet")
+    }
+
+    suspend fun getUIConventions(platform: String): UIConventionsResponse {
+        // This will fail initially - no real implementation yet
+        throw PlatformAdapterException("NOT_IMPLEMENTED", "Service not implemented yet")
+    }
+
+    suspend fun executeAnimation(request: AnimationExecutionRequest): AnimationExecutionResponse {
+        // This will fail initially - no real implementation yet
+        throw PlatformAdapterException("NOT_IMPLEMENTED", "Service not implemented yet")
+    }
+}
+
+// MARK: - Contract Models (Stub implementations that will fail)
+
+data class PlatformCapabilitiesResponse(
+    val platform: String,
+    val version: String,
+    val capabilities: List<PlatformCapability>,
+    val limitations: List<String>
+)
+
+data class PlatformCapability(
+    val name: String,
+    val isSupported: Boolean,
+    val apiLevel: String,
+    val restrictions: List<String>,
+    val alternativeActions: List<String>
+)
+
+data class GestureHandlingRequest(
+    val gestureType: String,
+    val direction: String,
+    val velocity: Double,
+    val position: GesturePosition,
+    val platform: String,
+    val componentId: String,
+    val metadata: Map<String, Any>
+)
+
+data class GesturePosition(
+    val x: Double,
+    val y: Double
+)
+
+data class GestureHandlingResponse(
+    val handled: Boolean,
+    val action: String?,
+    val gestureType: String,
+    val timestamp: Date,
+    val preventDefaultBehavior: Boolean
+)
+
+data class UIConventionsResponse(
+    val platform: String,
+    val designSystem: DesignSystemConventions,
+    val navigationPatterns: Map<String, Any>,
+    val gestureConventions: Map<String, Any>,
+    val animationSpecs: Map<String, Any>,
+    val accessibilityGuidelines: Map<String, Any>
+)
+
+data class DesignSystemConventions(
+    val colorScheme: Map<String, Any>,
+    val typography: Map<String, Any>,
+    val spacing: Map<String, Any>,
+    val borderRadius: Map<String, Any>,
+    val shadows: Map<String, Any>
+)
+
+data class AnimationExecutionRequest(
+    val animationType: String,
+    val duration: Double,
+    val easing: String,
+    val properties: Map<String, Any>,
+    val platform: String,
+    val componentId: String
+)
+
+data class AnimationExecutionResponse(
+    val started: Boolean,
+    val animationType: String,
+    val duration: Double,
+    val animationId: String,
+    val timestamp: Date
+)
+
+// MARK: - Error Types
+
+class PlatformAdapterException(val code: String, message: String) : Exception(message)

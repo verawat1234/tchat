@@ -1,0 +1,318 @@
+openapi: 3.0.3
+info:
+  title: Navigation Sync API
+  description: Cross-platform navigation state synchronization for mobile applications
+  version: 1.0.0
+  contact:
+    name: Tchat Mobile Navigation Team
+
+servers:
+  - url: https://api.tchat.app/v1
+    description: Production API
+  - url: https://staging-api.tchat.app/v1
+    description: Staging API
+
+paths:
+  /navigation/routes:
+    get:
+      summary: Get available navigation routes
+      description: Retrieve list of available navigation routes for the current user and platform
+      parameters:
+        - name: platform
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [ios, android]
+          description: Target platform for route filtering
+        - name: user_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: User identifier for permission-based filtering
+      responses:
+        '200':
+          description: List of available navigation routes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  routes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NavigationRoute'
+                  total_count:
+                    type: integer
+                  platform:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /navigation/state/sync:
+    post:
+      summary: Sync navigation state
+      description: Synchronize navigation state changes across platforms
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NavigationStateSync'
+      responses:
+        '200':
+          description: Navigation state synchronized successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Sync conflict detected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncConflict'
+
+  /navigation/deeplink/resolve:
+    post:
+      summary: Resolve deep link URL
+      description: Resolve incoming deep link URL to navigation route and parameters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  description: Deep link URL to resolve
+                platform:
+                  type: string
+                  enum: [ios, android]
+                  description: Platform requesting resolution
+                user_id:
+                  type: string
+                  description: User identifier for permission validation
+              required: [url, platform, user_id]
+      responses:
+        '200':
+          description: Deep link resolved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeepLinkResolution'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Deep link URL not found or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    NavigationRoute:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique route identifier
+        path:
+          type: string
+          description: URL-like path for the route
+        title:
+          type: string
+          description: Human-readable route title
+        component:
+          type: string
+          description: Platform-specific component identifier
+        parameters:
+          type: object
+          additionalProperties: true
+          description: Route parameters
+        is_deep_linkable:
+          type: boolean
+          description: Whether route supports deep linking
+        platform_restrictions:
+          type: array
+          items:
+            type: string
+            enum: [ios, android, web]
+          description: Platforms where route is available
+        parent_route_id:
+          type: string
+          nullable: true
+          description: Parent route identifier for hierarchical navigation
+        access_level:
+          type: string
+          enum: [public, authenticated, admin]
+          description: Required access level
+      required: [id, path, title, component, is_deep_linkable, access_level]
+
+    NavigationStateSync:
+      type: object
+      properties:
+        user_id:
+          type: string
+          description: User identifier
+        session_id:
+          type: string
+          description: Session identifier
+        platform:
+          type: string
+          enum: [ios, android]
+          description: Source platform
+        navigation_stack:
+          type: array
+          items:
+            $ref: '#/components/schemas/NavigationStackEntry'
+          description: Current navigation stack
+        timestamp:
+          type: string
+          format: date-time
+          description: Sync timestamp
+        sync_version:
+          type: integer
+          description: Version for conflict resolution
+      required: [user_id, session_id, platform, navigation_stack, timestamp, sync_version]
+
+    NavigationStackEntry:
+      type: object
+      properties:
+        route_id:
+          type: string
+          description: Navigation route identifier
+        parameters:
+          type: object
+          additionalProperties: true
+          description: Route parameters
+        state:
+          type: object
+          additionalProperties: true
+          description: Route-specific state
+        timestamp:
+          type: string
+          format: date-time
+          description: Entry timestamp
+      required: [route_id, timestamp]
+
+    DeepLinkResolution:
+      type: object
+      properties:
+        route_id:
+          type: string
+          description: Resolved navigation route
+        parameters:
+          type: object
+          additionalProperties: true
+          description: Extracted URL parameters
+        is_valid:
+          type: boolean
+          description: Whether URL is valid for user/platform
+        fallback_action:
+          type: string
+          nullable: true
+          description: Fallback action if route unavailable
+        requires_auth:
+          type: boolean
+          description: Whether route requires authentication
+      required: [route_id, parameters, is_valid, requires_auth]
+
+    SyncResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Sync operation success status
+        sync_version:
+          type: integer
+          description: New sync version after update
+        conflicts_resolved:
+          type: array
+          items:
+            type: string
+          description: List of resolved conflicts
+        timestamp:
+          type: string
+          format: date-time
+          description: Server sync timestamp
+      required: [success, sync_version, timestamp]
+
+    SyncConflict:
+      type: object
+      properties:
+        conflict_type:
+          type: string
+          enum: [version_mismatch, concurrent_update, data_inconsistency]
+          description: Type of sync conflict
+        client_version:
+          type: integer
+          description: Client sync version
+        server_version:
+          type: integer
+          description: Current server sync version
+        conflicting_data:
+          type: object
+          additionalProperties: true
+          description: Data causing the conflict
+        resolution_strategy:
+          type: string
+          enum: [client_wins, server_wins, manual_resolution]
+          description: Recommended resolution strategy
+      required: [conflict_type, client_version, server_version, resolution_strategy]
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error details
+      required: [code, message]
+
+  responses:
+    BadRequest:
+      description: Invalid request data
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []

@@ -1,0 +1,248 @@
+# Docker Compose for Tchat Microservices
+# Production-ready configuration for Southeast Asian Enterprise Platform
+
+version: '3.8'
+
+services:
+  # API Gateway - Entry point for all services
+  api-gateway:
+    build:
+      context: ./backend/infrastructure/gateway
+      dockerfile: Dockerfile
+    container_name: tchat-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - DATABASE_URL=postgres://tchat_user:tchat_dev_password@postgres:5432/tchat_dev?sslmode=disable
+      - REDIS_URL=redis://:tchat_redis_password@redis:6379/0
+      - KAFKA_BROKERS=kafka:9092
+      - DEBUG=false
+      - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-key}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Auth Service - Authentication and authorization
+  auth-service:
+    build:
+      context: ./backend/auth
+      dockerfile: Dockerfile
+    container_name: tchat-auth-service
+    ports:
+      - "8081:8081"
+    environment:
+      - PORT=8081
+      - DATABASE_URL=postgres://tchat_user:tchat_dev_password@postgres:5432/auth_dev?sslmode=disable
+      - REDIS_URL=redis://:tchat_redis_password@redis:6379/1
+      - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-key}
+      - OTP_SECRET=${OTP_SECRET:-your-otp-secret-key}
+      - DEBUG=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Messaging Service - Real-time chat and WebSocket
+  messaging-service:
+    build:
+      context: ./backend/messaging
+      dockerfile: Dockerfile
+    container_name: tchat-messaging-service
+    ports:
+      - "8082:8082"
+    environment:
+      - PORT=8082
+      - DATABASE_URL=postgres://tchat_user:tchat_dev_password@postgres:5432/tchat_dev?sslmode=disable
+      - SCYLLA_HOSTS=scylla:9042
+      - REDIS_URL=redis://:tchat_redis_password@redis:6379/2
+      - KAFKA_BROKERS=kafka:9092
+      - DEBUG=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      scylla:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Payment Service - Financial transactions and wallets
+  payment-service:
+    build:
+      context: ./backend/payment
+      dockerfile: Dockerfile
+    container_name: tchat-payment-service
+    ports:
+      - "8083:8083"
+    environment:
+      - PORT=8083
+      - DATABASE_URL=postgres://tchat_user:tchat_dev_password@postgres:5432/payment_dev?sslmode=disable
+      - REDIS_URL=redis://:tchat_redis_password@redis:6379/3
+      - KAFKA_BROKERS=kafka:9092
+      - DEBUG=false
+      # Southeast Asian payment gateway configurations
+      - OMISE_PUBLIC_KEY=${OMISE_PUBLIC_KEY}
+      - OMISE_SECRET_KEY=${OMISE_SECRET_KEY}
+      - XENDIT_SECRET_KEY=${XENDIT_SECRET_KEY}
+      - MIDTRANS_SERVER_KEY=${MIDTRANS_SERVER_KEY}
+      - C2P_MERCHANT_ID=${C2P_MERCHANT_ID}
+      - C2P_SECRET_KEY=${C2P_SECRET_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Commerce Service - E-commerce and marketplace
+  commerce-service:
+    build:
+      context: ./backend/commerce
+      dockerfile: Dockerfile
+    container_name: tchat-commerce-service
+    ports:
+      - "8084:8084"
+    environment:
+      - PORT=8084
+      - DATABASE_URL=postgres://tchat_user:tchat_dev_password@postgres:5432/commerce_dev?sslmode=disable
+      - REDIS_URL=redis://:tchat_redis_password@redis:6379/4
+      - KAFKA_BROKERS=kafka:9092
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=tchat_minio_user
+      - MINIO_SECRET_KEY=tchat_minio_password
+      - DEBUG=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Notification Service - Multi-channel notifications
+  notification-service:
+    build:
+      context: ./backend/notification
+      dockerfile: Dockerfile
+    container_name: tchat-notification-service
+    ports:
+      - "8085:8085"
+    environment:
+      - PORT=8085
+      - DATABASE_URL=postgres://tchat_user:tchat_dev_password@postgres:5432/notification_dev?sslmode=disable
+      - REDIS_URL=redis://:tchat_redis_password@redis:6379/5
+      - KAFKA_BROKERS=kafka:9092
+      - DEBUG=false
+      # Notification provider configurations
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+      - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8085/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Content Service - Dynamic content management
+  content-service:
+    build:
+      context: ./backend/content
+      dockerfile: Dockerfile
+    container_name: tchat-content-service
+    ports:
+      - "8086:8086"
+    environment:
+      - PORT=8086
+      - DATABASE_URL=postgres://tchat_user:tchat_dev_password@postgres:5432/tchat_dev?sslmode=disable
+      - REDIS_URL=redis://:tchat_redis_password@redis:6379/6
+      - DEBUG=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8086/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+networks:
+  tchat-network:
+    name: tchat-dev-network
+    external: true
+
+# Note: Infrastructure services (postgres, redis, kafka, etc.) should be started
+# separately using docker-compose.dev.yml before starting the microservices

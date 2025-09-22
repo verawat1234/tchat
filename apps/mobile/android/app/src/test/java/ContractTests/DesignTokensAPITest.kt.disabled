@@ -1,0 +1,161 @@
+package com.tchat.app.ContractTests
+
+import com.tchat.app.TchatAppTestCase
+import com.tchat.app.TestConfiguration
+import com.tchat.app.api.DesignTokensAPIClient
+import com.tchat.app.api.models.DesignTokensSyncRequest
+import kotlinx.coroutines.test.runTest
+import org.junit.Before
+import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
+
+/**
+ * Contract tests for Design Tokens API
+ * These tests verify the API contract matches the expected specification
+ */
+class DesignTokensAPITest : TchatAppTestCase() {
+
+    private lateinit var apiClient: DesignTokensAPIClient
+
+    @Before
+    fun setUp() {
+        apiClient = DesignTokensAPIClient(baseURL = TestConfiguration.API_BASE_URL)
+    }
+
+    // GET /api/design-tokens Tests
+
+    @Test
+    fun `getDesignTokens with valid platform returns tokens`() = runTest {
+        // Given
+        val platform = "android"
+        val theme = "light"
+
+        // When
+        val result = apiClient.getDesignTokens(platform = platform, theme = theme)
+
+        // Then
+        assertEquals(platform, result.platform)
+        assertEquals(theme, result.theme)
+        assertNotNull(result.version)
+        assertNotNull(result.typography)
+        assertNotNull(result.colors)
+        assertNotNull(result.spacing)
+        assertNotNull(result.animations)
+    }
+
+    @Test
+    fun `getDesignTokens with invalid platform throws error`() = runTest {
+        // Given
+        val platform = "invalid"
+
+        // When & Then
+        assertFailsWith<IllegalArgumentException> {
+            apiClient.getDesignTokens(platform = platform, theme = "light")
+        }
+    }
+
+    @Test
+    fun `getDesignTokens with dark theme returns correct colors`() = runTest {
+        // Given
+        val platform = "android"
+        val theme = "dark"
+
+        // When
+        val result = apiClient.getDesignTokens(platform = platform, theme = theme)
+
+        // Then
+        assertEquals("dark", result.theme)
+        assertNotNull(result.colors.background)
+        assertNotNull(result.colors.surface)
+        // Verify dark theme has appropriate background colors
+        // This will be implemented when DesignTokensAPIClient exists
+    }
+
+    // POST /api/design-tokens/sync Tests
+
+    @Test
+    fun `syncDesignTokens with valid update returns success`() = runTest {
+        // Given
+        val syncRequest = DesignTokensSyncRequest(
+            version = "2.0.0",
+            changedTokens = listOf("colors.primary", "typography.headingLarge")
+        )
+
+        // When
+        val result = apiClient.syncDesignTokens(request = syncRequest)
+
+        // Then
+        // Success expected - no exception thrown
+        assertNotNull(result)
+    }
+
+    @Test
+    fun `syncDesignTokens with invalid version throws error`() = runTest {
+        // Given
+        val syncRequest = DesignTokensSyncRequest(
+            version = "",
+            changedTokens = listOf("colors.primary")
+        )
+
+        // When & Then
+        assertFailsWith<IllegalArgumentException> {
+            apiClient.syncDesignTokens(request = syncRequest)
+        }
+    }
+
+    @Test
+    fun `syncDesignTokens with empty changed tokens returns success`() = runTest {
+        // Given
+        val syncRequest = DesignTokensSyncRequest(
+            version = "2.0.0",
+            changedTokens = emptyList()
+        )
+
+        // When
+        val result = apiClient.syncDesignTokens(request = syncRequest)
+
+        // Then
+        // Success expected - no exception thrown
+        assertNotNull(result)
+    }
+
+    @Test
+    fun `getDesignTokens validates typography structure`() = runTest {
+        // Given
+        val platform = "android"
+        val theme = "light"
+
+        // When
+        val result = apiClient.getDesignTokens(platform = platform, theme = theme)
+
+        // Then
+        val typography = result.typography
+        assertNotNull(typography.headingLarge)
+        assertNotNull(typography.headingMedium)
+        assertNotNull(typography.bodyLarge)
+        assertNotNull(typography.bodyMedium)
+        assertNotNull(typography.bodySmall)
+        assertNotNull(typography.caption)
+    }
+
+    @Test
+    fun `getDesignTokens validates color structure`() = runTest {
+        // Given
+        val platform = "android"
+        val theme = "light"
+
+        // When
+        val result = apiClient.getDesignTokens(platform = platform, theme = theme)
+
+        // Then
+        val colors = result.colors
+        assertNotNull(colors.primary)
+        assertNotNull(colors.secondary)
+        assertNotNull(colors.background)
+        assertNotNull(colors.surface)
+        assertNotNull(colors.error)
+        assertNotNull(colors.success)
+    }
+}

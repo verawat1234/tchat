@@ -1,0 +1,1752 @@
+openapi: 3.0.3
+info:
+  title: Tchat API - Telegram SEA Edition
+  description: |
+    Comprehensive API documentation for Tchat (Telegram SEA Edition), a Southeast Asian messaging and commerce platform.
+
+    ## Features
+    - **Authentication**: OTP-based authentication with JWT tokens
+    - **Messaging**: Real-time messaging with WebSocket support
+    - **Payments**: Multi-currency wallet system with regional support
+    - **Commerce**: E-commerce platform with shop and product management
+    - **Notifications**: Multi-channel notification system with templates
+
+    ## Regional Support
+    - **Countries**: Thailand, Singapore, Indonesia, Malaysia, Philippines, Vietnam
+    - **Currencies**: THB, SGD, IDR, MYR, PHP, VND, USD
+    - **Languages**: English, Thai, Bahasa Indonesia, Bahasa Malaysia, Filipino, Vietnamese
+
+    ## Security
+    - JWT-based authentication with refresh tokens
+    - Rate limiting on all endpoints
+    - CORS support for web applications
+    - Webhook signature verification
+
+    ## WebSocket Support
+    Real-time messaging is available via WebSocket connections at `/ws/messaging`
+  version: "1.0.0"
+  contact:
+    name: Tchat API Support
+    url: https://tchat.sea/support
+    email: api-support@tchat.sea
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.tchat.sea/v1
+    description: Production server
+  - url: https://staging-api.tchat.sea/v1
+    description: Staging server
+  - url: http://localhost:8080/api/v1
+    description: Local development server
+
+tags:
+  - name: Authentication
+    description: User authentication and session management
+  - name: Messaging
+    description: Real-time messaging and chat functionality
+  - name: Payments
+    description: Multi-currency wallet and transaction management
+  - name: Commerce
+    description: E-commerce platform with shops and products
+  - name: Notifications
+    description: Multi-channel notification system
+  - name: Admin
+    description: Administrative endpoints
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token obtained from authentication endpoints
+
+  schemas:
+    # Common schemas
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Invalid request payload"
+        details:
+          type: string
+          description: Additional error details
+          example: "Field 'email' is required"
+        code:
+          type: string
+          description: Error code for programmatic handling
+          example: "VALIDATION_ERROR"
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          description: Current page number
+          example: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Number of items per page
+          example: 20
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of items
+          example: 150
+        total_pages:
+          type: integer
+          minimum: 0
+          description: Total number of pages
+          example: 8
+        has_next:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        has_prev:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
+
+    # Authentication schemas
+    SendOTPRequest:
+      type: object
+      required:
+        - phone_number
+        - country_code
+      properties:
+        phone_number:
+          type: string
+          pattern: '^[0-9]{8,15}$'
+          description: Phone number without country code
+          example: "812345678"
+        country_code:
+          type: string
+          enum: [TH, SG, ID, MY, PH, VN]
+          description: ISO 3166-1 alpha-2 country code
+          example: "TH"
+        locale:
+          type: string
+          enum: [en, th, id, ms, fil, vi]
+          description: Preferred language for OTP message
+          example: "en"
+
+    VerifyOTPRequest:
+      type: object
+      required:
+        - phone_number
+        - country_code
+        - otp_code
+      properties:
+        phone_number:
+          type: string
+          pattern: '^[0-9]{8,15}$'
+          example: "812345678"
+        country_code:
+          type: string
+          enum: [TH, SG, ID, MY, PH, VN]
+          example: "TH"
+        otp_code:
+          type: string
+          pattern: '^[0-9]{6}$'
+          description: 6-digit OTP code
+          example: "123456"
+        device_info:
+          type: object
+          description: Device information for security
+          properties:
+            device_id:
+              type: string
+              example: "mobile_app_ios_abc123"
+            platform:
+              type: string
+              enum: [web, mobile_ios, mobile_android]
+              example: "mobile_ios"
+            app_version:
+              type: string
+              example: "1.0.0"
+
+    AuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT access token (expires in 1 hour)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          description: Refresh token (expires in 30 days)
+          example: "rt_abc123def456..."
+        expires_in:
+          type: integer
+          description: Access token expiration time in seconds
+          example: 3600
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        phone_number:
+          type: string
+          example: "+66812345678"
+        country_code:
+          type: string
+          example: "TH"
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+          example: "active"
+        profile:
+          type: object
+          properties:
+            display_name:
+              type: string
+              example: "John Doe"
+            avatar_url:
+              type: string
+              format: uri
+              example: "https://cdn.tchat.sea/avatars/user123.jpg"
+            locale:
+              type: string
+              example: "en"
+        created_at:
+          type: string
+          format: date-time
+          example: "2023-12-01T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2023-12-01T10:00:00Z"
+
+    # Messaging schemas
+    Dialog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        type:
+          type: string
+          enum: [direct, group, channel]
+          example: "direct"
+        name:
+          type: string
+          example: "John & Jane"
+        description:
+          type: string
+          example: "Private conversation"
+        avatar_url:
+          type: string
+          format: uri
+          example: "https://cdn.tchat.sea/dialogs/dialog123.jpg"
+        participant_count:
+          type: integer
+          example: 2
+        last_message:
+          $ref: '#/components/schemas/Message'
+        unread_count:
+          type: integer
+          example: 3
+        muted:
+          type: boolean
+          example: false
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        dialog_id:
+          type: string
+          format: uuid
+        sender_id:
+          type: string
+          format: uuid
+        content:
+          type: string
+          example: "Hello, how are you?"
+        message_type:
+          type: string
+          enum: [text, image, video, audio, file, location, sticker]
+          example: "text"
+        metadata:
+          type: object
+          description: Type-specific metadata (file info, location coordinates, etc.)
+        reply_to_id:
+          type: string
+          format: uuid
+          description: ID of message being replied to
+        edited:
+          type: boolean
+          example: false
+        reactions:
+          type: array
+          items:
+            type: object
+            properties:
+              emoji:
+                type: string
+                example: "👍"
+              user_ids:
+                type: array
+                items:
+                  type: string
+                  format: uuid
+        read_receipts:
+          type: array
+          items:
+            type: object
+            properties:
+              user_id:
+                type: string
+                format: uuid
+              read_at:
+                type: string
+                format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # Payment schemas
+    Wallet:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        currency:
+          type: string
+          enum: [THB, SGD, IDR, MYR, PHP, VND, USD]
+          example: "THB"
+        balance:
+          type: string
+          pattern: '^[0-9]+(\.[0-9]{1,2})?$'
+          description: Current balance as decimal string
+          example: "1500.50"
+        available_balance:
+          type: string
+          pattern: '^[0-9]+(\.[0-9]{1,2})?$'
+          description: Available balance (excluding pending transactions)
+          example: "1450.50"
+        frozen_balance:
+          type: string
+          pattern: '^[0-9]+(\.[0-9]{1,2})?$'
+          description: Frozen balance in pending transactions
+          example: "50.00"
+        status:
+          type: string
+          enum: [active, suspended, closed]
+          example: "active"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        wallet_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [deposit, withdrawal, transfer_in, transfer_out, payment, refund]
+          example: "deposit"
+        amount:
+          type: string
+          pattern: '^[0-9]+(\.[0-9]{1,2})?$'
+          example: "100.00"
+        currency:
+          type: string
+          enum: [THB, SGD, IDR, MYR, PHP, VND, USD]
+          example: "THB"
+        status:
+          type: string
+          enum: [pending, processing, completed, failed, cancelled]
+          example: "completed"
+        description:
+          type: string
+          example: "Top up via credit card"
+        reference:
+          type: string
+          description: External reference (payment processor transaction ID)
+          example: "stripe_pi_1234567890"
+        metadata:
+          type: object
+          description: Additional transaction data
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # Commerce schemas
+    Shop:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        owner_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Bangkok Electronics Store"
+        description:
+          type: string
+          example: "Best electronics in Bangkok with warranty"
+        category:
+          type: string
+          example: "electronics"
+        logo_url:
+          type: string
+          format: uri
+        banner_url:
+          type: string
+          format: uri
+        address:
+          type: object
+          properties:
+            street:
+              type: string
+              example: "123 Sukhumvit Road"
+            city:
+              type: string
+              example: "Bangkok"
+            state:
+              type: string
+              example: "Bangkok"
+            postal_code:
+              type: string
+              example: "10110"
+            country:
+              type: string
+              enum: [TH, SG, ID, MY, PH, VN]
+              example: "TH"
+        contact:
+          type: object
+          properties:
+            phone:
+              type: string
+              example: "+66812345678"
+            email:
+              type: string
+              format: email
+              example: "info@bangkokelectronics.com"
+            website:
+              type: string
+              format: uri
+              example: "https://bangkokelectronics.com"
+        settings:
+          type: object
+          properties:
+            currencies:
+              type: array
+              items:
+                type: string
+                enum: [THB, SGD, IDR, MYR, PHP, VND, USD]
+              example: ["THB", "USD"]
+            languages:
+              type: array
+              items:
+                type: string
+                enum: [en, th, id, ms, fil, vi]
+              example: ["en", "th"]
+            shipping_countries:
+              type: array
+              items:
+                type: string
+                enum: [TH, SG, ID, MY, PH, VN]
+              example: ["TH"]
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+          example: "active"
+        verified:
+          type: boolean
+          example: true
+        rating:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 5
+          example: 4.8
+        total_sales:
+          type: integer
+          example: 1250
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        shop_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "iPhone 15 Pro Max 256GB"
+        description:
+          type: string
+          example: "Latest iPhone with advanced camera system"
+        category:
+          type: string
+          example: "smartphones"
+        brand:
+          type: string
+          example: "Apple"
+        sku:
+          type: string
+          example: "IPH15PM256-BLK"
+        price:
+          type: string
+          pattern: '^[0-9]+(\.[0-9]{1,2})?$'
+          example: "45000.00"
+        currency:
+          type: string
+          enum: [THB, SGD, IDR, MYR, PHP, VND, USD]
+          example: "THB"
+        stock_quantity:
+          type: integer
+          minimum: 0
+          example: 25
+        images:
+          type: array
+          items:
+            type: string
+            format: uri
+          example: ["https://cdn.tchat.sea/products/iphone15-1.jpg"]
+        attributes:
+          type: object
+          description: Product-specific attributes
+          example:
+            color: "Space Black"
+            storage: "256GB"
+            warranty: "1 Year"
+        specifications:
+          type: object
+          description: Technical specifications
+          example:
+            display: "6.7-inch Super Retina XDR"
+            processor: "A17 Pro chip"
+            camera: "48MP Main, 12MP Ultra Wide"
+        variants:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+                example: "Space Black 256GB"
+              sku:
+                type: string
+                example: "IPH15PM256-BLK"
+              price:
+                type: string
+                example: "45000.00"
+              stock_quantity:
+                type: integer
+                example: 10
+              attributes:
+                type: object
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["smartphone", "apple", "5g", "camera"]
+        status:
+          type: string
+          enum: [active, inactive, out_of_stock]
+          example: "active"
+        rating:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 5
+          example: 4.9
+        review_count:
+          type: integer
+          example: 127
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # Notification schemas
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        recipient_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [email, sms, push, in_app]
+          example: "push"
+        channel:
+          type: string
+          example: "order_updates"
+        subject:
+          type: string
+          example: "Your order has been shipped"
+        content:
+          type: string
+          example: "Your order #12345 has been shipped and will arrive in 2-3 business days"
+        status:
+          type: string
+          enum: [pending, sent, delivered, failed, expired]
+          example: "delivered"
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+          example: "medium"
+        read:
+          type: boolean
+          example: false
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        sent_at:
+          type: string
+          format: date-time
+          nullable: true
+        delivered_at:
+          type: string
+          format: date-time
+          nullable: true
+        failed_at:
+          type: string
+          format: date-time
+          nullable: true
+        scheduled_at:
+          type: string
+          format: date-time
+          nullable: true
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        retry_count:
+          type: integer
+          example: 0
+        metadata:
+          type: object
+          description: Additional notification data
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    NotificationTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Order Shipped"
+        type:
+          type: string
+          enum: [email, sms, push, in_app]
+          example: "email"
+        category:
+          type: string
+          example: "order_updates"
+        subject:
+          type: string
+          example: "Your order {{order_id}} has been shipped"
+        content:
+          type: string
+          example: "Hello {{customer_name}}, your order {{order_id}} has been shipped..."
+        variables:
+          type: array
+          items:
+            type: string
+          example: ["customer_name", "order_id", "tracking_number"]
+        locales:
+          type: object
+          description: Localized versions of the template
+          example:
+            th:
+              subject: "คำสั่งซื้อ {{order_id}} ของคุณได้ถูกจัดส่งแล้ว"
+              content: "สวัสดี {{customer_name}} คำสั่งซื้อ {{order_id}} ของคุณได้ถูกจัดส่งแล้ว..."
+        metadata:
+          type: object
+          description: Template metadata
+        active:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: Page number for pagination
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+        example: 1
+
+    LimitParam:
+      name: limit
+      in: query
+      description: Number of items per page
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+        example: 20
+
+    SortParam:
+      name: sort
+      in: query
+      description: Sort field and direction
+      required: false
+      schema:
+        type: string
+        example: "created_at:desc"
+
+    SearchParam:
+      name: search
+      in: query
+      description: Search query
+      required: false
+      schema:
+        type: string
+        example: "iPhone"
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Authentication required"
+            code: "UNAUTHORIZED"
+
+    ForbiddenError:
+      description: Access denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Access denied"
+            code: "FORBIDDEN"
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Resource not found"
+            code: "NOT_FOUND"
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Validation failed"
+            details: "Field 'email' is required"
+            code: "VALIDATION_ERROR"
+
+    RateLimitError:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Rate limit exceeded"
+            code: "RATE_LIMIT_EXCEEDED"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Internal server error"
+            code: "INTERNAL_ERROR"
+
+paths:
+  # Authentication endpoints
+  /auth/otp/send:
+    post:
+      tags:
+        - Authentication
+      summary: Send OTP to phone number
+      description: Send a one-time password to the specified phone number for authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendOTPRequest'
+      responses:
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "OTP sent successfully"
+                  expires_in:
+                    type: integer
+                    description: OTP expiration time in seconds
+                    example: 300
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/otp/verify:
+    post:
+      tags:
+        - Authentication
+      summary: Verify OTP and authenticate
+      description: Verify the OTP code and return authentication tokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyOTPRequest'
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Invalid OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Invalid or expired OTP"
+                code: "INVALID_OTP"
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Use refresh token to get a new access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  example: "rt_abc123def456..."
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  expires_in:
+                    type: integer
+                    example: 3600
+        '401':
+          description: Invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Invalid or expired refresh token"
+                code: "INVALID_REFRESH_TOKEN"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Logout user
+      description: Invalidate the current session and tokens
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Logout successful"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Messaging endpoints
+  /messaging/dialogs:
+    get:
+      tags:
+        - Messaging
+      summary: Get user's dialogs
+      description: Retrieve all dialogs for the authenticated user with pagination
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: type
+          in: query
+          description: Filter by dialog type
+          schema:
+            type: string
+            enum: [direct, group, channel]
+      responses:
+        '200':
+          description: Dialogs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dialogs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Dialog'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Messaging
+      summary: Create new dialog
+      description: Create a new dialog (group or channel)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - type
+                - participant_ids
+              properties:
+                name:
+                  type: string
+                  example: "Project Team"
+                description:
+                  type: string
+                  example: "Discussion about the new project"
+                type:
+                  type: string
+                  enum: [group, channel]
+                  example: "group"
+                participant_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  example: ["123e4567-e89b-12d3-a456-426614174000"]
+                avatar_url:
+                  type: string
+                  format: uri
+      responses:
+        '201':
+          description: Dialog created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dialog:
+                    $ref: '#/components/schemas/Dialog'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /messaging/dialogs/{dialog_id}/messages:
+    get:
+      tags:
+        - Messaging
+      summary: Get dialog messages
+      description: Retrieve messages from a specific dialog with pagination
+      parameters:
+        - name: dialog_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: before
+          in: query
+          description: Get messages before this message ID
+          schema:
+            type: string
+            format: uuid
+        - name: after
+          in: query
+          description: Get messages after this message ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Messaging
+      summary: Send message
+      description: Send a new message to the dialog
+      parameters:
+        - name: dialog_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+                - message_type
+              properties:
+                content:
+                  type: string
+                  example: "Hello everyone!"
+                message_type:
+                  type: string
+                  enum: [text, image, video, audio, file, location, sticker]
+                  example: "text"
+                reply_to_id:
+                  type: string
+                  format: uuid
+                  description: ID of message being replied to
+                metadata:
+                  type: object
+                  description: Type-specific metadata
+      responses:
+        '201':
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Payment endpoints
+  /payments/wallets:
+    get:
+      tags:
+        - Payments
+      summary: Get user's wallets
+      description: Retrieve all wallets for the authenticated user
+      responses:
+        '200':
+          description: Wallets retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  wallets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Wallet'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /payments/wallets/{wallet_id}/deposit:
+    post:
+      tags:
+        - Payments
+      summary: Deposit funds
+      description: Deposit funds to a wallet using various payment methods
+      parameters:
+        - name: wallet_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+                - payment_method
+              properties:
+                amount:
+                  type: string
+                  pattern: '^[0-9]+(\.[0-9]{1,2})?$'
+                  example: "100.00"
+                payment_method:
+                  type: string
+                  enum: [credit_card, bank_transfer, e_wallet]
+                  example: "credit_card"
+                payment_details:
+                  type: object
+                  description: Payment method specific details
+                description:
+                  type: string
+                  example: "Top up wallet"
+      responses:
+        '201':
+          description: Deposit initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transaction:
+                    $ref: '#/components/schemas/Transaction'
+                  payment_url:
+                    type: string
+                    format: uri
+                    description: URL for completing payment (if applicable)
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Commerce endpoints
+  /commerce/shops:
+    get:
+      tags:
+        - Commerce
+      summary: Search shops
+      description: Search and filter shops with pagination
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/SearchParam'
+        - name: category
+          in: query
+          description: Filter by shop category
+          schema:
+            type: string
+        - name: country
+          in: query
+          description: Filter by country
+          schema:
+            type: string
+            enum: [TH, SG, ID, MY, PH, VN]
+        - name: verified_only
+          in: query
+          description: Show only verified shops
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Shops retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  shops:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Shop'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Commerce
+      summary: Create shop
+      description: Create a new shop for the authenticated user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - description
+                - category
+                - address
+                - contact
+              properties:
+                name:
+                  type: string
+                  example: "Bangkok Electronics Store"
+                description:
+                  type: string
+                  example: "Best electronics in Bangkok"
+                category:
+                  type: string
+                  example: "electronics"
+                logo_url:
+                  type: string
+                  format: uri
+                banner_url:
+                  type: string
+                  format: uri
+                address:
+                  type: object
+                  required:
+                    - street
+                    - city
+                    - country
+                  properties:
+                    street:
+                      type: string
+                    city:
+                      type: string
+                    state:
+                      type: string
+                    postal_code:
+                      type: string
+                    country:
+                      type: string
+                      enum: [TH, SG, ID, MY, PH, VN]
+                contact:
+                  type: object
+                  required:
+                    - phone
+                    - email
+                  properties:
+                    phone:
+                      type: string
+                    email:
+                      type: string
+                      format: email
+                    website:
+                      type: string
+                      format: uri
+      responses:
+        '201':
+          description: Shop created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  shop:
+                    $ref: '#/components/schemas/Shop'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /commerce/products:
+    get:
+      tags:
+        - Commerce
+      summary: Search products
+      description: Search and filter products with advanced filtering options
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/SearchParam'
+        - name: category
+          in: query
+          description: Filter by product category
+          schema:
+            type: string
+        - name: brand
+          in: query
+          description: Filter by brand
+          schema:
+            type: string
+        - name: min_price
+          in: query
+          description: Minimum price filter
+          schema:
+            type: number
+            minimum: 0
+        - name: max_price
+          in: query
+          description: Maximum price filter
+          schema:
+            type: number
+            minimum: 0
+        - name: currency
+          in: query
+          description: Currency for price filtering
+          schema:
+            type: string
+            enum: [THB, SGD, IDR, MYR, PHP, VND, USD]
+        - name: in_stock
+          in: query
+          description: Show only products in stock
+          schema:
+            type: boolean
+            default: false
+        - name: shop_id
+          in: query
+          description: Filter by shop ID
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: Products retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  filters:
+                    type: object
+                    description: Available filter options
+                    properties:
+                      categories:
+                        type: array
+                        items:
+                          type: string
+                      brands:
+                        type: array
+                        items:
+                          type: string
+                      price_range:
+                        type: object
+                        properties:
+                          min:
+                            type: number
+                          max:
+                            type: number
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Notification endpoints
+  /notifications:
+    get:
+      tags:
+        - Notifications
+      summary: Get user notifications
+      description: Retrieve notifications for the authenticated user with pagination
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: type
+          in: query
+          description: Filter by notification type
+          schema:
+            type: string
+            enum: [email, sms, push, in_app]
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: string
+            enum: [pending, sent, delivered, failed, expired]
+        - name: unread_only
+          in: query
+          description: Show only unread notifications
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notifications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Notifications
+      summary: Send notification
+      description: Send a notification to a specific user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - recipient_id
+                - type
+                - channel
+                - content
+                - priority
+              properties:
+                recipient_id:
+                  type: string
+                  format: uuid
+                type:
+                  type: string
+                  enum: [email, sms, push, in_app]
+                channel:
+                  type: string
+                  example: "order_updates"
+                template_id:
+                  type: string
+                  format: uuid
+                subject:
+                  type: string
+                  example: "Your order update"
+                content:
+                  type: string
+                  example: "Your order has been processed"
+                variables:
+                  type: object
+                  description: Template variables
+                priority:
+                  type: string
+                  enum: [low, medium, high, urgent]
+                scheduled_at:
+                  type: string
+                  format: date-time
+                expires_at:
+                  type: string
+                  format: date-time
+                metadata:
+                  type: object
+      responses:
+        '201':
+          description: Notification sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notification:
+                    $ref: '#/components/schemas/Notification'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /notifications/templates:
+    get:
+      tags:
+        - Notifications
+      summary: Get notification templates
+      description: Retrieve available notification templates
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: type
+          in: query
+          description: Filter by template type
+          schema:
+            type: string
+            enum: [email, sms, push, in_app]
+        - name: category
+          in: query
+          description: Filter by template category
+          schema:
+            type: string
+        - name: active_only
+          in: query
+          description: Show only active templates
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Templates retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NotificationTemplate'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+# WebSocket Documentation
+x-websocket-paths:
+  /ws/messaging:
+    summary: Real-time messaging WebSocket
+    description: |
+      WebSocket endpoint for real-time messaging functionality.
+
+      ## Connection
+      Connect to `/ws/messaging` with Authorization header containing JWT token.
+
+      ## Message Format
+      All messages are JSON objects with the following structure:
+
+      ```json
+      {
+        "type": "message_type",
+        "data": { ... },
+        "timestamp": "2023-12-01T10:00:00Z"
+      }
+      ```
+
+      ## Client → Server Messages
+
+      ### Join Dialog
+      ```json
+      {
+        "type": "join_dialog",
+        "data": {
+          "dialog_id": "123e4567-e89b-12d3-a456-426614174000"
+        }
+      }
+      ```
+
+      ### Leave Dialog
+      ```json
+      {
+        "type": "leave_dialog",
+        "data": {
+          "dialog_id": "123e4567-e89b-12d3-a456-426614174000"
+        }
+      }
+      ```
+
+      ### Send Message
+      ```json
+      {
+        "type": "send_message",
+        "data": {
+          "dialog_id": "123e4567-e89b-12d3-a456-426614174000",
+          "content": "Hello!",
+          "message_type": "text",
+          "reply_to_id": "optional-message-id"
+        }
+      }
+      ```
+
+      ### Typing Indicator
+      ```json
+      {
+        "type": "typing",
+        "data": {
+          "dialog_id": "123e4567-e89b-12d3-a456-426614174000",
+          "typing": true
+        }
+      }
+      ```
+
+      ## Server → Client Messages
+
+      ### New Message
+      ```json
+      {
+        "type": "new_message",
+        "data": {
+          "message": { /* Message object */ }
+        }
+      }
+      ```
+
+      ### User Typing
+      ```json
+      {
+        "type": "user_typing",
+        "data": {
+          "dialog_id": "123e4567-e89b-12d3-a456-426614174000",
+          "user_id": "user-123",
+          "typing": true
+        }
+      }
+      ```
+
+      ### Message Read
+      ```json
+      {
+        "type": "message_read",
+        "data": {
+          "dialog_id": "123e4567-e89b-12d3-a456-426614174000",
+          "message_id": "message-123",
+          "user_id": "user-123",
+          "read_at": "2023-12-01T10:00:00Z"
+        }
+      }
+      ```
+
+      ### User Presence
+      ```json
+      {
+        "type": "user_presence",
+        "data": {
+          "user_id": "user-123",
+          "status": "online",
+          "last_seen": "2023-12-01T10:00:00Z"
+        }
+      }
+      ```

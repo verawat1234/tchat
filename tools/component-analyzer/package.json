@@ -1,0 +1,47 @@
+{
+  "name": "@tchat/component-analyzer",
+  "version": "1.0.0",
+  "description": "Analyze and categorize React components following atomic design principles",
+  "main": "dist/index.js",
+  "bin": {
+    "component-analyzer": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --ext .ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "react",
+    "components",
+    "atomic-design",
+    "analyzer",
+    "cli"
+  ],
+  "author": "Tchat Team",
+  "license": "MIT",
+  "dependencies": {
+    "@typescript-eslint/parser": "^7.0.0",
+    "@typescript-eslint/typescript-estree": "^7.0.0",
+    "chalk": "^5.3.0",
+    "commander": "^12.0.0",
+    "glob": "^10.3.10",
+    "inquirer": "^9.2.12",
+    "ora": "^8.0.1",
+    "typescript": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@vitest/coverage-v8": "^1.2.0",
+    "eslint": "^8.56.0",
+    "tsx": "^4.7.0",
+    "vitest": "^1.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

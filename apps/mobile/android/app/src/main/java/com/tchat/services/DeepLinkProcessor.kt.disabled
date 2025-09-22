@@ -1,0 +1,355 @@
+package com.tchat.services
+
+import android.net.Uri
+import com.tchat.models.*
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+
+/**
+ * Deep link processor for handling deep link resolution and routing
+ */
+class DeepLinkProcessor(
+    private val routeRegistry: RouteRegistry = RouteRegistry()
+) {
+
+    private val _pendingDeepLinks = MutableStateFlow<List<DeepLink>>(emptyList())
+    val pendingDeepLinks: StateFlow<List<DeepLink>> = _pendingDeepLinks.asStateFlow()
+
+    private val _processingStatus = MutableStateFlow<ProcessingStatus>(ProcessingStatus.Idle)
+    val processingStatus: StateFlow<ProcessingStatus> = _processingStatus.asStateFlow()
+
+    private val _lastProcessedLink = MutableStateFlow<DeepLink?>(null)
+    val lastProcessedLink: StateFlow<DeepLink?> = _lastProcessedLink.asStateFlow()
+
+    private val processingMutex = Mutex()
+
+    init {
+        setupProcessing()
+    }
+
+    /**
+     * Process a deep link URL
+     */
+    suspend fun processDeepLink(urlString: String, userId: String): DeepLinkResolution {
+        val deepLink = DeepLink.fromURL(urlString)
+            ?: throw DeepLinkProcessorError.InvalidURL(urlString)
+
+        return processDeepLink(deepLink, userId)
+    }
+
+    /**
+     * Process a deep link object
+     */
+    suspend fun processDeepLink(deepLink: DeepLink, userId: String): DeepLinkResolution {
+        processingMutex.withLock {
+            _processingStatus.value = ProcessingStatus.Processing
+
+            try {
+                // Check cache first
+                val cachedResolution = cacheService.getCachedResolution(deepLink)
+                if (cachedResolution != null) {
+                    _processingStatus.value = ProcessingStatus.Completed
+                    _lastProcessedLink.value = deepLink
+                    analyticsService.trackDeepLink(deepLink, cachedResolution, fromCache = true)
+                    return cachedResolution
+                }
+
+                // Validate deep link
+                validateDeepLink(deepLink)
+
+                // Create resolution request
+                val request = deepLink.createResolutionRequest(userId)
+
+                // Resolve deep link
+                val resolution = resolutionService.resolveDeepLink(request)
+
+                // Cache resolution
+                cacheService.cacheResolution(resolution, deepLink)
+
+                // Track analytics
+                analyticsService.trackDeepLink(deepLink, resolution, fromCache = false)
+
+                _processingStatus.value = ProcessingStatus.Completed
+                _lastProcessedLink.value = deepLink
+
+                return resolution
+
+            } catch (e: Exception) {
+                val error = if (e is DeepLinkProcessorError) e else DeepLinkProcessorError.Unknown(e)
+                _processingStatus.value = ProcessingStatus.Failed(error)
+                throw error
+            }
+        }
+    }
+
+    /**
+     * Process multiple deep links in batch
+     */
+    suspend fun processDeepLinks(deepLinks: List<DeepLink>, userId: String): List<Result<DeepLinkResolution>> {
+        return deepLinks.map { deepLink ->
+            try {
+                val resolution = processDeepLink(deepLink, userId)
+                Result.success(resolution)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    }
+
+    /**
+     * Queue deep link for processing
+     */
+    suspend fun queueDeepLink(deepLink: DeepLink) {
+        val currentLinks = _pendingDeepLinks.value
+        _pendingDeepLinks.value = currentLinks + deepLink
+    }
+
+    /**
+     * Process queued deep links
+     */
+    suspend fun processQueuedDeepLinks(userId: String) {
+        val linksToProcess = _pendingDeepLinks.value
+        if (linksToProcess.isEmpty()) return
+
+        _pendingDeepLinks.value = emptyList()
+
+        for (deepLink in linksToProcess) {
+            try {
+                processDeepLink(deepLink, userId)
+            } catch (e: Exception) {
+                // Log error but continue processing other links
+            }
+        }
+    }
+
+    /**
+     * Check if URL can be handled
+     */
+    fun canHandle(urlString: String): Boolean {
+        val deepLink = DeepLink.fromURL(urlString) ?: return false
+        return deepLink.isValid
+    }
+
+    /**
+     * Extract route information from URL
+     */
+    fun extractRoute(urlString: String): Pair<String, Map<String, Any>>? {
+        val deepLink = DeepLink.fromURL(urlString) ?: return null
+        if (!deepLink.isValid) return null
+
+        // Find matching route pattern
+        val availableRoutes = routeRegistry.getPlatformRoutes()
+
+        for (route in availableRoutes) {
+            if (deepLink.matchesRoute(route.path)) {
+                val parameters = deepLink.extractParameters(route.path)
+                return Pair(route.id, parameters)
+            }
+        }
+
+        return null
+    }
+
+    /**
+     * Get deep link statistics
+     */
+    suspend fun getStatistics(): DeepLinkStatistics {
+        return analyticsService.getStatistics()
+    }
+
+    /**
+     * Clear cache
+     */
+    suspend fun clearCache() {
+        cacheService.clearCache()
+    }
+
+    // MARK: - Private Methods
+
+    private fun setupProcessing() {
+        // Auto-process pending deep links when queue is not empty
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            _pendingDeepLinks
+                .filter { it.isNotEmpty() }
+                .collect {
+                    delay(500) // Debounce
+                    processQueuedDeepLinks("current_user") // TODO: Get actual user ID
+                }
+        }
+    }
+
+    private fun validateDeepLink(deepLink: DeepLink) {
+        // Check if expired
+        if (deepLink.isExpired) {
+            throw DeepLinkProcessorError.ExpiredDeepLink(deepLink.url)
+        }
+
+        // Check platform support
+        if (deepLink.platform.isNotEmpty() && deepLink.platform != "android") {
+            throw DeepLinkProcessorError.UnsupportedPlatform(deepLink.platform)
+        }
+
+        // Check authentication requirements
+        if (deepLink.requiresAuthentication) {
+            // TODO: Check if user is authenticated
+        }
+    }
+}
+
+// MARK: - Supporting Services
+
+/**
+ * Deep link resolution service
+ */
+@Singleton
+class DeepLinkResolutionService @Inject constructor() {
+
+    suspend fun resolveDeepLink(request: DeepLinkResolutionRequest): DeepLinkResolution {
+        // Parse URL components
+        val uri = try {
+            Uri.parse(request.url)
+        } catch (e: Exception) {
+            throw DeepLinkProcessorError.InvalidURL(request.url)
+        }
+
+        val path = uri.path ?: ""
+        val queryParams = mutableMapOf<String, Any>()
+
+        uri.queryParameterNames.forEach { name ->
+            uri.getQueryParameter(name)?.let { value ->
+                queryParams[name] = value
+            }
+        }
+
+        // Extract route ID from path
+        val routeId = path.trim('/').replace("/", "/")
+
+        // TODO: Validate route with backend API
+        // For now, return a basic resolution
+
+        return DeepLinkResolution(
+            routeId = routeId,
+            parameters = queryParams,
+            isValid = routeId.isNotEmpty(),
+            fallbackAction = if (routeId.isEmpty()) "goto_home" else null,
+            requiresAuth = false
+        )
+    }
+}
+
+/**
+ * Deep link cache service
+ */
+@Singleton
+class DeepLinkCacheService @Inject constructor() {
+
+    private val cache = mutableMapOf<String, DeepLinkResolution>()
+    private val cacheExpiry = 300_000L // 5 minutes in milliseconds
+
+    suspend fun getCachedResolution(deepLink: DeepLink): DeepLinkResolution? {
+        return cache[deepLink.url]
+    }
+
+    suspend fun cacheResolution(resolution: DeepLinkResolution, deepLink: DeepLink) {
+        cache[deepLink.url] = resolution
+
+        // Auto-expire cache entries
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            delay(cacheExpiry)
+            cache.remove(deepLink.url)
+        }
+    }
+
+    suspend fun clearCache() {
+        cache.clear()
+    }
+}
+
+/**
+ * Deep link analytics service
+ */
+@Singleton
+class DeepLinkAnalyticsService @Inject constructor() {
+
+    private var statistics = DeepLinkStatistics()
+
+    suspend fun trackDeepLink(
+        deepLink: DeepLink,
+        resolution: DeepLinkResolution,
+        fromCache: Boolean
+    ) {
+        statistics.totalProcessed++
+
+        if (resolution.isValid) {
+            statistics.successfulResolutions++
+        } else {
+            statistics.failedResolutions++
+        }
+
+        if (fromCache) {
+            statistics.cacheHits++
+        } else {
+            statistics.cacheMisses++
+        }
+
+        // Track by source
+        val sourceKey = deepLink.metadata.source.name
+        statistics.sourceBreakdown[sourceKey] = statistics.sourceBreakdown.getOrDefault(sourceKey, 0) + 1
+    }
+
+    suspend fun getStatistics(): DeepLinkStatistics {
+        return statistics
+    }
+}
+
+// MARK: - Supporting Types
+
+sealed class ProcessingStatus {
+    object Idle : ProcessingStatus()
+    object Processing : ProcessingStatus()
+    object Completed : ProcessingStatus()
+    class Failed(val error: DeepLinkProcessorError) : ProcessingStatus()
+}
+
+data class DeepLinkStatistics(
+    var totalProcessed: Int = 0,
+    var successfulResolutions: Int = 0,
+    var failedResolutions: Int = 0,
+    var cacheHits: Int = 0,
+    var cacheMisses: Int = 0,
+    var sourceBreakdown: MutableMap<String, Int> = mutableMapOf()
+) {
+    val successRate: Double
+        get() = if (totalProcessed > 0) successfulResolutions.toDouble() / totalProcessed else 0.0
+
+    val cacheHitRate: Double
+        get() {
+            val totalRequests = cacheHits + cacheMisses
+            return if (totalRequests > 0) cacheHits.toDouble() / totalRequests else 0.0
+        }
+}
+
+// MARK: - Error Types
+
+sealed class DeepLinkProcessorError : Exception() {
+    class InvalidURL(val url: String) : DeepLinkProcessorError()
+    class ExpiredDeepLink(val url: String) : DeepLinkProcessorError()
+    class UnsupportedPlatform(val platform: String) : DeepLinkProcessorError()
+    class ResolutionFailed(val reason: String) : DeepLinkProcessorError()
+    object AuthenticationRequired : DeepLinkProcessorError()
+    object RateLimitExceeded : DeepLinkProcessorError()
+    class Unknown(val error: Throwable) : DeepLinkProcessorError()
+
+    override val message: String?
+        get() = when (this) {
+            is InvalidURL -> "Invalid deep link URL: $url"
+            is ExpiredDeepLink -> "Expired deep link: $url"
+            is UnsupportedPlatform -> "Unsupported platform: $platform"
+            is ResolutionFailed -> "Deep link resolution failed: $reason"
+            is AuthenticationRequired -> "Authentication required for this deep link"
+            is RateLimitExceeded -> "Deep link processing rate limit exceeded"
+            is Unknown -> "Deep link processing error: ${error.message}"
+        }
+}

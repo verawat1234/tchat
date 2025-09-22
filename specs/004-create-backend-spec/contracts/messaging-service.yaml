@@ -1,0 +1,352 @@
+openapi: 3.0.3
+info:
+  title: Messaging Service API
+  description: Real-time messaging service for Telegram SEA Edition
+  version: 1.0.0
+
+servers:
+  - url: https://messaging.tchat.sea
+    description: Production server
+  - url: https://messaging-staging.tchat.sea
+    description: Staging server
+
+paths:
+  /dialogs:
+    get:
+      summary: Get user's dialogs
+      operationId: getDialogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [user, group, channel, business]
+      responses:
+        '200':
+          description: Dialogs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dialogs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Dialog'
+                  total:
+                    type: integer
+                  has_more:
+                    type: boolean
+
+    post:
+      summary: Create new dialog
+      operationId: createDialog
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - participants
+              properties:
+                type:
+                  type: string
+                  enum: [user, group, channel, business]
+                name:
+                  type: string
+                  description: Required for group/channel
+                participants:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  description: User IDs to include in dialog
+      responses:
+        '201':
+          description: Dialog created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dialog'
+
+  /dialogs/{dialog_id}/messages:
+    get:
+      summary: Get messages from dialog
+      operationId: getMessages
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: dialog_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: before
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Message ID to paginate before
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+                  has_more:
+                    type: boolean
+
+    post:
+      summary: Send message to dialog
+      operationId: sendMessage
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: dialog_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - content
+              properties:
+                type:
+                  type: string
+                  enum: [text, voice, file, image, video, payment, location]
+                content:
+                  type: object
+                  description: Content varies by message type
+                reply_to_id:
+                  type: string
+                  format: uuid
+                mentions:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '201':
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+
+  /messages/{message_id}/read:
+    post:
+      summary: Mark message as read
+      operationId: markMessageRead
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: message_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Message marked as read
+
+  /websocket:
+    get:
+      summary: WebSocket endpoint for real-time messaging
+      description: |
+        WebSocket connection for real-time message delivery and presence updates.
+
+        Connection URL: wss://messaging.tchat.sea/websocket?token={jwt_token}
+
+        Message types:
+        - message.new: New message received
+        - message.read: Message read by recipient
+        - presence.update: User online status change
+        - typing.start: User started typing
+        - typing.stop: User stopped typing
+      responses:
+        '101':
+          description: WebSocket connection established
+
+components:
+  schemas:
+    Dialog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [user, group, channel, business]
+        name:
+          type: string
+          nullable: true
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+        participants:
+          type: array
+          items:
+            type: string
+            format: uuid
+        last_message:
+          $ref: '#/components/schemas/Message'
+          nullable: true
+        unread_count:
+          type: integer
+        is_pinned:
+          type: boolean
+        is_archived:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        dialog_id:
+          type: string
+          format: uuid
+        sender_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [text, voice, file, image, video, payment, location, system]
+        content:
+          type: object
+          description: Message content varies by type
+        reply_to_id:
+          type: string
+          format: uuid
+          nullable: true
+        is_edited:
+          type: boolean
+        is_pinned:
+          type: boolean
+        mentions:
+          type: array
+          items:
+            type: string
+            format: uuid
+        reactions:
+          type: array
+          items:
+            type: object
+            properties:
+              emoji:
+                type: string
+              user_id:
+                type: string
+                format: uuid
+              created_at:
+                type: string
+                format: date-time
+        read_by:
+          type: array
+          items:
+            type: object
+            properties:
+              user_id:
+                type: string
+                format: uuid
+              read_at:
+                type: string
+                format: date-time
+        created_at:
+          type: string
+          format: date-time
+        edited_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    MessageContent:
+      oneOf:
+        - title: Text Message
+          type: object
+          properties:
+            text:
+              type: string
+              maxLength: 4096
+        - title: Image Message
+          type: object
+          properties:
+            file_url:
+              type: string
+              format: uri
+            thumbnail_url:
+              type: string
+              format: uri
+            width:
+              type: integer
+            height:
+              type: integer
+            caption:
+              type: string
+        - title: Payment Message
+          type: object
+          properties:
+            amount:
+              type: integer
+              description: Amount in cents
+            currency:
+              type: string
+              enum: [THB, SGD, IDR, MYR, PHP, VND, USD]
+            description:
+              type: string
+            transaction_id:
+              type: string
+              format: uuid
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
