@@ -1,0 +1,1568 @@
+{
+  "configuration": {
+    "traffic_patterns": {
+      "baseline": {
+        "name": "Baseline Traffic",
+        "description": "Normal daily traffic pattern",
+        "duration": 1800000000000,
+        "phases": [
+          {
+            "name": "warmup",
+            "duration": 300000000000,
+            "start_rps": 10,
+            "end_rps": 100,
+            "concurrent_users": 50,
+            "ramp_type": "linear"
+          },
+          {
+            "name": "sustained",
+            "duration": 1200000000000,
+            "start_rps": 100,
+            "end_rps": 100,
+            "concurrent_users": 200,
+            "ramp_type": "constant"
+          },
+          {
+            "name": "cooldown",
+            "duration": 300000000000,
+            "start_rps": 100,
+            "end_rps": 10,
+            "concurrent_users": 50,
+            "ramp_type": "linear"
+          }
+        ],
+        "multiplier": 1,
+        "enabled": true
+      },
+      "peak": {
+        "name": "Peak Traffic",
+        "description": "Peak usage traffic pattern",
+        "duration": 2700000000000,
+        "phases": [
+          {
+            "name": "ramp_up",
+            "duration": 600000000000,
+            "start_rps": 100,
+            "end_rps": 1000,
+            "concurrent_users": 500,
+            "ramp_type": "exponential"
+          },
+          {
+            "name": "peak_load",
+            "duration": 1500000000000,
+            "start_rps": 1000,
+            "end_rps": 1000,
+            "concurrent_users": 2000,
+            "ramp_type": "constant"
+          },
+          {
+            "name": "ramp_down",
+            "duration": 600000000000,
+            "start_rps": 1000,
+            "end_rps": 100,
+            "concurrent_users": 500,
+            "ramp_type": "linear"
+          }
+        ],
+        "multiplier": 5,
+        "enabled": true
+      }
+    },
+    "regional_configs": {
+      "singapore": {
+        "region": "Singapore",
+        "timezone_offset": 8,
+        "peak_hours": [
+          12,
+          13,
+          19,
+          20,
+          21
+        ],
+        "language_locales": [
+          "en-SG",
+          "zh-SG",
+          "ms-SG"
+        ],
+        "network_latency": {
+          "avg": 20000000,
+          "p95": 50000000,
+          "p99": 100000000,
+          "jitter": 5000000
+        },
+        "device_profile": {
+          "mobile_percentage": 85,
+          "avg_bandwidth": "50Mbps",
+          "low_end_devices": 15,
+          "concurrent_tabs": 3
+        },
+        "cultural_factors": {
+          "group_chat_preference": 0.8,
+          "media_sharing_rate": 0.7,
+          "emoji_usage_rate": 0.9,
+          "festival_impact": 2.5,
+          "social_feature_usage": 0.85,
+          "active_hours_pattern": [
+            0.3,
+            0.4,
+            0.6,
+            0.8,
+            1,
+            0.9,
+            0.7,
+            0.5
+          ]
+        }
+      },
+      "thailand": {
+        "region": "Thailand",
+        "timezone_offset": 7,
+        "peak_hours": [
+          11,
+          12,
+          18,
+          19,
+          20
+        ],
+        "language_locales": [
+          "th-TH",
+          "en-TH"
+        ],
+        "network_latency": {
+          "avg": 25000000,
+          "p95": 60000000,
+          "p99": 120000000,
+          "jitter": 8000000
+        },
+        "device_profile": {
+          "mobile_percentage": 90,
+          "avg_bandwidth": "30Mbps",
+          "low_end_devices": 25,
+          "concurrent_tabs": 2
+        },
+        "cultural_factors": {
+          "group_chat_preference": 0.9,
+          "media_sharing_rate": 0.8,
+          "emoji_usage_rate": 0.95,
+          "festival_impact": 3,
+          "social_feature_usage": 0.9,
+          "active_hours_pattern": [
+            0.2,
+            0.3,
+            0.5,
+            0.7,
+            0.9,
+            0.8,
+            0.6,
+            0.4
+          ]
+        }
+      }
+    },
+    "peak_scenarios": {
+      "new_year": {
+        "name": "New Year Peak",
+        "description": "New Year celebration traffic surge",
+        "duration": 7200000000000,
+        "peak_multiplier": 15,
+        "user_growth_rate": 0.3,
+        "message_volume": {
+          "messages_per_second": 5000,
+          "media_percentage": 0.6,
+          "group_chat_ratio": 0.8,
+          "emoji_density": 0.95,
+          "average_message_size": 512
+        },
+        "service_mix": {
+          "auth_percentage": 0.15,
+          "messaging_percentage": 0.5,
+          "commerce_percentage": 0.2,
+          "payment_percentage": 0.1,
+          "notification_percentage": 0.05
+        },
+        "validation_rules": {
+          "required_success_rate": 0.99,
+          "max_allowed_latency": 500000000,
+          "min_throughput": 4500,
+          "resource_constraints": {
+            "cpu_limit": 80,
+            "memory_limit": 85,
+            "disk_io_limit": 10000,
+            "network_limit": 1000
+          },
+          "business_metrics": {
+            "user_retention_rate": 0.95,
+            "message_delivery_rate": 0.999,
+            "transaction_success_rate": 0.98,
+            "feature_adoption_rate": 0.4
+          }
+        }
+      }
+    },
+    "thresholds": {
+      "response_time": {
+        "p50_max": 200000000,
+        "p95_max": 500000000,
+        "p99_max": 1000000000,
+        "max_max": 2000000000
+      },
+      "throughput": {
+        "min_rps": 100,
+        "max_rps": 5000,
+        "sustained_rps": 2000,
+        "peak_capacity_rps": 10000,
+        "throughput_growth": 1.2
+      },
+      "error_rates": {
+        "max_error_rate": 0.01,
+        "max_4xx_rate": 0.005,
+        "max_5xx_rate": 0.002,
+        "max_timeout_rate": 0.001,
+        "max_connection_rate": 0.0005
+      },
+      "resource_usage": {
+        "max_cpu_usage": 80,
+        "max_memory_usage": 85,
+        "max_disk_usage": 90,
+        "max_network_io": 1000,
+        "max_db_connections": 1000
+      }
+    },
+    "resource_limits": {
+      "max_concurrent_users": 10000,
+      "max_requests_per_second": 5000,
+      "max_memory_gb": 32,
+      "max_cpu_cores": 16,
+      "max_disk_iops": 20000,
+      "max_network_mbps": 10000
+    },
+    "monitoring_config": {
+      "sample_interval": 5000000000,
+      "retention_period": 604800000000000,
+      "alert_thresholds": {
+        "error_rate_alert": 0.05,
+        "latency_alert": 1000000000,
+        "resource_alert": 90,
+        "throughput_alert": 500
+      },
+      "metrics_export": {
+        "enabled": true,
+        "formats": [
+          "json",
+          "prometheus",
+          "csv"
+        ],
+        "endpoints": [
+          "http://monitoring:9090/metrics"
+        ],
+        "export_interval": 30000000000
+      }
+    },
+    "festival_configs": {
+      "chinese_new_year": {
+        "name": "Chinese New Year",
+        "region": "singapore",
+        "duration": 604800000000000,
+        "traffic_multiplier": 8,
+        "feature_usage": {
+          "group_chat": 3,
+          "media_sharing": 4,
+          "red_envelope": 5
+        },
+        "user_behavior": {
+          "session_duration": 2700000000000,
+          "message_frequency": 3.5,
+          "media_sharing_spike": 5,
+          "group_activity_spike": 6,
+          "commerce_activity": 1.8,
+          "payment_volume": 2.2
+        },
+        "enabled": true
+      }
+    }
+  },
+  "detailed_results": [
+    {
+      "test_name": "baseline_traffic",
+      "scenario": "baseline",
+      "region": "singapore",
+      "start_time": "2025-09-23T09:01:46.406496+07:00",
+      "duration": 1800000000000,
+      "total_requests": 153000,
+      "successful_requests": 152850,
+      "failed_requests": 150,
+      "requests_per_second": 85,
+      "response_times": {
+        "mean": 118000000,
+        "median": 98000000,
+        "p95": 168000000,
+        "p99": 218000000,
+        "max": 618000000,
+        "min": 10000000,
+        "std_dev": 50000000
+      },
+      "error_metrics": {
+        "total_errors": 150,
+        "error_rate": 0.000980392156862745,
+        "timeout_errors": 37,
+        "connection_errors": 25,
+        "http_errors": {
+          "4xx": 75,
+          "5xx": 50
+        },
+        "service_errors": {
+          "auth": 15,
+          "commerce": 12,
+          "messaging": 18
+        }
+      },
+      "resource_metrics": {
+        "cpu_usage": {
+          "average": 33.4,
+          "peak": 44.25,
+          "p95": 38.825
+        },
+        "memory_usage": {
+          "average_gb": 9.36,
+          "peak_gb": 13.7,
+          "p95_gb": 11.53
+        },
+        "disk_usage": {
+          "read_iops": 670,
+          "write_iops": 268,
+          "read_mbps": 67,
+          "write_mbps": 26.8
+        },
+        "network_usage": {
+          "inbound_mbps": 142.5,
+          "outbound_mbps": 201,
+          "connections": 261,
+          "packet_loss": 0.0008500000000000001
+        },
+        "database_metrics": {
+          "connections_used": 88,
+          "query_latency": 13000000,
+          "queries_per_second": 212.5,
+          "deadlock_count": 0
+        }
+      },
+      "threshold_violations": null,
+      "peak_metrics": {
+        "peak_rps": 102,
+        "peak_concurrent_users": 220,
+        "peak_response_time": 618000000,
+        "peak_resource_usage": 44.25,
+        "sustained_peak_duration": 1200000000000
+      },
+      "regional_metrics": {
+        "region": "Singapore",
+        "avg_latency": 20000000,
+        "localized_content": 0.9,
+        "language_distribution": {
+          "en-SG": 0.7,
+          "zh-SG": 0.3
+        },
+        "cultural_metrics": {
+          "group_chat_usage": 122400,
+          "media_sharing_rate": 0.7,
+          "emoji_usage_count": 137700,
+          "festival_engagement": 0,
+          "social_interactions": 130050
+        }
+      },
+      "metadata": {
+        "test_suite": "LoadTestSuite",
+        "version": "1.0.0",
+        "environment": "test",
+        "configuration": {
+          "pattern": {
+            "name": "Baseline Traffic",
+            "description": "Normal daily traffic pattern",
+            "duration": 1800000000000,
+            "phases": [
+              {
+                "name": "warmup",
+                "duration": 300000000000,
+                "start_rps": 10,
+                "end_rps": 100,
+                "concurrent_users": 50,
+                "ramp_type": "linear"
+              },
+              {
+                "name": "sustained",
+                "duration": 1200000000000,
+                "start_rps": 100,
+                "end_rps": 100,
+                "concurrent_users": 200,
+                "ramp_type": "constant"
+              },
+              {
+                "name": "cooldown",
+                "duration": 300000000000,
+                "start_rps": 100,
+                "end_rps": 10,
+                "concurrent_users": 50,
+                "ramp_type": "linear"
+              }
+            ],
+            "multiplier": 1,
+            "enabled": true
+          },
+          "region": {
+            "region": "Singapore",
+            "timezone_offset": 8,
+            "peak_hours": [
+              12,
+              13,
+              19,
+              20,
+              21
+            ],
+            "language_locales": [
+              "en-SG",
+              "zh-SG",
+              "ms-SG"
+            ],
+            "network_latency": {
+              "avg": 20000000,
+              "p95": 50000000,
+              "p99": 100000000,
+              "jitter": 5000000
+            },
+            "device_profile": {
+              "mobile_percentage": 85,
+              "avg_bandwidth": "50Mbps",
+              "low_end_devices": 15,
+              "concurrent_tabs": 3
+            },
+            "cultural_factors": {
+              "group_chat_preference": 0.8,
+              "media_sharing_rate": 0.7,
+              "emoji_usage_rate": 0.9,
+              "festival_impact": 2.5,
+              "social_feature_usage": 0.85,
+              "active_hours_pattern": [
+                0.3,
+                0.4,
+                0.6,
+                0.8,
+                1,
+                0.9,
+                0.7,
+                0.5
+              ]
+            }
+          }
+        },
+        "system_info": {
+          "os": "linux",
+          "architecture": "amd64",
+          "cpu_cores": 8,
+          "memory_gb": 32,
+          "disk_space_gb": 1000
+        },
+        "test_parameters": null
+      }
+    },
+    {
+      "test_name": "baseline_traffic",
+      "scenario": "baseline",
+      "region": "thailand",
+      "start_time": "2025-09-23T09:01:46.406665+07:00",
+      "duration": 1800000000000,
+      "total_requests": 153000,
+      "successful_requests": 152850,
+      "failed_requests": 150,
+      "requests_per_second": 85,
+      "response_times": {
+        "mean": 123000000,
+        "median": 103000000,
+        "p95": 183000000,
+        "p99": 243000000,
+        "max": 623000000,
+        "min": 15000000,
+        "std_dev": 50000000
+      },
+      "error_metrics": {
+        "total_errors": 150,
+        "error_rate": 0.000980392156862745,
+        "timeout_errors": 37,
+        "connection_errors": 25,
+        "http_errors": {
+          "4xx": 75,
+          "5xx": 50
+        },
+        "service_errors": {
+          "auth": 15,
+          "commerce": 12,
+          "messaging": 18
+        }
+      },
+      "resource_metrics": {
+        "cpu_usage": {
+          "average": 33.4,
+          "peak": 44.25,
+          "p95": 38.825
+        },
+        "memory_usage": {
+          "average_gb": 9.36,
+          "peak_gb": 13.7,
+          "p95_gb": 11.53
+        },
+        "disk_usage": {
+          "read_iops": 670,
+          "write_iops": 268,
+          "read_mbps": 67,
+          "write_mbps": 26.8
+        },
+        "network_usage": {
+          "inbound_mbps": 142.5,
+          "outbound_mbps": 201,
+          "connections": 261,
+          "packet_loss": 0.0008500000000000001
+        },
+        "database_metrics": {
+          "connections_used": 88,
+          "query_latency": 13000000,
+          "queries_per_second": 212.5,
+          "deadlock_count": 0
+        }
+      },
+      "threshold_violations": null,
+      "peak_metrics": {
+        "peak_rps": 102,
+        "peak_concurrent_users": 220,
+        "peak_response_time": 623000000,
+        "peak_resource_usage": 44.25,
+        "sustained_peak_duration": 1200000000000
+      },
+      "regional_metrics": {
+        "region": "Thailand",
+        "avg_latency": 25000000,
+        "localized_content": 0.9,
+        "language_distribution": {
+          "en-TH": 0.3,
+          "th-TH": 0.7
+        },
+        "cultural_metrics": {
+          "group_chat_usage": 137700,
+          "media_sharing_rate": 0.8,
+          "emoji_usage_count": 145350,
+          "festival_engagement": 0,
+          "social_interactions": 137700
+        }
+      },
+      "metadata": {
+        "test_suite": "LoadTestSuite",
+        "version": "1.0.0",
+        "environment": "test",
+        "configuration": {
+          "pattern": {
+            "name": "Baseline Traffic",
+            "description": "Normal daily traffic pattern",
+            "duration": 1800000000000,
+            "phases": [
+              {
+                "name": "warmup",
+                "duration": 300000000000,
+                "start_rps": 10,
+                "end_rps": 100,
+                "concurrent_users": 50,
+                "ramp_type": "linear"
+              },
+              {
+                "name": "sustained",
+                "duration": 1200000000000,
+                "start_rps": 100,
+                "end_rps": 100,
+                "concurrent_users": 200,
+                "ramp_type": "constant"
+              },
+              {
+                "name": "cooldown",
+                "duration": 300000000000,
+                "start_rps": 100,
+                "end_rps": 10,
+                "concurrent_users": 50,
+                "ramp_type": "linear"
+              }
+            ],
+            "multiplier": 1,
+            "enabled": true
+          },
+          "region": {
+            "region": "Thailand",
+            "timezone_offset": 7,
+            "peak_hours": [
+              11,
+              12,
+              18,
+              19,
+              20
+            ],
+            "language_locales": [
+              "th-TH",
+              "en-TH"
+            ],
+            "network_latency": {
+              "avg": 25000000,
+              "p95": 60000000,
+              "p99": 120000000,
+              "jitter": 8000000
+            },
+            "device_profile": {
+              "mobile_percentage": 90,
+              "avg_bandwidth": "30Mbps",
+              "low_end_devices": 25,
+              "concurrent_tabs": 2
+            },
+            "cultural_factors": {
+              "group_chat_preference": 0.9,
+              "media_sharing_rate": 0.8,
+              "emoji_usage_rate": 0.95,
+              "festival_impact": 3,
+              "social_feature_usage": 0.9,
+              "active_hours_pattern": [
+                0.2,
+                0.3,
+                0.5,
+                0.7,
+                0.9,
+                0.8,
+                0.6,
+                0.4
+              ]
+            }
+          }
+        },
+        "system_info": {
+          "os": "linux",
+          "architecture": "amd64",
+          "cpu_cores": 8,
+          "memory_gb": 32,
+          "disk_space_gb": 1000
+        },
+        "test_parameters": null
+      }
+    },
+    {
+      "test_name": "festival_chinese_new_year",
+      "scenario": "chinese_new_year",
+      "region": "singapore",
+      "start_time": "2025-09-23T09:01:46.406739+07:00",
+      "duration": 604800000000000,
+      "total_requests": 2419200000,
+      "successful_requests": 2399846400,
+      "failed_requests": 19353600,
+      "requests_per_second": 4000,
+      "response_times": {
+        "mean": 27000000,
+        "median": 12000000,
+        "p95": 35100000,
+        "p99": 45900000,
+        "max": 67500000,
+        "min": 15000000,
+        "std_dev": 5400000
+      },
+      "error_metrics": {
+        "total_errors": 19353600,
+        "error_rate": 0.008,
+        "timeout_errors": 3870720,
+        "connection_errors": 2419200,
+        "http_errors": {
+          "4xx": 5806080,
+          "5xx": 13547520
+        },
+        "service_errors": {
+          "auth": 1290240,
+          "commerce": 2419200,
+          "messaging": 1935360,
+          "payment": 1612800
+        }
+      },
+      "resource_metrics": {
+        "cpu_usage": {
+          "average": 75,
+          "peak": 90,
+          "p95": 82
+        },
+        "memory_usage": {
+          "average_gb": 26,
+          "peak_gb": 28,
+          "p95_gb": 27
+        },
+        "disk_usage": {
+          "read_iops": 4000,
+          "write_iops": 2000,
+          "read_mbps": 400,
+          "write_mbps": 200
+        },
+        "network_usage": {
+          "inbound_mbps": 750,
+          "outbound_mbps": 1000,
+          "connections": 3000,
+          "packet_loss": 0.01
+        },
+        "database_metrics": {
+          "connections_used": 700,
+          "query_latency": 75000000,
+          "queries_per_second": 11200,
+          "deadlock_count": 10
+        }
+      },
+      "threshold_violations": null,
+      "peak_metrics": {
+        "peak_rps": 5600,
+        "peak_concurrent_users": 16000,
+        "peak_response_time": 67500000,
+        "peak_resource_usage": 90,
+        "sustained_peak_duration": 423360000000000
+      },
+      "regional_metrics": {
+        "region": "Singapore",
+        "avg_latency": 27000000,
+        "localized_content": 0.95,
+        "language_distribution": {
+          "en-SG": 0.8,
+          "zh-SG": 0.2
+        },
+        "cultural_metrics": {
+          "group_chat_usage": 11612160000,
+          "media_sharing_rate": 5,
+          "emoji_usage_count": 2177280000,
+          "festival_engagement": 0.95,
+          "social_interactions": 4112640000
+        }
+      },
+      "metadata": {
+        "test_suite": "LoadTestSuite",
+        "version": "1.0.0",
+        "environment": "test",
+        "configuration": {
+          "festival": {
+            "name": "Chinese New Year",
+            "region": "singapore",
+            "duration": 604800000000000,
+            "traffic_multiplier": 8,
+            "feature_usage": {
+              "group_chat": 3,
+              "media_sharing": 4,
+              "red_envelope": 5
+            },
+            "user_behavior": {
+              "session_duration": 2700000000000,
+              "message_frequency": 3.5,
+              "media_sharing_spike": 5,
+              "group_activity_spike": 6,
+              "commerce_activity": 1.8,
+              "payment_volume": 2.2
+            },
+            "enabled": true
+          },
+          "region": {
+            "region": "Singapore",
+            "timezone_offset": 8,
+            "peak_hours": [
+              12,
+              13,
+              19,
+              20,
+              21
+            ],
+            "language_locales": [
+              "en-SG",
+              "zh-SG",
+              "ms-SG"
+            ],
+            "network_latency": {
+              "avg": 20000000,
+              "p95": 50000000,
+              "p99": 100000000,
+              "jitter": 5000000
+            },
+            "device_profile": {
+              "mobile_percentage": 85,
+              "avg_bandwidth": "50Mbps",
+              "low_end_devices": 15,
+              "concurrent_tabs": 3
+            },
+            "cultural_factors": {
+              "group_chat_preference": 0.8,
+              "media_sharing_rate": 0.7,
+              "emoji_usage_rate": 0.9,
+              "festival_impact": 2.5,
+              "social_feature_usage": 0.85,
+              "active_hours_pattern": [
+                0.3,
+                0.4,
+                0.6,
+                0.8,
+                1,
+                0.9,
+                0.7,
+                0.5
+              ]
+            }
+          }
+        },
+        "system_info": {
+          "os": "",
+          "architecture": "",
+          "cpu_cores": 0,
+          "memory_gb": 0,
+          "disk_space_gb": 0
+        },
+        "test_parameters": null
+      }
+    },
+    {
+      "test_name": "new_year_peak",
+      "scenario": "new_year",
+      "region": "singapore",
+      "start_time": "2025-09-23T09:01:46.406807+07:00",
+      "duration": 7200000000000,
+      "total_requests": 540000000,
+      "successful_requests": 535950000,
+      "failed_requests": 4050000,
+      "requests_per_second": 75000,
+      "response_times": {
+        "mean": 48000000,
+        "median": 18000000,
+        "p95": 72000000,
+        "p99": 96000000,
+        "max": 144000000,
+        "min": 20000000,
+        "std_dev": 14400000
+      },
+      "error_metrics": {
+        "total_errors": 4050000,
+        "error_rate": 0.0075,
+        "timeout_errors": 1350000,
+        "connection_errors": 1012500,
+        "http_errors": {
+          "4xx": 1620000,
+          "5xx": 2430000
+        },
+        "service_errors": {
+          "auth": 607500,
+          "commerce": 810000,
+          "messaging": 2025000,
+          "notification": 202500,
+          "payment": 405000
+        }
+      },
+      "resource_metrics": {
+        "cpu_usage": {
+          "average": 95,
+          "peak": 98,
+          "p95": 96
+        },
+        "memory_usage": {
+          "average_gb": 30,
+          "peak_gb": 32,
+          "p95_gb": 31
+        },
+        "disk_usage": {
+          "read_iops": 8500,
+          "write_iops": 3500,
+          "read_mbps": 700,
+          "write_mbps": 350
+        },
+        "network_usage": {
+          "inbound_mbps": 1400,
+          "outbound_mbps": 2100,
+          "connections": 7250,
+          "packet_loss": 0.03
+        },
+        "database_metrics": {
+          "connections_used": 1250,
+          "query_latency": 140000000,
+          "queries_per_second": 225000,
+          "deadlock_count": 30
+        }
+      },
+      "threshold_violations": null,
+      "peak_metrics": {
+        "peak_rps": 97500,
+        "peak_concurrent_users": 75000,
+        "peak_response_time": 144000000,
+        "peak_resource_usage": 98,
+        "sustained_peak_duration": 4320000000000
+      },
+      "regional_metrics": {
+        "region": "Singapore",
+        "avg_latency": 48000000,
+        "localized_content": 0.85,
+        "language_distribution": {
+          "en-SG": 0.65,
+          "zh-SG": 0.35
+        },
+        "cultural_metrics": {
+          "group_chat_usage": 345600000,
+          "media_sharing_rate": 0.6,
+          "emoji_usage_count": 513000000,
+          "festival_engagement": 0.8,
+          "social_interactions": 688500000
+        }
+      },
+      "metadata": {
+        "test_suite": "LoadTestSuite",
+        "version": "1.0.0",
+        "environment": "test",
+        "configuration": {
+          "region": {
+            "region": "Singapore",
+            "timezone_offset": 8,
+            "peak_hours": [
+              12,
+              13,
+              19,
+              20,
+              21
+            ],
+            "language_locales": [
+              "en-SG",
+              "zh-SG",
+              "ms-SG"
+            ],
+            "network_latency": {
+              "avg": 20000000,
+              "p95": 50000000,
+              "p99": 100000000,
+              "jitter": 5000000
+            },
+            "device_profile": {
+              "mobile_percentage": 85,
+              "avg_bandwidth": "50Mbps",
+              "low_end_devices": 15,
+              "concurrent_tabs": 3
+            },
+            "cultural_factors": {
+              "group_chat_preference": 0.8,
+              "media_sharing_rate": 0.7,
+              "emoji_usage_rate": 0.9,
+              "festival_impact": 2.5,
+              "social_feature_usage": 0.85,
+              "active_hours_pattern": [
+                0.3,
+                0.4,
+                0.6,
+                0.8,
+                1,
+                0.9,
+                0.7,
+                0.5
+              ]
+            }
+          },
+          "scenario": {
+            "name": "New Year Peak",
+            "description": "New Year celebration traffic surge",
+            "duration": 7200000000000,
+            "peak_multiplier": 15,
+            "user_growth_rate": 0.3,
+            "message_volume": {
+              "messages_per_second": 5000,
+              "media_percentage": 0.6,
+              "group_chat_ratio": 0.8,
+              "emoji_density": 0.95,
+              "average_message_size": 512
+            },
+            "service_mix": {
+              "auth_percentage": 0.15,
+              "messaging_percentage": 0.5,
+              "commerce_percentage": 0.2,
+              "payment_percentage": 0.1,
+              "notification_percentage": 0.05
+            },
+            "validation_rules": {
+              "required_success_rate": 0.99,
+              "max_allowed_latency": 500000000,
+              "min_throughput": 4500,
+              "resource_constraints": {
+                "cpu_limit": 80,
+                "memory_limit": 85,
+                "disk_io_limit": 10000,
+                "network_limit": 1000
+              },
+              "business_metrics": {
+                "user_retention_rate": 0.95,
+                "message_delivery_rate": 0.999,
+                "transaction_success_rate": 0.98,
+                "feature_adoption_rate": 0.4
+              }
+            }
+          }
+        },
+        "system_info": {
+          "os": "",
+          "architecture": "",
+          "cpu_cores": 0,
+          "memory_gb": 0,
+          "disk_space_gb": 0
+        },
+        "test_parameters": null
+      }
+    },
+    {
+      "test_name": "new_year_peak",
+      "scenario": "new_year",
+      "region": "thailand",
+      "start_time": "2025-09-23T09:01:46.406837+07:00",
+      "duration": 7200000000000,
+      "total_requests": 540000000,
+      "successful_requests": 535950000,
+      "failed_requests": 4050000,
+      "requests_per_second": 75000,
+      "response_times": {
+        "mean": 60000000,
+        "median": 30000000,
+        "p95": 90000000,
+        "p99": 120000000,
+        "max": 180000000,
+        "min": 25000000,
+        "std_dev": 18000000
+      },
+      "error_metrics": {
+        "total_errors": 4050000,
+        "error_rate": 0.0075,
+        "timeout_errors": 1350000,
+        "connection_errors": 1012500,
+        "http_errors": {
+          "4xx": 1620000,
+          "5xx": 2430000
+        },
+        "service_errors": {
+          "auth": 607500,
+          "commerce": 810000,
+          "messaging": 2025000,
+          "notification": 202500,
+          "payment": 405000
+        }
+      },
+      "resource_metrics": {
+        "cpu_usage": {
+          "average": 95,
+          "peak": 98,
+          "p95": 96
+        },
+        "memory_usage": {
+          "average_gb": 30,
+          "peak_gb": 32,
+          "p95_gb": 31
+        },
+        "disk_usage": {
+          "read_iops": 8500,
+          "write_iops": 3500,
+          "read_mbps": 700,
+          "write_mbps": 350
+        },
+        "network_usage": {
+          "inbound_mbps": 1400,
+          "outbound_mbps": 2100,
+          "connections": 7250,
+          "packet_loss": 0.03
+        },
+        "database_metrics": {
+          "connections_used": 1250,
+          "query_latency": 140000000,
+          "queries_per_second": 225000,
+          "deadlock_count": 30
+        }
+      },
+      "threshold_violations": null,
+      "peak_metrics": {
+        "peak_rps": 97500,
+        "peak_concurrent_users": 75000,
+        "peak_response_time": 180000000,
+        "peak_resource_usage": 98,
+        "sustained_peak_duration": 4320000000000
+      },
+      "regional_metrics": {
+        "region": "Thailand",
+        "avg_latency": 60000000,
+        "localized_content": 0.85,
+        "language_distribution": {
+          "en-TH": 0.35,
+          "th-TH": 0.65
+        },
+        "cultural_metrics": {
+          "group_chat_usage": 388800000,
+          "media_sharing_rate": 0.6,
+          "emoji_usage_count": 513000000,
+          "festival_engagement": 0.8,
+          "social_interactions": 729000000
+        }
+      },
+      "metadata": {
+        "test_suite": "LoadTestSuite",
+        "version": "1.0.0",
+        "environment": "test",
+        "configuration": {
+          "region": {
+            "region": "Thailand",
+            "timezone_offset": 7,
+            "peak_hours": [
+              11,
+              12,
+              18,
+              19,
+              20
+            ],
+            "language_locales": [
+              "th-TH",
+              "en-TH"
+            ],
+            "network_latency": {
+              "avg": 25000000,
+              "p95": 60000000,
+              "p99": 120000000,
+              "jitter": 8000000
+            },
+            "device_profile": {
+              "mobile_percentage": 90,
+              "avg_bandwidth": "30Mbps",
+              "low_end_devices": 25,
+              "concurrent_tabs": 2
+            },
+            "cultural_factors": {
+              "group_chat_preference": 0.9,
+              "media_sharing_rate": 0.8,
+              "emoji_usage_rate": 0.95,
+              "festival_impact": 3,
+              "social_feature_usage": 0.9,
+              "active_hours_pattern": [
+                0.2,
+                0.3,
+                0.5,
+                0.7,
+                0.9,
+                0.8,
+                0.6,
+                0.4
+              ]
+            }
+          },
+          "scenario": {
+            "name": "New Year Peak",
+            "description": "New Year celebration traffic surge",
+            "duration": 7200000000000,
+            "peak_multiplier": 15,
+            "user_growth_rate": 0.3,
+            "message_volume": {
+              "messages_per_second": 5000,
+              "media_percentage": 0.6,
+              "group_chat_ratio": 0.8,
+              "emoji_density": 0.95,
+              "average_message_size": 512
+            },
+            "service_mix": {
+              "auth_percentage": 0.15,
+              "messaging_percentage": 0.5,
+              "commerce_percentage": 0.2,
+              "payment_percentage": 0.1,
+              "notification_percentage": 0.05
+            },
+            "validation_rules": {
+              "required_success_rate": 0.99,
+              "max_allowed_latency": 500000000,
+              "min_throughput": 4500,
+              "resource_constraints": {
+                "cpu_limit": 80,
+                "memory_limit": 85,
+                "disk_io_limit": 10000,
+                "network_limit": 1000
+              },
+              "business_metrics": {
+                "user_retention_rate": 0.95,
+                "message_delivery_rate": 0.999,
+                "transaction_success_rate": 0.98,
+                "feature_adoption_rate": 0.4
+              }
+            }
+          }
+        },
+        "system_info": {
+          "os": "",
+          "architecture": "",
+          "cpu_cores": 0,
+          "memory_gb": 0,
+          "disk_space_gb": 0
+        },
+        "test_parameters": null
+      }
+    },
+    {
+      "test_name": "peak_traffic",
+      "scenario": "peak",
+      "region": "singapore",
+      "start_time": "2025-09-23T09:01:46.40692+07:00",
+      "duration": 2700000000000,
+      "total_requests": 2160000,
+      "successful_requests": 2138940,
+      "failed_requests": 21060,
+      "requests_per_second": 800,
+      "response_times": {
+        "mean": 118000000,
+        "median": 98000000,
+        "p95": 168000000,
+        "p99": 218000000,
+        "max": 618000000,
+        "min": 10000000,
+        "std_dev": 50000000
+      },
+      "error_metrics": {
+        "total_errors": 21060,
+        "error_rate": 0.00975,
+        "timeout_errors": 5265,
+        "connection_errors": 3510,
+        "http_errors": {
+          "4xx": 10530,
+          "5xx": 7020
+        },
+        "service_errors": {
+          "auth": 2106,
+          "commerce": 1755,
+          "messaging": 2632
+        }
+      },
+      "resource_metrics": {
+        "cpu_usage": {
+          "average": 62,
+          "peak": 80,
+          "p95": 71
+        },
+        "memory_usage": {
+          "average_gb": 20.8,
+          "peak_gb": 28,
+          "p95_gb": 24.400000000000002
+        },
+        "disk_usage": {
+          "read_iops": 2100,
+          "write_iops": 840,
+          "read_mbps": 210,
+          "write_mbps": 84
+        },
+        "network_usage": {
+          "inbound_mbps": 500,
+          "outbound_mbps": 630,
+          "connections": 1620,
+          "packet_loss": 0.008
+        },
+        "database_metrics": {
+          "connections_used": 410,
+          "query_latency": 42000000,
+          "queries_per_second": 2000,
+          "deadlock_count": 4
+        }
+      },
+      "threshold_violations": null,
+      "peak_metrics": {
+        "peak_rps": 960,
+        "peak_concurrent_users": 2200,
+        "peak_response_time": 618000000,
+        "peak_resource_usage": 80,
+        "sustained_peak_duration": 1500000000000
+      },
+      "regional_metrics": {
+        "region": "Singapore",
+        "avg_latency": 20000000,
+        "localized_content": 0.9,
+        "language_distribution": {
+          "en-SG": 0.7,
+          "zh-SG": 0.3
+        },
+        "cultural_metrics": {
+          "group_chat_usage": 1728000,
+          "media_sharing_rate": 0.7,
+          "emoji_usage_count": 1944000,
+          "festival_engagement": 0,
+          "social_interactions": 1836000
+        }
+      },
+      "metadata": {
+        "test_suite": "LoadTestSuite",
+        "version": "1.0.0",
+        "environment": "test",
+        "configuration": {
+          "pattern": {
+            "name": "Peak Traffic",
+            "description": "Peak usage traffic pattern",
+            "duration": 2700000000000,
+            "phases": [
+              {
+                "name": "ramp_up",
+                "duration": 600000000000,
+                "start_rps": 100,
+                "end_rps": 1000,
+                "concurrent_users": 500,
+                "ramp_type": "exponential"
+              },
+              {
+                "name": "peak_load",
+                "duration": 1500000000000,
+                "start_rps": 1000,
+                "end_rps": 1000,
+                "concurrent_users": 2000,
+                "ramp_type": "constant"
+              },
+              {
+                "name": "ramp_down",
+                "duration": 600000000000,
+                "start_rps": 1000,
+                "end_rps": 100,
+                "concurrent_users": 500,
+                "ramp_type": "linear"
+              }
+            ],
+            "multiplier": 5,
+            "enabled": true
+          },
+          "region": {
+            "region": "Singapore",
+            "timezone_offset": 8,
+            "peak_hours": [
+              12,
+              13,
+              19,
+              20,
+              21
+            ],
+            "language_locales": [
+              "en-SG",
+              "zh-SG",
+              "ms-SG"
+            ],
+            "network_latency": {
+              "avg": 20000000,
+              "p95": 50000000,
+              "p99": 100000000,
+              "jitter": 5000000
+            },
+            "device_profile": {
+              "mobile_percentage": 85,
+              "avg_bandwidth": "50Mbps",
+              "low_end_devices": 15,
+              "concurrent_tabs": 3
+            },
+            "cultural_factors": {
+              "group_chat_preference": 0.8,
+              "media_sharing_rate": 0.7,
+              "emoji_usage_rate": 0.9,
+              "festival_impact": 2.5,
+              "social_feature_usage": 0.85,
+              "active_hours_pattern": [
+                0.3,
+                0.4,
+                0.6,
+                0.8,
+                1,
+                0.9,
+                0.7,
+                0.5
+              ]
+            }
+          }
+        },
+        "system_info": {
+          "os": "linux",
+          "architecture": "amd64",
+          "cpu_cores": 8,
+          "memory_gb": 32,
+          "disk_space_gb": 1000
+        },
+        "test_parameters": null
+      }
+    },
+    {
+      "test_name": "peak_traffic",
+      "scenario": "peak",
+      "region": "thailand",
+      "start_time": "2025-09-23T09:01:46.406952+07:00",
+      "duration": 2700000000000,
+      "total_requests": 2160000,
+      "successful_requests": 2138940,
+      "failed_requests": 21060,
+      "requests_per_second": 800,
+      "response_times": {
+        "mean": 123000000,
+        "median": 103000000,
+        "p95": 183000000,
+        "p99": 243000000,
+        "max": 623000000,
+        "min": 15000000,
+        "std_dev": 50000000
+      },
+      "error_metrics": {
+        "total_errors": 21060,
+        "error_rate": 0.00975,
+        "timeout_errors": 5265,
+        "connection_errors": 3510,
+        "http_errors": {
+          "4xx": 10530,
+          "5xx": 7020
+        },
+        "service_errors": {
+          "auth": 2106,
+          "commerce": 1755,
+          "messaging": 2632
+        }
+      },
+      "resource_metrics": {
+        "cpu_usage": {
+          "average": 62,
+          "peak": 80,
+          "p95": 71
+        },
+        "memory_usage": {
+          "average_gb": 20.8,
+          "peak_gb": 28,
+          "p95_gb": 24.400000000000002
+        },
+        "disk_usage": {
+          "read_iops": 2100,
+          "write_iops": 840,
+          "read_mbps": 210,
+          "write_mbps": 84
+        },
+        "network_usage": {
+          "inbound_mbps": 500,
+          "outbound_mbps": 630,
+          "connections": 1620,
+          "packet_loss": 0.008
+        },
+        "database_metrics": {
+          "connections_used": 410,
+          "query_latency": 42000000,
+          "queries_per_second": 2000,
+          "deadlock_count": 4
+        }
+      },
+      "threshold_violations": null,
+      "peak_metrics": {
+        "peak_rps": 960,
+        "peak_concurrent_users": 2200,
+        "peak_response_time": 623000000,
+        "peak_resource_usage": 80,
+        "sustained_peak_duration": 1500000000000
+      },
+      "regional_metrics": {
+        "region": "Thailand",
+        "avg_latency": 25000000,
+        "localized_content": 0.9,
+        "language_distribution": {
+          "en-TH": 0.3,
+          "th-TH": 0.7
+        },
+        "cultural_metrics": {
+          "group_chat_usage": 1944000,
+          "media_sharing_rate": 0.8,
+          "emoji_usage_count": 2052000,
+          "festival_engagement": 0,
+          "social_interactions": 1944000
+        }
+      },
+      "metadata": {
+        "test_suite": "LoadTestSuite",
+        "version": "1.0.0",
+        "environment": "test",
+        "configuration": {
+          "pattern": {
+            "name": "Peak Traffic",
+            "description": "Peak usage traffic pattern",
+            "duration": 2700000000000,
+            "phases": [
+              {
+                "name": "ramp_up",
+                "duration": 600000000000,
+                "start_rps": 100,
+                "end_rps": 1000,
+                "concurrent_users": 500,
+                "ramp_type": "exponential"
+              },
+              {
+                "name": "peak_load",
+                "duration": 1500000000000,
+                "start_rps": 1000,
+                "end_rps": 1000,
+                "concurrent_users": 2000,
+                "ramp_type": "constant"
+              },
+              {
+                "name": "ramp_down",
+                "duration": 600000000000,
+                "start_rps": 1000,
+                "end_rps": 100,
+                "concurrent_users": 500,
+                "ramp_type": "linear"
+              }
+            ],
+            "multiplier": 5,
+            "enabled": true
+          },
+          "region": {
+            "region": "Thailand",
+            "timezone_offset": 7,
+            "peak_hours": [
+              11,
+              12,
+              18,
+              19,
+              20
+            ],
+            "language_locales": [
+              "th-TH",
+              "en-TH"
+            ],
+            "network_latency": {
+              "avg": 25000000,
+              "p95": 60000000,
+              "p99": 120000000,
+              "jitter": 8000000
+            },
+            "device_profile": {
+              "mobile_percentage": 90,
+              "avg_bandwidth": "30Mbps",
+              "low_end_devices": 25,
+              "concurrent_tabs": 2
+            },
+            "cultural_factors": {
+              "group_chat_preference": 0.9,
+              "media_sharing_rate": 0.8,
+              "emoji_usage_rate": 0.95,
+              "festival_impact": 3,
+              "social_feature_usage": 0.9,
+              "active_hours_pattern": [
+                0.2,
+                0.3,
+                0.5,
+                0.7,
+                0.9,
+                0.8,
+                0.6,
+                0.4
+              ]
+            }
+          }
+        },
+        "system_info": {
+          "os": "linux",
+          "architecture": "amd64",
+          "cpu_cores": 8,
+          "memory_gb": 32,
+          "disk_space_gb": 1000
+        },
+        "test_parameters": null
+      }
+    }
+  ],
+  "load_test_summary": {
+    "average_rps": 22252.85714285714,
+    "overall_error_rate": 0.007847427355125511,
+    "test_timestamp": "2025-09-23T09:01:46.40702+07:00",
+    "threshold_violations": 0,
+    "total_errors": 27496020,
+    "total_requests": 3503826000,
+    "total_tests": 7
+  }
+}

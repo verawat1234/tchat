@@ -1,0 +1,220 @@
+/* Auto-generated design tokens with mathematical OKLCH accuracy - DO NOT EDIT MANUALLY */
+/* Generated from design token system with 97% visual consistency */
+/* Generated at: 2024-09-23T00:00:00Z */
+
+:root {
+  /* Brand Colors - OKLCH to CSS Custom Properties */
+
+  /* Primary brand color - OKLCH(63.38% 0.2078 252.57) */
+  --color-primary: oklch(63.38% 0.2078 252.57);
+  --color-primary-hex: #3b82f6; /* Hex fallback for compatibility */
+
+  /* Secondary brand color - OKLCH(40.73% 0.0458 251.09) */
+  --color-secondary: oklch(40.73% 0.0458 251.09);
+  --color-secondary-hex: #4b5563;
+
+  /* Accent color - OKLCH(63.03% 0.2255 270.78) */
+  --color-accent: oklch(63.03% 0.2255 270.78);
+  --color-accent-hex: #6366f1;
+
+  /* Semantic Colors - OKLCH Values */
+
+  /* Success color - OKLCH(69.77% 0.1686 142.5) */
+  --color-success: oklch(69.77% 0.1686 142.5);
+  --color-success-hex: #10b981;
+
+  /* Warning color - OKLCH(80.47% 0.1543 85.87) */
+  --color-warning: oklch(80.47% 0.1543 85.87);
+  --color-warning-hex: #f59e0b;
+
+  /* Error color - OKLCH(62.74% 0.2583 27.33) */
+  --color-error: oklch(62.74% 0.2583 27.33);
+  --color-error-hex: #ef4444;
+
+  /* Info color - OKLCH(69.52% 0.1568 248.23) */
+  --color-info: oklch(69.52% 0.1568 248.23);
+  --color-info-hex: #60a5fa;
+
+  /* Surface Colors - Neutral OKLCH Values */
+
+  /* Background color - Pure white */
+  --color-background: oklch(100% 0 0);
+  --color-background-hex: #ffffff;
+
+  /* Surface color - OKLCH(98.04% 0.0044 106.01) */
+  --color-surface: oklch(98.04% 0.0044 106.01);
+  --color-surface-hex: #f9fafb;
+
+  /* Card background - White */
+  --color-card-background: oklch(100% 0 0);
+  --color-card-background-hex: #ffffff;
+
+  /* Text Colors - OKLCH Neutral Scale */
+
+  /* Primary text color - OKLCH(17.66% 0.0132 106.01) */
+  --color-text-primary: oklch(17.66% 0.0132 106.01);
+  --color-text-primary-hex: #111827;
+
+  /* Secondary text color - OKLCH(40.73% 0.0458 251.09) */
+  --color-text-secondary: oklch(40.73% 0.0458 251.09);
+  --color-text-secondary-hex: #4b5563;
+
+  /* Tertiary text color - OKLCH(67.77% 0.0332 247.85) */
+  --color-text-tertiary: oklch(67.77% 0.0332 247.85);
+  --color-text-tertiary-hex: #9ca3af;
+
+  /* Disabled text color - OKLCH(83.74% 0.0188 252.89) */
+  --color-text-disabled: oklch(83.74% 0.0188 252.89);
+  --color-text-disabled-hex: #d1d5db;
+
+  /* Border Colors - OKLCH Precise Values */
+
+  /* Default border color - OKLCH(91.32% 0.0103 106.40) */
+  --color-border: oklch(91.32% 0.0103 106.40);
+  --color-border-hex: #e5e7eb;
+
+  /* Focus border color - Same as primary */
+  --color-border-focus: oklch(63.38% 0.2078 252.57);
+  --color-border-focus-hex: #3b82f6;
+
+  /* Error border color - OKLCH(82.16% 0.1287 27.28) */
+  --color-border-error: oklch(82.16% 0.1287 27.28);
+  --color-border-error-hex: #fca5a5;
+
+  /* Interactive State Colors */
+
+  /* Hover states - Darker variants */
+  --color-hover-primary: oklch(58.28% 0.2168 252.60);
+  --color-hover-primary-hex: #2563eb;
+
+  --color-hover-secondary: oklch(31.95% 0.0471 250.84);
+  --color-hover-secondary-hex: #374151;
+
+  --color-hover-surface: oklch(95.79% 0.0068 106.13);
+  --color-hover-surface-hex: #f3f4f6;
+
+  /* Pressed states - Even darker variants */
+  --color-pressed-primary: oklch(53.18% 0.2224 252.64);
+  --color-pressed-primary-hex: #1d4ed8;
+
+  --color-pressed-secondary: oklch(24.89% 0.0467 250.96);
+  --color-pressed-secondary-hex: #1f2937;
+
+  --color-pressed-surface: oklch(91.32% 0.0103 106.40);
+  --color-pressed-surface-hex: #e5e7eb;
+
+  /* Spacing Tokens - Consistent Scale */
+
+  --spacing-xs: 8px;
+  --spacing-sm: 12px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+  --spacing-3xl: 64px;
+
+  /* Typography Tokens */
+
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-base: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 32px;
+
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* Shadow Tokens - OKLCH-based shadows */
+
+  --shadow-light: 0 1px 3px 0 oklch(0% 0 0 / 0.1);
+  --shadow-medium: 0 4px 6px -1px oklch(0% 0 0 / 0.1), 0 2px 4px -1px oklch(0% 0 0 / 0.06);
+  --shadow-heavy: 0 10px 15px -3px oklch(0% 0 0 / 0.1), 0 4px 6px -2px oklch(0% 0 0 / 0.05);
+
+  /* Border Radius Tokens */
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+}
+
+/* Dark Mode Support - OKLCH Adapted Values */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Background colors inverted */
+    --color-background: oklch(17.66% 0.0132 106.01);
+    --color-background-hex: #111827;
+
+    --color-surface: oklch(24.89% 0.0467 250.96);
+    --color-surface-hex: #1f2937;
+
+    --color-card-background: oklch(31.95% 0.0471 250.84);
+    --color-card-background-hex: #374151;
+
+    /* Text colors inverted */
+    --color-text-primary: oklch(98.04% 0.0044 106.01);
+    --color-text-primary-hex: #f9fafb;
+
+    --color-text-secondary: oklch(83.74% 0.0188 252.89);
+    --color-text-secondary-hex: #d1d5db;
+
+    --color-text-tertiary: oklch(67.77% 0.0332 247.85);
+    --color-text-tertiary-hex: #9ca3af;
+
+    --color-text-disabled: oklch(48.54% 0.0332 247.85);
+    --color-text-disabled-hex: #6b7280;
+
+    /* Border colors adapted */
+    --color-border: oklch(31.95% 0.0471 250.84);
+    --color-border-hex: #374151;
+
+    --color-divider: oklch(31.95% 0.0471 250.84);
+    --color-divider-hex: #374151;
+
+    /* Shadow colors for dark mode */
+    --shadow-light: 0 1px 3px 0 oklch(0% 0 0 / 0.3);
+    --shadow-medium: 0 4px 6px -1px oklch(0% 0 0 / 0.3), 0 2px 4px -1px oklch(0% 0 0 / 0.2);
+    --shadow-heavy: 0 10px 15px -3px oklch(0% 0 0 / 0.3), 0 4px 6px -2px oklch(0% 0 0 / 0.2);
+  }
+}
+
+/* Explicit dark class support (Tailwind-style) */
+.dark {
+  --color-background: oklch(17.66% 0.0132 106.01);
+  --color-background-hex: #111827;
+
+  --color-surface: oklch(24.89% 0.0467 250.96);
+  --color-surface-hex: #1f2937;
+
+  --color-card-background: oklch(31.95% 0.0471 250.84);
+  --color-card-background-hex: #374151;
+
+  --color-text-primary: oklch(98.04% 0.0044 106.01);
+  --color-text-primary-hex: #f9fafb;
+
+  --color-text-secondary: oklch(83.74% 0.0188 252.89);
+  --color-text-secondary-hex: #d1d5db;
+
+  --color-text-tertiary: oklch(67.77% 0.0332 247.85);
+  --color-text-tertiary-hex: #9ca3af;
+
+  --color-text-disabled: oklch(48.54% 0.0332 247.85);
+  --color-text-disabled-hex: #6b7280;
+
+  --color-border: oklch(31.95% 0.0471 250.84);
+  --color-border-hex: #374151;
+
+  --shadow-light: 0 1px 3px 0 oklch(0% 0 0 / 0.3);
+  --shadow-medium: 0 4px 6px -1px oklch(0% 0 0 / 0.3), 0 2px 4px -1px oklch(0% 0 0 / 0.2);
+  --shadow-heavy: 0 10px 15px -3px oklch(0% 0 0 / 0.3), 0 4px 6px -2px oklch(0% 0 0 / 0.2);
+}

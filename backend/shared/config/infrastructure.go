@@ -14,18 +14,18 @@ import (
 
 // InfrastructureConfig holds all infrastructure configurations
 type InfrastructureConfig struct {
-	Database    *DatabaseConfig    `mapstructure:"database"`
+	Database    *InfraDatabaseConfig    `mapstructure:"database"`
 	Cache       *CacheConfig       `mapstructure:"cache"`
 	Messaging   *MessagingConfig   `mapstructure:"messaging"`
-	Storage     *StorageConfig     `mapstructure:"storage"`
-	SMS         *SMSConfig         `mapstructure:"sms"`
-	Payment     *PaymentConfig     `mapstructure:"payment"`
+	Storage     *InfraStorageConfig     `mapstructure:"storage"`
+	SMS         *InfraSMSConfig         `mapstructure:"sms"`
+	Payment     *InfraPaymentConfig     `mapstructure:"payment"`
 	Environment string             `mapstructure:"environment"`
 	ServiceName string             `mapstructure:"service_name"`
 }
 
-// DatabaseConfig holds database configurations
-type DatabaseConfig struct {
+// InfraDatabaseConfig holds database configurations
+type InfraDatabaseConfig struct {
 	Postgres *database.PostgresConfig `mapstructure:"postgres"`
 	Scylla   *database.ScyllaConfig   `mapstructure:"scylla"`
 }
@@ -40,20 +40,20 @@ type MessagingConfig struct {
 	Kafka *messaging.KafkaConfig `mapstructure:"kafka"`
 }
 
-// StorageConfig holds storage configurations
-type StorageConfig struct {
+// InfraStorageConfig holds storage configurations
+type InfraStorageConfig struct {
 	Primary   *external.StorageConfig `mapstructure:"primary"`
 	Secondary *external.StorageConfig `mapstructure:"secondary,omitempty"`
 }
 
-// SMSConfig holds SMS configurations
-type SMSConfig struct {
+// InfraSMSConfig holds SMS configurations
+type InfraSMSConfig struct {
 	Primary   *external.SMSConfig `mapstructure:"primary"`
 	Secondary *external.SMSConfig `mapstructure:"secondary,omitempty"`
 }
 
-// PaymentConfig holds payment configurations
-type PaymentConfig struct {
+// InfraPaymentConfig holds payment configurations
+type InfraPaymentConfig struct {
 	Primary   *external.PaymentConfig `mapstructure:"primary"`
 	Secondary *external.PaymentConfig `mapstructure:"secondary,omitempty"`
 }
@@ -273,7 +273,11 @@ func (i *Infrastructure) GetStats() map[string]interface{} {
 		stats["postgres"] = i.PostgresDB.GetStats()
 	}
 	if i.ScyllaDB != nil {
-		stats["scylla"] = i.ScyllaDB.GetMetrics()
+		// GetMetrics is disabled in ScyllaDB implementation
+		stats["scylla"] = map[string]interface{}{
+			"status": "connected",
+			"metrics": "unavailable - gocql.Metrics not supported",
+		}
 	}
 
 	// Cache stats
@@ -370,7 +374,7 @@ func DefaultDevelopmentConfig(serviceName string) *InfrastructureConfig {
 	return &InfrastructureConfig{
 		ServiceName: serviceName,
 		Environment: "development",
-		Database: &DatabaseConfig{
+		Database: &InfraDatabaseConfig{
 			Postgres: &database.PostgresConfig{
 				Host:     "localhost",
 				Port:     5432,
@@ -398,18 +402,18 @@ func DefaultDevelopmentConfig(serviceName string) *InfrastructureConfig {
 				TopicPrefix: "tchat-dev",
 			},
 		},
-		Storage: &StorageConfig{
+		Storage: &InfraStorageConfig{
 			Primary: &external.StorageConfig{
 				Provider:    external.LocalProvider,
 				MaxFileSize: 50 * 1024 * 1024, // 50MB
 			},
 		},
-		SMS: &SMSConfig{
+		SMS: &InfraSMSConfig{
 			Primary: &external.SMSConfig{
 				Provider: external.TwilioProvider,
 			},
 		},
-		Payment: &PaymentConfig{
+		Payment: &InfraPaymentConfig{
 			Primary: &external.PaymentConfig{
 				Gateway:     external.StripeGateway,
 				Environment: "sandbox",
@@ -423,7 +427,7 @@ func DefaultProductionConfig(serviceName string) *InfrastructureConfig {
 	return &InfrastructureConfig{
 		ServiceName: serviceName,
 		Environment: "production",
-		Database: &DatabaseConfig{
+		Database: &InfraDatabaseConfig{
 			Postgres: &database.PostgresConfig{
 				Host:            "postgres.tchat.prod",
 				Port:            5432,
@@ -458,7 +462,7 @@ func DefaultProductionConfig(serviceName string) *InfrastructureConfig {
 				SASLMechanism:    "scram-sha-256",
 			},
 		},
-		Storage: &StorageConfig{
+		Storage: &InfraStorageConfig{
 			Primary: &external.StorageConfig{
 				Provider:    external.AWSS3Provider,
 				Region:      "ap-southeast-1",
@@ -467,12 +471,12 @@ func DefaultProductionConfig(serviceName string) *InfrastructureConfig {
 				PublicRead:  true,
 			},
 		},
-		SMS: &SMSConfig{
+		SMS: &InfraSMSConfig{
 			Primary: &external.SMSConfig{
 				Provider: external.TwilioProvider,
 			},
 		},
-		Payment: &PaymentConfig{
+		Payment: &InfraPaymentConfig{
 			Primary: &external.PaymentConfig{
 				Gateway:     external.OmiseGateway,
 				Environment: "production",

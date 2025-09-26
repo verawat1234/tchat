@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # Pact Broker - Contract Testing Hub
+  pact-broker:
+    image: pactfoundation/pact-broker:2.107.1
+    container_name: tchat-pact-broker
+    ports:
+      - "9292:9292"
+    depends_on:
+      - pact-broker-db
+    environment:
+      # Database Configuration
+      PACT_BROKER_DATABASE_URL: "postgresql://pact_broker_user:pact_broker_password@pact-broker-db:5432/pact_broker"
+      PACT_BROKER_DATABASE_CONNECT_MAX_RETRIES: "5"
+      PACT_BROKER_DATABASE_RETRY_INTERVAL: "3"
+
+      # Security Configuration
+      PACT_BROKER_BASIC_AUTH_USERNAME: "admin"
+      PACT_BROKER_BASIC_AUTH_PASSWORD: "admin"
+      PACT_BROKER_BASIC_AUTH_READ_ONLY_USERNAME: "viewer"
+      PACT_BROKER_BASIC_AUTH_READ_ONLY_PASSWORD: "viewer"
+
+      # Application Configuration
+      PACT_BROKER_PORT: "9292"
+      PACT_BROKER_PUBLIC_HEARTBEAT: "true"
+      PACT_BROKER_LOG_LEVEL: "INFO"
+
+      # Feature Toggles for Cross-Platform Support
+      PACT_BROKER_FEATURES: "contracts"
+      PACT_BROKER_ENABLE_DIAGNOSTIC_ENDPOINTS: "true"
+
+      # Webhook Configuration for CI/CD Integration
+      PACT_BROKER_WEBHOOK_HTTP_METHOD_WHITELIST: "GET,POST,PUT,PATCH,DELETE"
+      PACT_BROKER_WEBHOOK_HTTP_CODE_SUCCESS: "[200,201,202,203,204,301,302]"
+
+      # Badge and UI Configuration
+      PACT_BROKER_BADGE_PROVIDER_MODE: "redirect"
+      PACT_BROKER_SHIELDS_IO_BASE_URL: "https://img.shields.io"
+
+      # Storage and Cleanup
+      PACT_BROKER_AUTO_DETECT_MAIN_BRANCH: "true"
+      PACT_BROKER_MAIN_BRANCH: "main"
+      PACT_BROKER_ORDER_VERSIONS_BY_DATE: "true"
+
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9292/diagnostic/status/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - pact-network
+
+  # PostgreSQL Database for Pact Broker
+  pact-broker-db:
+    image: postgres:15-alpine
+    container_name: tchat-pact-broker-db
+    environment:
+      POSTGRES_DB: pact_broker
+      POSTGRES_USER: pact_broker_user
+      POSTGRES_PASSWORD: pact_broker_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - pact-broker-db-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pact_broker_user -d pact_broker"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - pact-network
+
+  # Pact Broker CLI Container for Management Operations
+  pact-cli:
+    image: pactfoundation/pact-cli:latest
+    container_name: tchat-pact-cli
+    depends_on:
+      - pact-broker
+    environment:
+      PACT_BROKER_BASE_URL: "http://pact-broker:9292"
+      PACT_BROKER_USERNAME: "admin"
+      PACT_BROKER_PASSWORD: "admin"
+    volumes:
+      - /Users/weerawat/Tchat/pacts:/pacts:ro
+      - ./scripts:/scripts:ro
+    networks:
+      - pact-network
+    profiles:
+      - cli
+
+volumes:
+  pact-broker-db-data:
+    driver: local
+    name: tchat-pact-broker-db-data
+
+networks:
+  pact-network:
+    driver: bridge
+    name: tchat-pact-network

@@ -210,7 +210,7 @@ func (am *AuthMiddleware) RefreshToken() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{
 			"access_token": newAccessToken,
 			"token_type":   "Bearer",
-			"expires_in":   int(am.config.Auth.JWT.AccessExpiry.Seconds()),
+			"expires_in":   int(am.config.JWT.AccessTokenTTL.Seconds()),
 		})
 	}
 }
@@ -255,7 +255,7 @@ func (am *AuthMiddleware) validateToken(tokenString string) (*UserClaims, error)
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrSignatureInvalid
 		}
-		return []byte(am.config.Auth.JWT.AccessSecret), nil
+		return []byte(am.config.JWT.Secret), nil
 	})
 
 	if err != nil {
@@ -269,18 +269,18 @@ func (am *AuthMiddleware) validateToken(tokenString string) (*UserClaims, error)
 		}
 
 		// Verify issuer and audience
-		if claims.Issuer != am.config.Auth.JWT.Issuer {
-			return nil, jwt.ErrTokenInvalidIssuer
+		if claims.Issuer != am.config.JWT.Issuer {
+			return nil, jwt.ErrTokenMalformed
 		}
 
-		if claims.Audience[0] != am.config.Auth.JWT.Audience {
-			return nil, jwt.ErrTokenInvalidAudience
+		if claims.Audience[0] != am.config.JWT.Audience {
+			return nil, jwt.ErrTokenMalformed
 		}
 
 		return claims, nil
 	}
 
-	return nil, jwt.ErrTokenInvalid
+	return nil, jwt.ErrTokenMalformed
 }
 
 // validateRefreshToken validates refresh token
@@ -289,7 +289,7 @@ func (am *AuthMiddleware) validateRefreshToken(tokenString string) (*UserClaims,
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrSignatureInvalid
 		}
-		return []byte(am.config.Auth.JWT.RefreshSecret), nil
+		return []byte(am.config.JWT.Secret + "_refresh"), nil
 	})
 
 	if err != nil {
@@ -300,7 +300,7 @@ func (am *AuthMiddleware) validateRefreshToken(tokenString string) (*UserClaims,
 		return claims, nil
 	}
 
-	return nil, jwt.ErrTokenInvalid
+	return nil, jwt.ErrTokenMalformed
 }
 
 // generateAccessToken generates new access token from refresh claims
@@ -317,16 +317,16 @@ func (am *AuthMiddleware) generateAccessToken(refreshClaims *UserClaims) (string
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        uuid.New().String(),
 			Subject:   refreshClaims.UserID.String(),
-			Issuer:    am.config.Auth.JWT.Issuer,
-			Audience:  []string{am.config.Auth.JWT.Audience},
-			ExpiresAt: jwt.NewNumericDate(now.Add(am.config.Auth.JWT.AccessExpiry)),
+			Issuer:    am.config.JWT.Issuer,
+			Audience:  []string{am.config.JWT.Audience},
+			ExpiresAt: jwt.NewNumericDate(now.Add(am.config.JWT.AccessTokenTTL)),
 			NotBefore: jwt.NewNumericDate(now),
 			IssuedAt:  jwt.NewNumericDate(now),
 		},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(am.config.Auth.JWT.AccessSecret))
+	return token.SignedString([]byte(am.config.JWT.Secret))
 }
 
 // setUserContext sets user information in Gin context

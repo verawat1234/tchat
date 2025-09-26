@@ -19,10 +19,15 @@ export interface User {
   avatar?: string;
   country: CountryCode;
   locale: Locale;
-  kycTier: 1 | 2 | 3;
+  kycTier: 0 | 1 | 2 | 3; // Aligned with backend KYCTier (0=unverified, 1=basic, 2=standard, 3=premium)
+  verificationTier: 0 | 1 | 2 | 3 | 4; // Added to match backend VerificationTier (0=none, 1=phone, 2=email, 3=kyc, 4=full)
   status: UserStatus;
   lastSeen?: Timestamp;
-  isVerified: boolean;
+  phoneVerified: boolean; // Added to match backend phone_verified
+  phoneVerifiedAt?: Timestamp; // Added to match backend phone_verified_at
+  emailVerified: boolean; // Added to match backend email_verified
+  emailVerifiedAt?: Timestamp; // Added to match backend email_verified_at
+  isVerified: boolean; // Computed field for backward compatibility
   settings: UserSettings;
   profile: UserProfile;
   preferences: UserPreferences;
@@ -30,7 +35,7 @@ export interface User {
   updatedAt: Timestamp;
 }
 
-export type UserStatus = 'online' | 'offline' | 'away' | 'busy';
+export type UserStatus = 'active' | 'suspended' | 'deleted'; // Aligned with backend UserStatus
 
 // =============================================================================
 // USER PROFILE
@@ -120,7 +125,7 @@ export interface UserPreferences {
 // =============================================================================
 
 export interface KYCInfo {
-  tier: 1 | 2 | 3;
+  tier: 0 | 1 | 2 | 3; // Aligned with backend KYCTier (0=unverified, 1=basic, 2=standard, 3=premium)
   status: 'pending' | 'approved' | 'rejected' | 'incomplete';
   documents: KYCDocument[];
   verifiedAt?: Timestamp;
@@ -268,12 +273,34 @@ export interface UserStats {
 // =============================================================================
 
 /**
- * KYC Tier Limits (Thailand specific)
+ * KYC Tier Limits (Thailand specific) - Aligned with backend GetMaxTransactionLimit()
  */
 export const KYC_LIMITS = {
-  1: { daily: 5000, monthly: 20000 },   // THB
-  2: { daily: 50000, monthly: 200000 }, // THB
-  3: { daily: 500000, monthly: 2000000 } // THB
+  0: { daily: 100, monthly: 100 },        // THB - Unverified (backend: 100.0)
+  1: { daily: 1000, monthly: 1000 },      // THB - Basic (backend: 1000.0)
+  2: { daily: 10000, monthly: 10000 },    // THB - Standard (backend: 10000.0)
+  3: { daily: 100000, monthly: 100000 }   // THB - Premium (backend: 100000.0)
+} as const;
+
+/**
+ * KYC Tier Names - Aligned with backend KYCTier constants
+ */
+export const KYC_TIER_NAMES = {
+  0: 'Unverified',
+  1: 'Basic',
+  2: 'Standard',
+  3: 'Premium'
+} as const;
+
+/**
+ * Verification Tier Names - Aligned with backend VerificationTier constants
+ */
+export const VERIFICATION_TIER_NAMES = {
+  0: 'None',
+  1: 'Phone',
+  2: 'Email',
+  3: 'KYC',
+  4: 'Full'
 } as const;
 
 /**

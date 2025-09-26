@@ -45,8 +45,8 @@ type SuccessResponse struct {
 	Timestamp string      `json:"timestamp"`
 }
 
-// SuccessResponse sends a success response
-func SuccessResponse(c *gin.Context, data interface{}) {
+// SendSuccessResponse sends a success response
+func SendSuccessResponse(c *gin.Context, data interface{}) {
 	c.JSON(http.StatusOK, SuccessResponse{
 		Success:   true,
 		Message:   "Success",
@@ -65,7 +65,7 @@ func SuccessMessageResponse(c *gin.Context, message string) {
 }
 
 // DataResponse sends a data response
-func DataResponse(c *gin.Context, data interface{}) {
+func SendDataResponse(c *gin.Context, data interface{}) {
 	c.JSON(http.StatusOK, DataResponse{
 		Success:   true,
 		Data:      data,
@@ -74,7 +74,7 @@ func DataResponse(c *gin.Context, data interface{}) {
 }
 
 // ErrorResponse sends an error response
-func ErrorResponse(c *gin.Context, statusCode int, code, message string) {
+func SendErrorResponse(c *gin.Context, statusCode int, code, message string) {
 	c.JSON(statusCode, ErrorResponse{
 		Success: false,
 		Error: &ErrorInfo{
@@ -113,32 +113,32 @@ func ValidationErrorResponse(c *gin.Context, err error) {
 
 // InternalErrorResponse sends an internal server error response
 func InternalErrorResponse(c *gin.Context, message string) {
-	ErrorResponse(c, http.StatusInternalServerError, "internal_error", message)
+	SendErrorResponse(c, http.StatusInternalServerError, "internal_error", message)
 }
 
 // UnauthorizedResponse sends an unauthorized response
 func UnauthorizedResponse(c *gin.Context, message string) {
-	ErrorResponse(c, http.StatusUnauthorized, "unauthorized", message)
+	SendErrorResponse(c, http.StatusUnauthorized, "unauthorized", message)
 }
 
 // ForbiddenResponse sends a forbidden response
 func ForbiddenResponse(c *gin.Context, message string) {
-	ErrorResponse(c, http.StatusForbidden, "forbidden", message)
+	SendErrorResponse(c, http.StatusForbidden, "forbidden", message)
 }
 
 // NotFoundResponse sends a not found response
 func NotFoundResponse(c *gin.Context, message string) {
-	ErrorResponse(c, http.StatusNotFound, "not_found", message)
+	SendErrorResponse(c, http.StatusNotFound, "not_found", message)
 }
 
 // ConflictResponse sends a conflict response
 func ConflictResponse(c *gin.Context, message string) {
-	ErrorResponse(c, http.StatusConflict, "conflict", message)
+	SendErrorResponse(c, http.StatusConflict, "conflict", message)
 }
 
 // BadRequestResponse sends a bad request response
 func BadRequestResponse(c *gin.Context, message string) {
-	ErrorResponse(c, http.StatusBadRequest, "bad_request", message)
+	SendErrorResponse(c, http.StatusBadRequest, "bad_request", message)
 }
 
 // Helper functions

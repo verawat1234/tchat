@@ -35,3 +35,76 @@ DerivedData/
 # CI artifacts
 dist/
 coverage/
+
+# Testing artifacts
+test-results/
+.playwright-artifacts*/
+.playwright-mcp/
+playwright-report/
+
+# IDE & Editor
+.vscode/
+*.swp
+*.swo
+
+# OS specific
+Thumbs.db
+
+# Build artifacts & executables
+*.exe
+*.app
+
+# Go binaries
+**/main
+**/auth
+**/commerce
+**/content
+**/gateway
+**/messaging
+**/notification
+**/payment
+
+# Test artifacts
+.gocache/
+*_test
+*.test
+results/
+
+# Backup files
+*.bak
+*.backup
+*.bak*
+*.bak[0-9]
+
+# Documentation/Analysis
+**/IMPLEMENTATION_SUMMARY.md
+**/README-*.md
+**/DEPLOYMENT.md
+**/JOURNEY_TESTS.md
+**/ANALYSIS_REPORT.md
+
+# Project specific
+claudedocs/
+legacy/
+kmp-template-fresh.zip
+workflows/
+specs/
+pacts/
+pact/
+contracts/
+scripts/
+tools/
+diagnose_line_export.sh
+find_line_exports.sh
+*.sh
+
+# Railway deployment
+railway*.toml
+
+# GitHub workflows (if not intended to be versioned)
+.github/workflows/
+
+# Documentation artifacts
+iOS_MOCK_DATA_IMPLEMENTATION_COMPLETE.md
+build.gradle.kts
+playwright.config.ts

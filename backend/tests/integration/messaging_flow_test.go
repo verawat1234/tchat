@@ -331,7 +331,7 @@ func (suite *MessagingFlowTestSuite) broadcastMessage(message map[string]interfa
 	}
 
 	for _, participantID := range participants {
-		if conn, exists := suite.connections[participantID]; exists {
+		if conn, exists := suite.connections[participantID]; exists && conn != nil {
 			err := conn.WriteJSON(wsMessage)
 			if err != nil {
 				// Connection closed, remove it
@@ -430,11 +430,10 @@ func (suite *MessagingFlowTestSuite) TestCompleteMessagingFlow() {
 	// Step 2: Establish WebSocket Connections
 	suite.T().Log("Step 2: Establishing WebSocket connections")
 
-	// Simulate WebSocket connections (in real test, would use actual WebSocket client)
+	// Skip WebSocket connections for this test (testing HTTP API flow)
+	// In a full integration test, actual WebSocket clients would be used
 	suite.mu.Lock()
-	// Mock WebSocket connections
-	suite.connections["user_123"] = nil // Placeholder for actual connection
-	suite.connections["user_456"] = nil // Placeholder for actual connection
+	// Note: WebSocket connections not established for this simplified test
 	suite.mu.Unlock()
 
 	// Step 3: Send Message

@@ -1,7 +1,6 @@
 package models
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -12,6 +11,9 @@ import (
 
 type NotificationType string
 type NotificationCategory string
+type NotificationChannel string
+type NotificationStatus string
+type NotificationPriority string
 type Priority string
 type DeliveryStatus string
 type FailureReason string
@@ -70,6 +72,28 @@ const (
 	FailureReasonOptedOut         FailureReason = "opted_out"
 	FailureReasonRateLimited      FailureReason = "rate_limited"
 	FailureReasonExpired          FailureReason = "expired"
+
+	// Notification Channels
+	NotificationChannelPush       NotificationChannel = "push"
+	NotificationChannelEmail      NotificationChannel = "email"
+	NotificationChannelSMS        NotificationChannel = "sms"
+	NotificationChannelInApp      NotificationChannel = "in_app"
+	NotificationChannelWebPush    NotificationChannel = "web_push"
+	NotificationChannelWebhook    NotificationChannel = "webhook"
+
+	// Notification Status
+	NotificationStatusPending    NotificationStatus = "pending"
+	NotificationStatusSent       NotificationStatus = "sent"
+	NotificationStatusDelivered  NotificationStatus = "delivered"
+	NotificationStatusFailed     NotificationStatus = "failed"
+	NotificationStatusProcessing NotificationStatus = "processing"
+	NotificationStatusExpired    NotificationStatus = "expired"
+
+	// Notification Priority
+	NotificationPriorityLow      NotificationPriority = "low"
+	NotificationPriorityNormal   NotificationPriority = "normal"
+	NotificationPriorityHigh     NotificationPriority = "high"
+	NotificationPriorityCritical NotificationPriority = "critical"
 
 	// Audience Types
 	AudienceTypeUser      AudienceType = "user"
@@ -188,9 +212,11 @@ type NotificationTemplate struct {
 	Name         string               `json:"name" gorm:"type:varchar(255);not null;uniqueIndex"`
 	Type         NotificationType     `json:"type" gorm:"type:varchar(20);not null"`
 	Category     NotificationCategory `json:"category" gorm:"type:varchar(30);not null"`
-	Subject      string               `json:"subject" gorm:"type:varchar(255)"`
-	Body         string               `json:"body" gorm:"type:text;not null"`
-	Variables    []string             `json:"variables" gorm:"type:json"`
+	Subject       string               `json:"subject" gorm:"type:varchar(255)"`
+	Body          string               `json:"body" gorm:"type:text;not null"`
+	TitleTemplate string               `json:"title_template" gorm:"type:text"`
+	BodyTemplate  string               `json:"body_template" gorm:"type:text"`
+	Variables     []string             `json:"variables" gorm:"type:json"`
 	LocalizedVersions []LocalizedContent `json:"localized_versions" gorm:"type:json"`
 	IsActive     bool                 `json:"is_active" gorm:"default:true"`
 	Version      int                  `json:"version" gorm:"default:1"`
@@ -572,5 +598,24 @@ func (nm *NotificationManager) GetDefaultConfig() DeliveryConfig {
 		TTL:           24 * time.Hour,
 		BatchSize:     1000,
 		RateLimit:     100,
+	}
+}
+
+// IsValid methods for validation
+func (c NotificationChannel) IsValid() bool {
+	switch c {
+	case NotificationChannelPush, NotificationChannelEmail, NotificationChannelSMS, NotificationChannelInApp, NotificationChannelWebPush, NotificationChannelWebhook:
+		return true
+	default:
+		return false
+	}
+}
+
+func (p NotificationPriority) IsValid() bool {
+	switch p {
+	case NotificationPriorityLow, NotificationPriorityNormal, NotificationPriorityHigh, NotificationPriorityCritical:
+		return true
+	default:
+		return false
 	}
 }

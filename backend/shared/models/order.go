@@ -537,7 +537,7 @@ func (o *Order) UpdateStatus(newStatus OrderStatus) error {
 		return fmt.Errorf("invalid order status: %s", newStatus)
 	}
 
-	oldStatus := o.Status
+	_ = o.Status // oldStatus
 	o.Status = newStatus
 	now := time.Now()
 

@@ -1,0 +1,61 @@
+{
+  "baseUrl": "http://localhost:8080",
+  "timeout": "30s",
+  "environments": [
+    "localhost",
+    "staging",
+    "production"
+  ],
+  "regionalConfig": {
+    "SG": "Singapore",
+    "TH": "Thailand",
+    "ID": "Indonesia",
+    "PH": "Philippines",
+    "MY": "Malaysia",
+    "VN": "Vietnam"
+  },
+  "reportFormat": "json",
+  "outputPath": "./journey_test_results.json",
+  "enabledJourneys": [
+    "journey_01_registration",
+    "journey_02_messaging",
+    "journey_03_ecommerce",
+    "journey_04_content",
+    "journey_05_crossplatform",
+    "journey_06_social_community",
+    "journey_07_notifications",
+    "journey_08_analytics",
+    "journey_09_admin_moderation",
+    "journey_10_file_storage"
+  ],
+  "testSettings": {
+    "parallelExecution": false,
+    "retryFailedTests": true,
+    "maxRetries": 3,
+    "cleanupAfterTests": true,
+    "verboseOutput": true
+  },
+  "apiSettings": {
+    "requestTimeout": "10s",
+    "maxConcurrentRequests": 10,
+    "rateLimitBuffer": "100ms"
+  },
+  "regionSettings": {
+    "defaultRegion": "SG",
+    "testAllRegions": true,
+    "regionSpecificEndpoints": {
+      "SG": "http://sg-api.tchat.com",
+      "TH": "http://th-api.tchat.com",
+      "ID": "http://id-api.tchat.com",
+      "PH": "http://ph-api.tchat.com",
+      "MY": "http://my-api.tchat.com",
+      "VN": "http://vn-api.tchat.com"
+    }
+  },
+  "reportingSettings": {
+    "generateHtmlReport": true,
+    "generateCsvReport": true,
+    "includeDetailedLogs": true,
+    "metricsCollection": true
+  }
+}

@@ -1,0 +1,475 @@
+package middleware
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
+
+	"tchat.dev/shared/config"
+	"tchat.dev/shared/logger"
+)
+
+// RateLimiter implements rate limiting with Redis backend
+type RateLimiter struct {
+	redis  *redis.Client
+	config *config.Config
+	logger *logger.TchatLogger
+}
+
+// RateLimitConfig holds rate limiting configuration
+type RateLimitConfig struct {
+	Enabled         bool          `json:"enabled"`
+	RequestsPerSec  int           `json:"requests_per_sec"`
+	BurstSize       int           `json:"burst_size"`
+	WindowSize      time.Duration `json:"window_size"`
+	KeyPrefix       string        `json:"key_prefix"`
+	SkipPaths       []string      `json:"skip_paths"`
+	SkipUserAgents  []string      `json:"skip_user_agents"`
+	BlockDuration   time.Duration `json:"block_duration"`
+	CountryLimits   map[string]int `json:"country_limits"`
+	UserTypeLimits  map[string]int `json:"user_type_limits"`
+}
+
+// RateLimitResult holds the result of rate limit check
+type RateLimitResult struct {
+	Allowed       bool          `json:"allowed"`
+	Limit         int           `json:"limit"`
+	Remaining     int           `json:"remaining"`
+	ResetTime     time.Time     `json:"reset_time"`
+	RetryAfter    time.Duration `json:"retry_after"`
+	BlockedUntil  *time.Time    `json:"blocked_until,omitempty"`
+}
+
+// NewRateLimiter creates a new rate limiter instance
+func NewRateLimiter(redisClient *redis.Client, cfg *config.Config, log *logger.TchatLogger) *RateLimiter {
+	return &RateLimiter{
+		redis:  redisClient,
+		config: cfg,
+		logger: log,
+	}
+}
+
+// Limit returns a Gin middleware that enforces rate limiting
+func (rl *RateLimiter) Limit(rateCfg RateLimitConfig) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !rateCfg.Enabled {
+			c.Next()
+			return
+		}
+
+		// Skip rate limiting for certain paths
+		if rl.shouldSkipPath(c.Request.URL.Path, rateCfg.SkipPaths) {
+			c.Next()
+			return
+		}
+
+		// Skip rate limiting for certain user agents
+		if rl.shouldSkipUserAgent(c.GetHeader("User-Agent"), rateCfg.SkipUserAgents) {
+			c.Next()
+			return
+		}
+
+		// Generate rate limit key
+		key := rl.generateKey(c, rateCfg)
+
+		// Get rate limit for this client
+		limit := rl.getEffectiveLimit(c, rateCfg)
+
+		// Check rate limit
+		result, err := rl.checkRateLimit(c.Request.Context(), key, limit, rateCfg)
+		if err != nil {
+			rl.logger.Error("Rate limit check failed", logger.Fields{
+				"key":   key,
+				"error": err.Error(),
+			})
+			// On error, allow the request but log it
+			c.Next()
+			return
+		}
+
+		// Set rate limit headers
+		rl.setRateLimitHeaders(c, result)
+
+		// Check if blocked
+		if result.BlockedUntil != nil && time.Now().Before(*result.BlockedUntil) {
+			rl.handleBlocked(c, result)
+			return
+		}
+
+		// Check if rate limited
+		if !result.Allowed {
+			rl.handleRateLimited(c, result, rateCfg)
+			return
+		}
+
+		// Log rate limit info
+		rl.logger.Debug("Rate limit check passed", logger.Fields{
+			"key":       key,
+			"limit":     result.Limit,
+			"remaining": result.Remaining,
+		})
+
+		c.Next()
+	}
+}
+
+// IPRateLimit provides IP-based rate limiting
+func (rl *RateLimiter) IPRateLimit(requestsPerMinute int) gin.HandlerFunc {
+	return rl.Limit(RateLimitConfig{
+		Enabled:        true,
+		RequestsPerSec: requestsPerMinute / 60,
+		BurstSize:      requestsPerMinute / 10,
+		WindowSize:     time.Minute,
+		KeyPrefix:      "ip_limit",
+	})
+}
+
+// UserRateLimit provides user-based rate limiting
+func (rl *RateLimiter) UserRateLimit(requestsPerMinute int) gin.HandlerFunc {
+	return rl.Limit(RateLimitConfig{
+		Enabled:        true,
+		RequestsPerSec: requestsPerMinute / 60,
+		BurstSize:      requestsPerMinute / 10,
+		WindowSize:     time.Minute,
+		KeyPrefix:      "user_limit",
+	})
+}
+
+// APIRateLimit provides API endpoint-specific rate limiting
+func (rl *RateLimiter) APIRateLimit(requestsPerSecond int) gin.HandlerFunc {
+	return rl.Limit(RateLimitConfig{
+		Enabled:        true,
+		RequestsPerSec: requestsPerSecond,
+		BurstSize:      requestsPerSecond * 2,
+		WindowSize:     time.Second,
+		KeyPrefix:      "api_limit",
+	})
+}
+
+// SEARegionalRateLimit provides Southeast Asian region-specific rate limiting
+func (rl *RateLimiter) SEARegionalRateLimit() gin.HandlerFunc {
+	countryLimits := map[string]int{
+		"TH": 1000, // Thailand: higher limit for main market
+		"SG": 800,  // Singapore: high limit for business hub
+		"ID": 600,  // Indonesia: moderate limit
+		"MY": 600,  // Malaysia: moderate limit
+		"PH": 500,  // Philippines: moderate limit
+		"VN": 400,  // Vietnam: lower limit initially
+	}
+
+	return rl.Limit(RateLimitConfig{
+		Enabled:        true,
+		RequestsPerSec: 10, // default
+		BurstSize:      20,
+		WindowSize:     time.Minute,
+		KeyPrefix:      "sea_regional",
+		CountryLimits:  countryLimits,
+	})
+}
+
+// generateKey creates a rate limit key based on context
+func (rl *RateLimiter) generateKey(c *gin.Context, cfg RateLimitConfig) string {
+	var keyParts []string
+
+	// Add prefix
+	if cfg.KeyPrefix != "" {
+		keyParts = append(keyParts, cfg.KeyPrefix)
+	}
+
+	// Add user ID if authenticated
+	if userID := c.GetString("user_id"); userID != "" {
+		keyParts = append(keyParts, "user", userID)
+	} else {
+		// Fall back to IP address
+		keyParts = append(keyParts, "ip", c.ClientIP())
+	}
+
+	// Add country code for regional limiting
+	if countryCode := c.GetString("country_code"); countryCode != "" {
+		keyParts = append(keyParts, "country", countryCode)
+	}
+
+	// Add API endpoint for endpoint-specific limiting
+	if cfg.KeyPrefix == "api_limit" {
+		endpoint := fmt.Sprintf("%s:%s", c.Request.Method, c.Request.URL.Path)
+		keyParts = append(keyParts, "endpoint", endpoint)
+	}
+
+	return strings.Join(keyParts, ":")
+}
+
+// getEffectiveLimit determines the rate limit for the current request
+func (rl *RateLimiter) getEffectiveLimit(c *gin.Context, cfg RateLimitConfig) int {
+	// Check country-specific limits
+	if countryCode := c.GetString("country_code"); countryCode != "" {
+		if limit, exists := cfg.CountryLimits[countryCode]; exists {
+			return limit
+		}
+	}
+
+	// Check user type limits (premium, business, etc.)
+	if userType := c.GetString("user_type"); userType != "" {
+		if limit, exists := cfg.UserTypeLimits[userType]; exists {
+			return limit
+		}
+	}
+
+	// Return default limit
+	return cfg.RequestsPerSec * int(cfg.WindowSize.Seconds())
+}
+
+// checkRateLimit performs the rate limiting logic using Redis
+func (rl *RateLimiter) checkRateLimit(ctx context.Context, key string, limit int, cfg RateLimitConfig) (*RateLimitResult, error) {
+	now := time.Now()
+	windowStart := now.Truncate(cfg.WindowSize)
+	windowKey := fmt.Sprintf("%s:%d", key, windowStart.Unix())
+	blockKey := fmt.Sprintf("%s:blocked", key)
+
+	// Check if currently blocked
+	blockedUntil, err := rl.redis.Get(ctx, blockKey).Time()
+	if err == nil && now.Before(blockedUntil) {
+		return &RateLimitResult{
+			Allowed:      false,
+			Limit:        limit,
+			Remaining:    0,
+			ResetTime:    windowStart.Add(cfg.WindowSize),
+			RetryAfter:   blockedUntil.Sub(now),
+			BlockedUntil: &blockedUntil,
+		}, nil
+	}
+
+	// Use Redis pipeline for atomic operations
+	pipe := rl.redis.Pipeline()
+
+	// Increment counter
+	incrCmd := pipe.Incr(ctx, windowKey)
+
+	// Set expiration
+	pipe.Expire(ctx, windowKey, cfg.WindowSize)
+
+	// Execute pipeline
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute rate limit pipeline: %w", err)
+	}
+
+	// Get current count
+	count, err := incrCmd.Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rate limit count: %w", err)
+	}
+
+	remaining := limit - int(count)
+	if remaining < 0 {
+		remaining = 0
+	}
+
+	allowed := count <= int64(limit)
+
+	// If limit exceeded, potentially block the client
+	if !allowed && cfg.BlockDuration > 0 {
+		// Check how many times they've exceeded the limit recently
+		violations := rl.checkViolations(ctx, key)
+		if violations >= 3 { // Block after 3 violations
+			blockUntil := now.Add(cfg.BlockDuration)
+			rl.redis.Set(ctx, blockKey, blockUntil, cfg.BlockDuration)
+
+			rl.logger.Security("Rate limit violation - client blocked", logger.Fields{
+				"key":          key,
+				"violations":   violations,
+				"blocked_until": blockUntil,
+			})
+
+			return &RateLimitResult{
+				Allowed:      false,
+				Limit:        limit,
+				Remaining:    0,
+				ResetTime:    windowStart.Add(cfg.WindowSize),
+				RetryAfter:   cfg.BlockDuration,
+				BlockedUntil: &blockUntil,
+			}, nil
+		}
+	}
+
+	return &RateLimitResult{
+		Allowed:   allowed,
+		Limit:     limit,
+		Remaining: remaining,
+		ResetTime: windowStart.Add(cfg.WindowSize),
+		RetryAfter: 0,
+	}, nil
+}
+
+// checkViolations counts recent rate limit violations
+func (rl *RateLimiter) checkViolations(ctx context.Context, key string) int {
+	violationKey := fmt.Sprintf("%s:violations", key)
+
+	// Increment violation counter
+	count, err := rl.redis.Incr(ctx, violationKey).Result()
+	if err != nil {
+		return 0
+	}
+
+	// Set expiration for violation counter (1 hour)
+	rl.redis.Expire(ctx, violationKey, time.Hour)
+
+	return int(count)
+}
+
+// setRateLimitHeaders sets standard rate limit headers
+func (rl *RateLimiter) setRateLimitHeaders(c *gin.Context, result *RateLimitResult) {
+	c.Header("X-RateLimit-Limit", strconv.Itoa(result.Limit))
+	c.Header("X-RateLimit-Remaining", strconv.Itoa(result.Remaining))
+	c.Header("X-RateLimit-Reset", strconv.FormatInt(result.ResetTime.Unix(), 10))
+
+	if result.RetryAfter > 0 {
+		c.Header("Retry-After", strconv.Itoa(int(result.RetryAfter.Seconds())))
+	}
+}
+
+// handleRateLimited handles rate limit exceeded scenarios
+func (rl *RateLimiter) handleRateLimited(c *gin.Context, result *RateLimitResult, cfg RateLimitConfig) {
+	rl.logger.Warn("Rate limit exceeded", logger.Fields{
+		"key":        rl.generateKey(c, cfg),
+		"limit":      result.Limit,
+		"client_ip":  c.ClientIP(),
+		"user_agent": c.GetHeader("User-Agent"),
+		"endpoint":   c.Request.URL.Path,
+	})
+
+	c.JSON(http.StatusTooManyRequests, gin.H{
+		"error":     "rate_limit_exceeded",
+		"message":   "Too many requests. Please try again later.",
+		"code":      "RATE_LIMIT_EXCEEDED",
+		"limit":     result.Limit,
+		"remaining": result.Remaining,
+		"reset":     result.ResetTime.Unix(),
+		"retry_after": int(result.RetryAfter.Seconds()),
+	})
+	c.Abort()
+}
+
+// handleBlocked handles blocked client scenarios
+func (rl *RateLimiter) handleBlocked(c *gin.Context, result *RateLimitResult) {
+	rl.logger.Security("Blocked client attempted access", logger.Fields{
+		"client_ip":    c.ClientIP(),
+		"user_agent":   c.GetHeader("User-Agent"),
+		"endpoint":     c.Request.URL.Path,
+		"blocked_until": result.BlockedUntil,
+	})
+
+	c.JSON(http.StatusTooManyRequests, gin.H{
+		"error":       "client_blocked",
+		"message":     "Client temporarily blocked due to repeated rate limit violations.",
+		"code":        "CLIENT_BLOCKED",
+		"blocked_until": result.BlockedUntil.Unix(),
+		"retry_after":   int(result.RetryAfter.Seconds()),
+	})
+	c.Abort()
+}
+
+// shouldSkipPath checks if the path should be skipped
+func (rl *RateLimiter) shouldSkipPath(path string, skipPaths []string) bool {
+	for _, skipPath := range skipPaths {
+		if strings.HasPrefix(path, skipPath) {
+			return true
+		}
+	}
+	return false
+}
+
+// shouldSkipUserAgent checks if the user agent should be skipped
+func (rl *RateLimiter) shouldSkipUserAgent(userAgent string, skipUserAgents []string) bool {
+	for _, skipUA := range skipUserAgents {
+		if strings.Contains(userAgent, skipUA) {
+			return true
+		}
+	}
+	return false
+}
+
+// ClearRateLimit removes rate limit data for a key
+func (rl *RateLimiter) ClearRateLimit(ctx context.Context, key string) error {
+	keys, err := rl.redis.Keys(ctx, key+"*").Result()
+	if err != nil {
+		return err
+	}
+
+	if len(keys) > 0 {
+		return rl.redis.Del(ctx, keys...).Err()
+	}
+
+	return nil
+}
+
+// GetRateLimitStats returns rate limit statistics
+func (rl *RateLimiter) GetRateLimitStats(ctx context.Context, keyPattern string) (map[string]interface{}, error) {
+	keys, err := rl.redis.Keys(ctx, keyPattern).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	stats := map[string]interface{}{
+		"total_keys": len(keys),
+		"keys":       make(map[string]interface{}),
+	}
+
+	for _, key := range keys {
+		val, err := rl.redis.Get(ctx, key).Result()
+		if err == nil {
+			if count, err := strconv.Atoi(val); err == nil {
+				stats["keys"].(map[string]interface{})[key] = count
+			}
+		}
+	}
+
+	return stats, nil
+}
+
+// Middleware factory functions
+
+// DefaultRateLimit provides sensible defaults for most APIs
+func DefaultRateLimit(redisClient *redis.Client, cfg *config.Config, log *logger.TchatLogger) gin.HandlerFunc {
+	rl := NewRateLimiter(redisClient, cfg, log)
+	return rl.Limit(RateLimitConfig{
+		Enabled:        cfg.Server.RateLimit.Enabled,
+		RequestsPerSec: cfg.Server.RateLimit.RPS / 60, // Convert per-minute to per-second
+		BurstSize:      cfg.Server.RateLimit.Burst,
+		WindowSize:     time.Minute,
+		KeyPrefix:      cfg.Server.RateLimit.KeyPrefix,
+		SkipPaths:      cfg.Server.RateLimit.SkipPaths,
+		BlockDuration:  5 * time.Minute,
+	})
+}
+
+// StrictRateLimit provides strict limiting for sensitive endpoints
+func StrictRateLimit(redisClient *redis.Client, cfg *config.Config, log *logger.TchatLogger) gin.HandlerFunc {
+	rl := NewRateLimiter(redisClient, cfg, log)
+	return rl.Limit(RateLimitConfig{
+		Enabled:        true,
+		RequestsPerSec: 1,  // Very strict
+		BurstSize:      3,
+		WindowSize:     time.Minute,
+		KeyPrefix:      "strict_limit",
+		BlockDuration:  15 * time.Minute,
+	})
+}
+
+// GenerousRateLimit provides lenient limiting for public endpoints
+func GenerousRateLimit(redisClient *redis.Client, cfg *config.Config, log *logger.TchatLogger) gin.HandlerFunc {
+	rl := NewRateLimiter(redisClient, cfg, log)
+	return rl.Limit(RateLimitConfig{
+		Enabled:        true,
+		RequestsPerSec: 100, // Very generous
+		BurstSize:      200,
+		WindowSize:     time.Minute,
+		KeyPrefix:      "generous_limit",
+		BlockDuration:  time.Minute,
+	})
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@tchat/visual-tests",
+  "version": "1.0.0",
+  "description": "Visual regression tests for Tchat UI components",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:update": "playwright test --update-snapshots",
+    "report": "playwright show-report",
+    "install": "playwright install",
+    "install:deps": "playwright install-deps"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.40.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0"
+  }
+}

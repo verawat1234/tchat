@@ -1,7 +1,6 @@
 package models
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -237,7 +236,15 @@ func ValidateKYCRequest(req KYCRequest) error {
 
 	// Validate nationality (must be Southeast Asian)
 	nationality := strings.ToUpper(req.Nationality)
-	if _, valid := ValidCountries[nationality]; !valid {
+	validNationality := false
+	validCountries := []string{"TH", "SG", "ID", "MY", "PH", "VN"}
+	for _, country := range validCountries {
+		if country == nationality {
+			validNationality = true
+			break
+		}
+	}
+	if !validNationality {
 		errs = append(errs, "nationality must be a Southeast Asian country")
 	}
 
@@ -502,4 +509,38 @@ type KYCStats struct {
 	ByTier           map[string]int64 `json:"by_tier"`
 	ByCountry        map[string]int64 `json:"by_country"`
 	AvgProcessingTime string          `json:"avg_processing_time"`
+}
+
+// PersonalInfo represents personal information for KYC verification
+type PersonalInfo struct {
+	FirstName     string    `json:"first_name" binding:"required"`
+	LastName      string    `json:"last_name" binding:"required"`
+	DateOfBirth   time.Time `json:"date_of_birth" binding:"required"`
+	Gender        string    `json:"gender,omitempty"`
+	Nationality   string   `json:"nationality" binding:"required"`
+	Address       Address   `json:"address" binding:"required"`
+	PlaceOfBirth  string    `json:"place_of_birth,omitempty"`
+	Occupation    string    `json:"occupation,omitempty"`
+	MotherName    string    `json:"mother_name,omitempty"`
+	FatherName    string    `json:"father_name,omitempty"`
+}
+
+// KYCDocuments represents submitted KYC documents
+type KYCDocuments struct {
+	PrimaryID   DocumentSubmission   `json:"primary_id" binding:"required"`
+	ProofOfAddress DocumentSubmission `json:"proof_of_address,omitempty"`
+	Selfie      DocumentSubmission   `json:"selfie" binding:"required"`
+	Additional  []DocumentSubmission `json:"additional,omitempty"`
+}
+
+// DocumentSubmission represents a submitted document
+type DocumentSubmission struct {
+	Type         DocumentType `json:"type" binding:"required"`
+	Number       string       `json:"number" binding:"required"`
+	IssueDate    time.Time    `json:"issue_date"`
+	ExpiryDate   time.Time    `json:"expiry_date"`
+	IssuingAuth  string       `json:"issuing_authority"`
+	FileURL      string       `json:"file_url" binding:"required"`
+	Status       string       `json:"status"`
+	ReviewNotes  string       `json:"review_notes,omitempty"`
 }

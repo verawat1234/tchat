@@ -3,12 +3,13 @@ package models
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"tchat.dev/shared/utils"
 )
 
 // UserStatus represents the status of a user account
@@ -20,6 +21,52 @@ const (
 	UserStatusDeleted   UserStatus = "deleted"
 )
 
+// KYCTier represents the KYC verification level
+type KYCTier int
+
+const (
+	KYCTierUnverified KYCTier = 0
+	KYCTierBasic     KYCTier = 1
+	KYCTierStandard  KYCTier = 2
+	KYCTierPremium   KYCTier = 3
+)
+
+// Country represents supported countries
+type Country string
+
+const (
+	CountryThailand   Country = "TH"
+	CountrySingapore  Country = "SG"
+	CountryIndonesia  Country = "ID"
+	CountryMalaysia   Country = "MY"
+	CountryPhilippines Country = "PH"
+	CountryVietnam    Country = "VN"
+)
+
+// VerificationTier represents verification levels
+type VerificationTier int
+
+const (
+	VerificationTierNone     VerificationTier = 0
+	VerificationTierPhone    VerificationTier = 1
+	VerificationTierEmail    VerificationTier = 2
+	VerificationTierKYC      VerificationTier = 3
+	VerificationTierFull     VerificationTier = 4
+)
+
+// UserPreferences represents user preferences - DISABLED due to missing database columns
+// Current database schema doesn't have pref_* columns, only profile_* columns
+// This struct is commented out until the database schema is updated to match
+/*
+type UserPreferences struct {
+	NotificationsEmail    bool   `json:"notifications_email" gorm:"column:pref_notifications_email;default:true"`
+	NotificationsPush     bool   `json:"notifications_push" gorm:"column:pref_notifications_push;default:true"`
+	Language              string `json:"language" gorm:"column:pref_language;size:10"`
+	Theme                 string `json:"theme" gorm:"column:pref_theme;size:20"`
+	PrivacyLevel          string `json:"privacy_level" gorm:"column:pref_privacy_level;size:20"`
+}
+*/
+
 // IsValid checks if the user status is valid
 func (s UserStatus) IsValid() bool {
 	switch s {
@@ -30,45 +77,64 @@ func (s UserStatus) IsValid() bool {
 	}
 }
 
-// UserProfile represents the user's profile information
+// UserProfile represents the user's profile information - DISABLED due to column naming conflicts
+// Current database schema has profile_* columns, this struct expects different column names
+// This struct is commented out until database schema is aligned
+/*
 type UserProfile struct {
-	DisplayName string `json:"display_name" gorm:"column:display_name;size:100;not null"`
-	AvatarURL   string `json:"avatar_url,omitempty" gorm:"column:avatar_url;size:500"`
-	Locale      string `json:"locale" gorm:"column:locale;size:5;not null;default:'en'"`
-	Timezone    string `json:"timezone" gorm:"column:timezone;size:50;not null;default:'UTC'"`
+	DisplayName string `json:"display_name" gorm:"column:display_name;size:100"`
+	AvatarURL   string `json:"avatar_url,omitempty" gorm:"column:avatar;size:500"`
+	Locale      string `json:"locale" gorm:"column:locale;size:10;default:'en'"`
+	Timezone    string `json:"timezone" gorm:"column:timezone;size:50;default:'UTC'"`
 }
+*/
 
 // User represents a platform user with Southeast Asian regional compliance
 type User struct {
-	ID          uuid.UUID   `json:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	PhoneNumber string      `json:"phone_number" gorm:"column:phone_number;size:20;not null;uniqueIndex"`
-	CountryCode string      `json:"country_code" gorm:"column:country_code;size:2;not null"`
-	Status      UserStatus  `json:"status" gorm:"column:status;type:varchar(20);not null;default:'active'"`
-	Profile     UserProfile `json:"profile" gorm:"embedded;embeddedPrefix:profile_"`
+	ID          uuid.UUID   `json:"id" gorm:"column:id;type:uuid;primary_key;default:gen_random_uuid()"`
+	Username    string      `json:"username,omitempty" gorm:"column:username;size:100;uniqueIndex"`
+	Phone       string      `json:"phone,omitempty" gorm:"column:phone;size:20"`
+	PhoneNumber string      `json:"phone_number,omitempty" gorm:"column:phone_number;size:20"`
+	Email       string      `json:"email,omitempty" gorm:"column:email;size:255;uniqueIndex"`
+	Name        string      `json:"name" gorm:"column:name;size:100;not null"`
+	DisplayName string      `json:"display_name,omitempty" gorm:"column:display_name;size:100"`
+	FirstName   string      `json:"first_name,omitempty" gorm:"column:first_name;size:100"`
+	LastName    string      `json:"last_name,omitempty" gorm:"column:last_name;size:100"`
+	Avatar      string      `json:"avatar,omitempty" gorm:"column:avatar;size:500"`
+	Country     string      `json:"country" gorm:"column:country;size:5;not null;default:'TH'"`
+	CountryCode string      `json:"country_code,omitempty" gorm:"column:country_code;size:5"`
+	Locale      string      `json:"locale" gorm:"column:locale;size:10;not null;default:'th-TH'"`
+	Language    string      `json:"language,omitempty" gorm:"column:language;size:10"`
+	Timezone    string      `json:"timezone,omitempty" gorm:"column:timezone;size:50"`
+	TimezoneAlias string    `json:"timezone_alias,omitempty" gorm:"column:timezone_alias;size:50"`
+	Bio         string      `json:"bio,omitempty" gorm:"column:bio"`
+	DateOfBirth *time.Time  `json:"date_of_birth,omitempty" gorm:"column:date_of_birth"`
+	Gender      string      `json:"gender,omitempty" gorm:"column:gender;size:20"`
 
-	// Regional compliance fields
-	DataRegion       string `json:"data_region,omitempty" gorm:"column:data_region;size:20"`
-	ConsentDate      *time.Time `json:"consent_date,omitempty" gorm:"column:consent_date"`
-	ConsentVersion   string `json:"consent_version,omitempty" gorm:"column:consent_version;size:10"`
-	LegalBasis       string `json:"legal_basis,omitempty" gorm:"column:legal_basis;size:50"`
-	ProcessingPurpose string `json:"processing_purpose,omitempty" gorm:"column:processing_purpose;size:100"`
+	// Status and verification
+	Active       bool       `json:"is_active" gorm:"column:is_active;default:true"`
+	KYCStatus    string     `json:"kyc_status" gorm:"column:kyc_status;size:20;default:'none'"`
+	KYCTier      int        `json:"kyc_tier" gorm:"column:kyc_tier;default:0"`
+	Status       string     `json:"status" gorm:"column:status;size:20;default:'offline'"`
+	LastSeen     *time.Time `json:"last_seen,omitempty" gorm:"column:last_seen"`
+	LastActiveAt *time.Time `json:"last_active_at,omitempty" gorm:"column:last_active_at"`
 
-	// Verification status
-	PhoneVerified    bool       `json:"phone_verified" gorm:"column:phone_verified;default:false"`
-	PhoneVerifiedAt  *time.Time `json:"phone_verified_at,omitempty" gorm:"column:phone_verified_at"`
-	EmailVerified    bool       `json:"email_verified" gorm:"column:email_verified;default:false"`
-	EmailVerifiedAt  *time.Time `json:"email_verified_at,omitempty" gorm:"column:email_verified_at"`
+	// Verification flags
+	Verified        bool `json:"is_verified" gorm:"column:is_verified;default:false"`
+	EmailVerified   bool `json:"is_email_verified" gorm:"column:is_email_verified;default:false"`
+	PhoneVerified   bool `json:"is_phone_verified" gorm:"column:is_phone_verified;default:false"`
+
+	// User preferences - removed non-existent columns
+	// Note: Actual preference columns need to be created in database if needed
+	// Current DB schema only has profile_* columns, not pref_* columns
+
+	// Metadata - DISABLED: column doesn't exist in current database schema
+	// Metadata *string `json:"metadata,omitempty" gorm:"column:metadata;type:jsonb;default:'{}'"`
 
 	// Timestamps
-	CreatedAt time.Time      `json:"created_at" gorm:"column:created_at;not null"`
-	UpdatedAt time.Time      `json:"updated_at" gorm:"column:updated_at;not null"`
-	DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"column:deleted_at;index"`
-
-	// Audit fields
-	LastLoginAt    *time.Time `json:"last_login_at,omitempty" gorm:"column:last_login_at"`
-	LastLoginIP    string     `json:"last_login_ip,omitempty" gorm:"column:last_login_ip;size:45"`
-	FailedAttempts int        `json:"failed_attempts" gorm:"column:failed_attempts;default:0"`
-	LockedUntil    *time.Time `json:"locked_until,omitempty" gorm:"column:locked_until"`
+	CreatedAt time.Time      `json:"created_at" gorm:"column:created_at;default:CURRENT_TIMESTAMP"`
+	UpdatedAt time.Time      `json:"updated_at" gorm:"column:updated_at;default:CURRENT_TIMESTAMP"`
+	// DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"column:deleted_at;index"` // DISABLED: column doesn't exist
 }
 
 // TableName returns the table name for the User model
@@ -83,23 +149,18 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 		u.ID = uuid.New()
 	}
 
-	// Set default profile values
-	if u.Profile.DisplayName == "" {
-		u.Profile.DisplayName = "User"
-	}
-
-	// Set regional defaults based on country
-	if u.DataRegion == "" {
-		u.DataRegion = GetDataRegionForCountry(u.CountryCode)
+	// Set default display name
+	if u.DisplayName == "" {
+		u.DisplayName = "User"
 	}
 
 	// Set default locale and timezone based on country
-	if u.Profile.Locale == "" {
-		u.Profile.Locale = GetDefaultLocaleForCountry(u.CountryCode)
+	if u.Locale == "" {
+		u.Locale = GetDefaultLocaleForCountry(u.Country)
 	}
 
-	if u.Profile.Timezone == "" {
-		u.Profile.Timezone = GetDefaultTimezoneForCountry(u.CountryCode)
+	if u.Timezone == "" {
+		u.Timezone = GetDefaultTimezoneForCountry(u.Country)
 	}
 
 	// Validate the user
@@ -118,33 +179,28 @@ func (u *User) BeforeUpdate(tx *gorm.DB) error {
 // Validate validates the user data for Southeast Asian compliance
 func (u *User) Validate() error {
 	// Validate country code
-	if !IsValidSEACountry(u.CountryCode) {
-		return fmt.Errorf("invalid country code: %s", u.CountryCode)
+	if !IsValidSEACountry(u.Country) {
+		return fmt.Errorf("invalid country code: %s", u.Country)
 	}
 
-	// Validate phone number format for the country
-	if !u.IsValidPhoneNumber() {
-		return fmt.Errorf("invalid phone number format for country %s: %s", u.CountryCode, u.PhoneNumber)
-	}
-
-	// Validate status
-	if !u.Status.IsValid() {
-		return fmt.Errorf("invalid user status: %s", u.Status)
-	}
-
-	// Validate locale for the country
-	if !IsValidLocaleForCountry(u.Profile.Locale, u.CountryCode) {
-		return fmt.Errorf("invalid locale %s for country %s", u.Profile.Locale, u.CountryCode)
-	}
-
-	// Validate timezone
-	if !IsValidTimezone(u.Profile.Timezone) {
-		return fmt.Errorf("invalid timezone: %s", u.Profile.Timezone)
+	// Basic name validation
+	if len(u.Name) == 0 || len(u.Name) > 100 {
+		return fmt.Errorf("name must be between 1 and 100 characters")
 	}
 
 	// Validate display name length
-	if len(u.Profile.DisplayName) == 0 || len(u.Profile.DisplayName) > 100 {
-		return fmt.Errorf("display name must be between 1 and 100 characters")
+	if u.DisplayName != "" && len(u.DisplayName) > 100 {
+		return fmt.Errorf("display name cannot exceed 100 characters")
+	}
+
+	// Validate locale for the country
+	if u.Locale != "" && !IsValidLocaleForCountry(u.Locale, u.Country) {
+		return fmt.Errorf("invalid locale %s for country %s", u.Locale, u.Country)
+	}
+
+	// Validate timezone
+	if u.Timezone != "" && !IsValidTimezone(u.Timezone) {
+		return fmt.Errorf("invalid timezone: %s", u.Timezone)
 	}
 
 	return nil
@@ -152,26 +208,15 @@ func (u *User) Validate() error {
 
 // IsValidPhoneNumber validates phone number format for the user's country
 func (u *User) IsValidPhoneNumber() bool {
-	// Remove any non-digit characters for validation
-	phoneDigits := regexp.MustCompile(`\D`).ReplaceAllString(u.PhoneNumber, "")
-
-	// Country-specific phone number validation
-	switch u.CountryCode {
-	case "TH": // Thailand: 8-9 digits starting with 6-9
-		return regexp.MustCompile(`^[6-9]\d{7,8}$`).MatchString(phoneDigits)
-	case "SG": // Singapore: 8 digits starting with 6, 8, or 9
-		return regexp.MustCompile(`^[689]\d{7}$`).MatchString(phoneDigits)
-	case "ID": // Indonesia: 8-12 digits starting with 8
-		return regexp.MustCompile(`^8\d{7,11}$`).MatchString(phoneDigits)
-	case "MY": // Malaysia: 9-10 digits starting with 1
-		return regexp.MustCompile(`^1\d{8,9}$`).MatchString(phoneDigits)
-	case "PH": // Philippines: 10 digits starting with 9
-		return regexp.MustCompile(`^9\d{9}$`).MatchString(phoneDigits)
-	case "VN": // Vietnam: 9-10 digits starting with 9
-		return regexp.MustCompile(`^9\d{8,9}$`).MatchString(phoneDigits)
-	default:
-		return false
+	phoneToCheck := u.PhoneNumber
+	if phoneToCheck == "" {
+		phoneToCheck = u.Phone
 	}
+	countryCode := u.Country
+	if u.CountryCode != "" {
+		countryCode = u.CountryCode
+	}
+	return utils.IsValidPhoneNumber(phoneToCheck, countryCode)
 }
 
 // GetFullPhoneNumber returns the phone number in E.164 format
@@ -185,54 +230,34 @@ func (u *User) GetFullPhoneNumber() string {
 		"VN": "+84",
 	}
 
-	if prefix, exists := countryPrefixes[u.CountryCode]; exists {
+	phoneToFormat := u.PhoneNumber
+	if phoneToFormat == "" {
+		phoneToFormat = u.Phone
+	}
+
+	countryCode := u.Country
+	if u.CountryCode != "" {
+		countryCode = u.CountryCode
+	}
+
+	if prefix, exists := countryPrefixes[countryCode]; exists {
 		// Remove leading zeros from local number
-		localNumber := strings.TrimLeft(u.PhoneNumber, "0")
+		localNumber := strings.TrimLeft(phoneToFormat, "0")
 		return prefix + localNumber
 	}
 
-	return u.PhoneNumber
+	return phoneToFormat
 }
 
 // IsActive checks if the user account is active
 func (u *User) IsActive() bool {
-	return u.Status == UserStatusActive && (u.LockedUntil == nil || u.LockedUntil.Before(time.Now()))
-}
-
-// IsLocked checks if the user account is temporarily locked
-func (u *User) IsLocked() bool {
-	return u.LockedUntil != nil && u.LockedUntil.After(time.Now())
-}
-
-// LockAccount temporarily locks the user account
-func (u *User) LockAccount(duration time.Duration) {
-	lockUntil := time.Now().Add(duration)
-	u.LockedUntil = &lockUntil
-}
-
-// UnlockAccount unlocks the user account and resets failed attempts
-func (u *User) UnlockAccount() {
-	u.LockedUntil = nil
-	u.FailedAttempts = 0
-}
-
-// IncrementFailedAttempts increments the failed login attempts
-func (u *User) IncrementFailedAttempts() {
-	u.FailedAttempts++
-
-	// Auto-lock after 5 failed attempts for 30 minutes
-	if u.FailedAttempts >= 5 {
-		u.LockAccount(30 * time.Minute)
-	}
+	return u.Active && (u.Status == "active" || u.Status == "online")
 }
 
 // UpdateLastLogin updates the last login information
 func (u *User) UpdateLastLogin(ipAddress string) {
 	now := time.Now()
-	u.LastLoginAt = &now
-	u.LastLoginIP = ipAddress
-	u.FailedAttempts = 0 // Reset failed attempts on successful login
-	u.LockedUntil = nil  // Unlock account on successful login
+	u.LastActiveAt = &now
 }
 
 // GetAge returns the age of the user account
@@ -242,14 +267,68 @@ func (u *User) GetAge() time.Duration {
 
 // GetRegionalSettings returns regional settings for the user
 func (u *User) GetRegionalSettings() map[string]interface{} {
-	return map[string]interface{}{
-		"country_code":  u.CountryCode,
-		"locale":        u.Profile.Locale,
-		"timezone":      u.Profile.Timezone,
-		"data_region":   u.DataRegion,
-		"phone_format":  u.GetFullPhoneNumber(),
-		"currency":      GetDefaultCurrencyForCountry(u.CountryCode),
+	countryCode := u.Country
+	if u.CountryCode != "" {
+		countryCode = u.CountryCode
 	}
+
+	return map[string]interface{}{
+		"country_code":  countryCode,
+		"locale":        u.Locale,
+		"timezone":      u.Timezone,
+		"phone_format":  u.GetFullPhoneNumber(),
+		"currency":      GetDefaultCurrencyForCountry(countryCode),
+	}
+}
+
+// CanUpdateProfile checks if user can update their profile
+func (u *User) CanUpdateProfile() bool {
+	return u.Active
+}
+
+// CanSubmitKYC checks if user can submit KYC documents
+func (u *User) CanSubmitKYC() bool {
+	return u.Active && u.PhoneVerified
+}
+
+// CanUpgradeKYC checks if user can upgrade their KYC tier
+func (u *User) CanUpgradeKYC() bool {
+	return u.Active && u.PhoneVerified
+}
+
+// IsKYCVerified checks if user has completed KYC verification
+func (u *User) IsKYCVerified() bool {
+	return u.KYCTier >= 1 // KYCTierBasic
+}
+
+// GetMaxTransactionLimit returns transaction limit based on KYC tier
+func (u *User) GetMaxTransactionLimit() float64 {
+	switch u.KYCTier {
+	case 0: // KYCTierUnverified
+		return 100.0
+	case 1: // KYCTierBasic
+		return 1000.0
+	case 2: // KYCTierStandard
+		return 10000.0
+	case 3: // KYCTierPremium
+		return 100000.0
+	default:
+		return 0.0
+	}
+}
+
+// UpdateKYCTier updates the user's KYC tier
+func (u *User) UpdateKYCTier(newTier int) error {
+	if !u.CanUpgradeKYC() {
+		return fmt.Errorf("user cannot upgrade KYC tier")
+	}
+
+	if newTier < u.KYCTier {
+		return fmt.Errorf("cannot downgrade KYC tier")
+	}
+
+	u.KYCTier = newTier
+	return nil
 }
 
 // MarshalJSON customizes JSON serialization

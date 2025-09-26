@@ -450,6 +450,14 @@ type CreateSessionRequest struct {
 	Metadata   map[string]interface{} `json:"metadata"`
 }
 
+type UpdateSessionRequest struct {
+	SessionID  uuid.UUID              `json:"session_id" binding:"required"`
+	UserAgent  string                 `json:"user_agent"`
+	IPAddress  string                 `json:"ip_address"`
+	DeviceInfo map[string]interface{} `json:"device_info"`
+	Metadata   map[string]interface{} `json:"metadata"`
+}
+
 type SessionStatsResponse struct {
 	TotalSessions    int64 `json:"total_sessions"`
 	ActiveSessions   int64 `json:"active_sessions"`
@@ -474,7 +482,58 @@ type SessionDetailsResponse struct {
 	IsCurrent        bool                   `json:"is_current"`
 }
 
-func (session *models.Session) ToDetailsResponse(isCurrentSession bool) *SessionDetailsResponse {
+// UpdateSession updates session device info and metadata
+func (ss *SessionService) UpdateSession(ctx context.Context, req *UpdateSessionRequest) (*models.Session, error) {
+	session, err := ss.GetSessionByID(ctx, req.SessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update session fields if provided
+	updated := false
+	if req.UserAgent != "" {
+		session.UserAgent = req.UserAgent
+		updated = true
+	}
+	if req.IPAddress != "" {
+		session.IPAddress = req.IPAddress
+		updated = true
+	}
+	if req.DeviceInfo != nil {
+		session.DeviceInfo = req.DeviceInfo
+		updated = true
+	}
+	if req.Metadata != nil {
+		session.Metadata = req.Metadata
+		updated = true
+	}
+
+	if updated {
+		session.UpdatedAt = time.Now()
+		if err := ss.sessionRepo.Update(ctx, session); err != nil {
+			return nil, fmt.Errorf("failed to update session: %w", err)
+		}
+	}
+
+	return session, nil
+}
+
+// RefreshTokens is an alias for RotateTokens to match handler expectations
+func (ss *SessionService) RefreshTokens(ctx context.Context, sessionID uuid.UUID) (*models.Session, error) {
+	return ss.RotateTokens(ctx, sessionID)
+}
+
+// InvalidateUserSessions is an alias for TerminateAllUserSessions to match handler expectations
+func (ss *SessionService) InvalidateUserSessions(ctx context.Context, userID uuid.UUID) error {
+	return ss.TerminateAllUserSessions(ctx, userID, "user_logout_all")
+}
+
+// InvalidateSession is an alias for TerminateSession to match handler expectations
+func (ss *SessionService) InvalidateSession(ctx context.Context, sessionID uuid.UUID) error {
+	return ss.TerminateSession(ctx, sessionID, "user_logout")
+}
+
+func ToSessionDetailsResponse(session *models.Session, isCurrentSession bool) *SessionDetailsResponse {
 	return &SessionDetailsResponse{
 		ID:           session.ID,
 		Status:       session.Status,

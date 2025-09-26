@@ -30,16 +30,22 @@ func TestServiceFailuresSuite(t *testing.T) {
 func (suite *ServiceFailuresTestSuite) SetupSuite() {
 	gin.SetMode(gin.TestMode)
 	suite.router = gin.New()
+	suite.fallbackData = make(map[string]interface{})
+	suite.circuitBreaker = make(map[string]int)
+
+	suite.setupFailureTestEndpoints()
+}
+
+func (suite *ServiceFailuresTestSuite) SetupTest() {
+	// Reset service status for each test to ensure isolation
 	suite.serviceStatus = map[string]bool{
 		"payment_gateway": true,
 		"sms_service":     true,
 		"email_service":   true,
 		"kyc_provider":    true,
 	}
-	suite.fallbackData = make(map[string]interface{})
+	// Reset circuit breaker counters to ensure test isolation
 	suite.circuitBreaker = make(map[string]int)
-
-	suite.setupFailureTestEndpoints()
 }
 
 func (suite *ServiceFailuresTestSuite) setupFailureTestEndpoints() {

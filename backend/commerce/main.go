@@ -18,7 +18,6 @@ import (
 	"gorm.io/gorm/logger"
 
 	"tchat.dev/commerce/handlers"
-	"tchat.dev/commerce/models"
 	"tchat.dev/commerce/services"
 	"tchat.dev/shared/config"
 	"tchat.dev/shared/database"
@@ -123,9 +122,9 @@ func (a *App) initDatabase() error {
 // runMigrations runs database migrations for commerce service models
 func (a *App) runMigrations(db *gorm.DB) error {
 	return db.AutoMigrate(
-		&models.Shop{},
-		&models.Product{},
-		&models.Order{},
+		&sharedModels.Business{},
+		&sharedModels.Product{},
+		&sharedModels.Order{},
 		&sharedModels.Event{},
 	)
 }

@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"tchat.dev/commerce/models"
+	sharedModels "tchat.dev/shared/models"
 	"tchat.dev/commerce/services"
 	"tchat.dev/shared/utils"
 )

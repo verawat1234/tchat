@@ -1,0 +1,272 @@
+
+services:
+  # Infrastructure Services
+  postgres:
+    image: postgres:15-alpine
+    container_name: tchat-postgres
+    environment:
+      POSTGRES_DB: tchat
+      POSTGRES_USER: tchat_user
+      POSTGRES_PASSWORD: tchat_password
+      POSTGRES_MULTIPLE_DATABASES: tchat_auth,tchat_commerce,tchat_content,tchat_messaging,tchat_payment,tchat_notification
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/create-multiple-databases.sh:/docker-entrypoint-initdb.d/create-multiple-databases.sh
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tchat_user -d tchat"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: tchat-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Microservices
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth/Dockerfile
+    container_name: tchat-auth
+    environment:
+      - ENVIRONMENT=development
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8081
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=tchat_auth
+      - DATABASE_USER=tchat_user
+      - DATABASE_PASSWORD=tchat_password
+      - DATABASE_SSL_MODE=disable
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=your-super-secret-jwt-key-for-development
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  content-service:
+    build:
+      context: .
+      dockerfile: content/Dockerfile
+    container_name: tchat-content
+    environment:
+      - ENVIRONMENT=development
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8086
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=tchat_content
+      - DATABASE_USER=tchat_user
+      - DATABASE_PASSWORD=tchat_password
+      - DATABASE_SSL_MODE=disable
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8086:8086"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8086/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  commerce-service:
+    build:
+      context: .
+      dockerfile: commerce/Dockerfile
+    container_name: tchat-commerce
+    environment:
+      - ENVIRONMENT=development
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8082
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=tchat_commerce
+      - DATABASE_USER=tchat_user
+      - DATABASE_PASSWORD=tchat_password
+      - DATABASE_SSL_MODE=disable
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  messaging-service:
+    build:
+      context: .
+      dockerfile: messaging/Dockerfile
+    container_name: tchat-messaging
+    environment:
+      - ENVIRONMENT=development
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8083
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=tchat_messaging
+      - DATABASE_USER=tchat_user
+      - DATABASE_PASSWORD=tchat_password
+      - DATABASE_SSL_MODE=disable
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: payment/Dockerfile
+    container_name: tchat-payment
+    environment:
+      - ENVIRONMENT=development
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8084
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=tchat_payment
+      - DATABASE_USER=tchat_user
+      - DATABASE_PASSWORD=tchat_password
+      - DATABASE_SSL_MODE=disable
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8084:8084"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: notification/Dockerfile
+    container_name: tchat-notification
+    environment:
+      - ENVIRONMENT=development
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8085
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=tchat_notification
+      - DATABASE_USER=tchat_user
+      - DATABASE_PASSWORD=tchat_password
+      - DATABASE_SSL_MODE=disable
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8085:8085"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8085/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  gateway-service:
+    build:
+      context: .
+      dockerfile: infrastructure/gateway/Dockerfile
+    container_name: tchat-gateway
+    environment:
+      - ENVIRONMENT=development
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - AUTH_SERVICE_URL=http://auth-service:8081
+      - COMMERCE_SERVICE_URL=http://commerce-service:8082
+      - MESSAGING_SERVICE_URL=http://messaging-service:8083
+      - PAYMENT_SERVICE_URL=http://payment-service:8084
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8085
+      - CONTENT_SERVICE_URL=http://content-service:8086
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth-service
+      - content-service
+      - commerce-service
+      - messaging-service
+      - payment-service
+      - notification-service
+    networks:
+      - tchat-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+networks:
+  tchat-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

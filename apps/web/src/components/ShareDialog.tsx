@@ -453,74 +453,119 @@ export function ShareDialog({ open, onOpenChange, content, user }: ShareDialogPr
 
           {currentTab === 'social' && (
             <div className="space-y-4">
-              <h4 className="text-sm font-medium">Share on social platforms</h4>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <Button
-                  variant="outline"
-                  className="flex items-center gap-2 h-12"
+              <div className="text-center">
+                <h4 className="text-lg font-semibold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent mb-1">
+                  Share the vibe ✨
+                </h4>
+                <p className="text-sm text-gray-500">Let your friends discover this amazing content</p>
+              </div>
+
+              {/* Featured Platforms - Instagram/TikTok style grid */}
+              <div className="grid grid-cols-3 gap-4">
+                <div
+                  className="flex flex-col items-center p-4 rounded-2xl bg-gradient-to-b from-green-50 to-green-100 border border-green-200 cursor-pointer hover:scale-105 transition-all duration-200"
                   onClick={() => handleSocialShare('whatsapp')}
                 >
-                  <div className="w-6 h-6 bg-green-500 rounded flex items-center justify-center">
-                    <Phone className="w-4 h-4 text-white" />
+                  <div className="w-14 h-14 bg-gradient-to-r from-green-400 to-green-500 rounded-2xl flex items-center justify-center mb-2 shadow-lg">
+                    <span className="text-2xl">💬</span>
                   </div>
-                  WhatsApp
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  className="flex items-center gap-2 h-12"
-                  onClick={() => handleSocialShare('telegram')}
-                >
-                  <div className="w-6 h-6 bg-blue-500 rounded flex items-center justify-center">
-                    <MessageSquare className="w-4 h-4 text-white" />
-                  </div>
-                  Telegram
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  className="flex items-center gap-2 h-12"
-                  onClick={() => handleSocialShare('facebook')}
-                >
-                  <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center">
-                    <Facebook className="w-4 h-4 text-white" />
-                  </div>
-                  Facebook
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  className="flex items-center gap-2 h-12"
-                  onClick={() => handleSocialShare('twitter')}
-                >
-                  <div className="w-6 h-6 bg-black rounded flex items-center justify-center">
-                    <Twitter className="w-4 h-4 text-white" />
-                  </div>
-                  Twitter
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  className="flex items-center gap-2 h-12"
+                  <span className="text-sm font-medium text-green-700">WhatsApp</span>
+                </div>
+
+                <div
+                  className="flex flex-col items-center p-4 rounded-2xl bg-gradient-to-b from-pink-50 to-purple-100 border border-pink-200 cursor-pointer hover:scale-105 transition-all duration-200"
                   onClick={() => handleSocialShare('instagram')}
                 >
-                  <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-pink-500 rounded flex items-center justify-center">
-                    <Instagram className="w-4 h-4 text-white" />
+                  <div className="w-14 h-14 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 rounded-2xl flex items-center justify-center mb-2 shadow-lg">
+                    <span className="text-2xl">📷</span>
                   </div>
-                  Instagram
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  className="flex items-center gap-2 h-12"
-                  onClick={() => handleSocialShare('email')}
+                  <span className="text-sm font-medium text-pink-700">Instagram</span>
+                </div>
+
+                <div
+                  className="flex flex-col items-center p-4 rounded-2xl bg-gradient-to-b from-blue-50 to-blue-100 border border-blue-200 cursor-pointer hover:scale-105 transition-all duration-200"
+                  onClick={() => handleSocialShare('facebook')}
                 >
-                  <div className="w-6 h-6 bg-gray-500 rounded flex items-center justify-center">
-                    <Mail className="w-4 h-4 text-white" />
+                  <div className="w-14 h-14 bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mb-2 shadow-lg">
+                    <span className="text-2xl">📘</span>
                   </div>
-                  Email
-                </Button>
+                  <span className="text-sm font-medium text-blue-700">Facebook</span>
+                </div>
+
+                <div
+                  className="flex flex-col items-center p-4 rounded-2xl bg-gradient-to-b from-gray-50 to-gray-100 border border-gray-200 cursor-pointer hover:scale-105 transition-all duration-200"
+                  onClick={() => handleSocialShare('twitter')}
+                >
+                  <div className="w-14 h-14 bg-gradient-to-r from-gray-800 to-black rounded-2xl flex items-center justify-center mb-2 shadow-lg">
+                    <span className="text-2xl">🐦</span>
+                  </div>
+                  <span className="text-sm font-medium text-gray-700">Twitter</span>
+                </div>
+
+                <div
+                  className="flex flex-col items-center p-4 rounded-2xl bg-gradient-to-b from-cyan-50 to-blue-100 border border-cyan-200 cursor-pointer hover:scale-105 transition-all duration-200"
+                  onClick={() => handleSocialShare('telegram')}
+                >
+                  <div className="w-14 h-14 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center mb-2 shadow-lg">
+                    <span className="text-2xl">✈️</span>
+                  </div>
+                  <span className="text-sm font-medium text-cyan-700">Telegram</span>
+                </div>
+
+                <div
+                  className="flex flex-col items-center p-4 rounded-2xl bg-gradient-to-b from-red-50 to-red-100 border border-red-200 cursor-pointer hover:scale-105 transition-all duration-200"
+                  onClick={() => handleSocialShare('tiktok')}
+                >
+                  <div className="w-14 h-14 bg-gradient-to-r from-black via-red-500 to-cyan-400 rounded-2xl flex items-center justify-center mb-2 shadow-lg">
+                    <span className="text-2xl">🎵</span>
+                  </div>
+                  <span className="text-sm font-medium text-red-700">TikTok</span>
+                </div>
+              </div>
+
+              {/* More Options */}
+              <div className="pt-4 border-t border-gray-100">
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    variant="outline"
+                    className="flex items-center gap-2 h-11 rounded-xl hover:bg-gray-50"
+                    onClick={() => handleSocialShare('line')}
+                  >
+                    <div className="w-6 h-6 bg-green-500 rounded-lg flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">L</span>
+                    </div>
+                    <span className="font-medium">LINE</span>
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    className="flex items-center gap-2 h-11 rounded-xl hover:bg-gray-50"
+                    onClick={() => handleSocialShare('email')}
+                  >
+                    <div className="w-6 h-6 bg-gray-500 rounded-lg flex items-center justify-center">
+                      <Mail className="w-4 h-4 text-white" />
+                    </div>
+                    <span className="font-medium">Email</span>
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    className="flex items-center gap-2 h-11 rounded-xl hover:bg-gray-50 col-span-2"
+                    onClick={() => handleSocialShare('more')}
+                  >
+                    <div className="w-6 h-6 bg-gradient-to-r from-purple-400 to-pink-400 rounded-lg flex items-center justify-center">
+                      <span className="text-white text-sm">⋯</span>
+                    </div>
+                    <span className="font-medium">More options</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Fun Call to Action */}
+              <div className="text-center pt-2">
+                <p className="text-xs text-gray-400">
+                  Spread the love! 💕 Your friends will thank you later
+                </p>
               </div>
             </div>
           )}

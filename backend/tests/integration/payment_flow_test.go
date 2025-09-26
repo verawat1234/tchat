@@ -547,7 +547,8 @@ func (suite *PaymentFlowTestSuite) TestCompletePaymentFlow() {
 	assert.Equal(suite.T(), http.StatusCreated, w.Code)
 
 	json.Unmarshal(w.Body.Bytes(), &topupResponse)
-	assert.Equal(suite.T(), 2.9, topupResponse["processing_fee"]) // 2.9% of 100
+	// Use approximate comparison for floating point arithmetic
+	assert.InDelta(suite.T(), 2.9, topupResponse["processing_fee"], 0.0001) // 2.9% of 100 with tolerance
 
 	// Step 6: Verify Balances
 	suite.T().Log("Step 6: Verifying wallet balances")
@@ -691,7 +692,7 @@ func (suite *PaymentFlowTestSuite) TestCompletePaymentFlow() {
 }
 
 func (suite *PaymentFlowTestSuite) TestPaymentErrorHandling() {
-	userID := "user_123"
+	userID := "user_no_kyc" // Different user to test KYC validation
 
 	// Test wallet creation without KYC
 	suite.T().Log("Testing wallet creation without KYC")

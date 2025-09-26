@@ -229,10 +229,10 @@ func (s *ScyllaDB) RunMigrations(migrationQueries []string) error {
 	return nil
 }
 
-// GetMetrics returns session metrics
-func (s *ScyllaDB) GetMetrics() gocql.Metrics {
-	return s.Session.Metrics()
-}
+// GetMetrics returns session metrics (disabled - gocql.Metrics not available)
+// func (s *ScyllaDB) GetMetrics() gocql.Metrics {
+//	return s.Session.Metrics()
+// }
 
 // parseConsistency converts string to gocql.Consistency
 func parseConsistency(consistency string) (gocql.Consistency, error) {

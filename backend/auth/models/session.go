@@ -2,14 +2,48 @@ package models
 
 import (
 	"crypto/rand"
+	"database/sql/driver"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
+
+// JSON is a custom type for handling JSON data in GORM
+type JSON map[string]interface{}
+
+// Value implements driver.Valuer interface for GORM
+func (j JSON) Value() (driver.Value, error) {
+	if j == nil {
+		return nil, nil
+	}
+	return json.Marshal(j)
+}
+
+// Scan implements sql.Scanner interface for GORM
+func (j *JSON) Scan(value interface{}) error {
+	if value == nil {
+		*j = nil
+		return nil
+	}
+
+	var data []byte
+	switch v := value.(type) {
+	case []byte:
+		data = v
+	case string:
+		data = []byte(v)
+	default:
+		return fmt.Errorf("cannot scan %T into JSON", value)
+	}
+
+	return json.Unmarshal(data, j)
+}
 
 // Session represents a user authentication session
 type Session struct {
@@ -23,8 +57,8 @@ type Session struct {
 	IsActive         bool                   `json:"is_active" db:"is_active"`
 	IPAddress        string                 `json:"ip_address" db:"ip_address"`
 	UserAgent        string                 `json:"user_agent" db:"user_agent"`
-	DeviceInfo       map[string]interface{} `json:"device_info" db:"device_info"`
-	Metadata         map[string]interface{} `json:"metadata" db:"metadata"`
+	DeviceInfo       JSON `json:"device_info" gorm:"type:jsonb"`
+	Metadata         JSON `json:"metadata" gorm:"type:jsonb"`
 	CreatedAt        time.Time              `json:"created_at" db:"created_at"`
 	UpdatedAt        time.Time              `json:"updated_at" db:"updated_at"`
 	LastActiveAt     time.Time              `json:"last_active_at" db:"last_active_at"`
@@ -149,7 +183,7 @@ func (s *Session) validateIPAddress(ip string) error {
 }
 
 // BeforeCreate sets up the session before database creation
-func (s *Session) BeforeCreate() error {
+func (s *Session) BeforeCreate(tx *gorm.DB) error {
 	// Generate UUID if not set
 	if s.ID == uuid.Nil {
 		s.ID = uuid.New()
@@ -195,7 +229,7 @@ func (s *Session) BeforeCreate() error {
 }
 
 // BeforeUpdate sets up the session before database update
-func (s *Session) BeforeUpdate() error {
+func (s *Session) BeforeUpdate(tx *gorm.DB) error {
 	// Update last used timestamp
 	s.LastUsed = time.Now().UTC()
 
@@ -392,11 +426,19 @@ type SessionCreateRequest struct {
 
 // ToSession converts a create request to a Session model
 func (req *SessionCreateRequest) ToSession() *Session {
+	var ipAddress, userAgent string
+	if req.IPAddress != nil {
+		ipAddress = *req.IPAddress
+	}
+	if req.UserAgent != nil {
+		userAgent = *req.UserAgent
+	}
+
 	return &Session{
 		UserID:    req.UserID,
 		DeviceID:  req.DeviceID,
-		IPAddress: req.IPAddress,
-		UserAgent: req.UserAgent,
+		IPAddress: ipAddress,
+		UserAgent: userAgent,
 	}
 }
 
@@ -414,7 +456,7 @@ func NewSessionManager() *SessionManager {
 func (sm *SessionManager) CreateSession(req *SessionCreateRequest) (*Session, error) {
 	session := req.ToSession()
 
-	if err := session.BeforeCreate(); err != nil {
+	if err := session.BeforeCreate(nil); err != nil {
 		return nil, fmt.Errorf("session creation failed: %v", err)
 	}
 

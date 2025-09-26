@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"tchat.dev/auth/models"
+	sharedModels "tchat.dev/shared/models"
 	"tchat.dev/shared/config"
 )
 
@@ -63,7 +64,7 @@ type TokenPair struct {
 }
 
 // GenerateTokenPair creates both access and refresh tokens for a user
-func (js *JWTService) GenerateTokenPair(ctx context.Context, user *models.User, sessionID uuid.UUID, deviceID string) (*TokenPair, error) {
+func (js *JWTService) GenerateTokenPair(ctx context.Context, user *sharedModels.User, sessionID uuid.UUID, deviceID string) (*TokenPair, error) {
 	if user == nil {
 		return nil, errors.New("user cannot be nil")
 	}
@@ -100,11 +101,11 @@ func (js *JWTService) GenerateTokenPair(ctx context.Context, user *models.User, 
 }
 
 // generateAccessToken creates a new access token
-func (js *JWTService) generateAccessToken(user *models.User, sessionID uuid.UUID, deviceID string, issuedAt, expiresAt time.Time) (string, error) {
+func (js *JWTService) generateAccessToken(user *sharedModels.User, sessionID uuid.UUID, deviceID string, issuedAt, expiresAt time.Time) (string, error) {
 	claims := &UserClaims{
 		UserID:      user.ID,
 		PhoneNumber: getPhoneNumber(user),
-		CountryCode: string(user.Country),
+		CountryCode: user.CountryCode,
 		KYCStatus:   getKYCStatus(user),
 		KYCLevel:    int(user.KYCTier),
 		SessionID:   sessionID,
@@ -127,7 +128,7 @@ func (js *JWTService) generateAccessToken(user *models.User, sessionID uuid.UUID
 }
 
 // generateRefreshToken creates a new refresh token
-func (js *JWTService) generateRefreshToken(user *models.User, sessionID uuid.UUID, deviceID string, issuedAt, expiresAt time.Time) (string, error) {
+func (js *JWTService) generateRefreshToken(user *sharedModels.User, sessionID uuid.UUID, deviceID string, issuedAt, expiresAt time.Time) (string, error) {
 	claims := &UserClaims{
 		UserID:    user.ID,
 		SessionID: sessionID,
@@ -216,7 +217,7 @@ func (js *JWTService) ValidateRefreshToken(ctx context.Context, tokenString stri
 }
 
 // RefreshAccessToken generates a new access token from a valid refresh token
-func (js *JWTService) RefreshAccessToken(ctx context.Context, refreshTokenString string, user *models.User) (*TokenPair, error) {
+func (js *JWTService) RefreshAccessToken(ctx context.Context, refreshTokenString string, user *sharedModels.User) (*TokenPair, error) {
 	// Validate refresh token
 	refreshClaims, err := js.ValidateRefreshToken(ctx, refreshTokenString)
 	if err != nil {
@@ -314,11 +315,11 @@ func (js *JWTService) validateClaims(claims *UserClaims) error {
 }
 
 // getUserPermissions returns permissions based on user's KYC tier and status
-func (js *JWTService) getUserPermissions(user *models.User) []string {
+func (js *JWTService) getUserPermissions(user *sharedModels.User) []string {
 	permissions := []string{"profile:read", "profile:update"}
 
 	// Add permissions based on KYC tier
-	switch user.KYCTier {
+	switch int(user.KYCTier) {
 	case models.KYCTier1:
 		permissions = append(permissions, "wallet:read", "payment:send:basic")
 	case models.KYCTier2:
@@ -334,12 +335,12 @@ func (js *JWTService) getUserPermissions(user *models.User) []string {
 	}
 
 	// Add verification-based permissions
-	if user.IsVerified {
+	if user.PhoneVerified || user.EmailVerified {
 		permissions = append(permissions, "verified:user")
 	}
 
 	// Add country-specific permissions
-	switch user.Country {
+	switch models.Country(user.CountryCode) {
 	case models.CountryThailand, models.CountrySingapore:
 		permissions = append(permissions, "region:sea:premium")
 	default:
@@ -350,16 +351,13 @@ func (js *JWTService) getUserPermissions(user *models.User) []string {
 }
 
 // getPhoneNumber safely extracts phone number from user
-func getPhoneNumber(user *models.User) string {
-	if user.Phone != nil {
-		return *user.Phone
-	}
-	return ""
+func getPhoneNumber(user *sharedModels.User) string {
+	return user.PhoneNumber
 }
 
 // getKYCStatus returns KYC verification status
-func getKYCStatus(user *models.User) string {
-	if user.IsVerified {
+func getKYCStatus(user *sharedModels.User) string {
+	if user.PhoneVerified || user.EmailVerified {
 		return "verified"
 	}
 	return "pending"

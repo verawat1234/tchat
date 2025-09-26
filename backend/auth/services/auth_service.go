@@ -125,7 +125,7 @@ func (as *AuthService) SendOTP(ctx context.Context, req *SendOTPRequest) (*SendO
 	}
 
 	// Check if user exists for login type
-	var user *models.User
+	var user *sharedModels.User
 	if req.Type == OTPTypeLogin {
 		user, err = as.userService.GetUserByPhoneNumber(ctx, req.PhoneNumber)
 		if err != nil {
@@ -133,7 +133,7 @@ func (as *AuthService) SendOTP(ctx context.Context, req *SendOTPRequest) (*SendO
 			return nil, fmt.Errorf("user not found")
 		}
 
-		if user.Status != models.UserStatusActive {
+		if user.Status != string(sharedModels.UserStatusActive) {
 			as.securityLogger.LogLoginAttempt(ctx, req.PhoneNumber, req.UserAgent, req.IPAddress, false, "user_inactive")
 			return nil, fmt.Errorf("user account is not active")
 		}
@@ -263,7 +263,7 @@ func (as *AuthService) VerifyOTP(ctx context.Context, req *VerifyOTPRequest) (*V
 		return nil, fmt.Errorf("failed to update OTP status: %w", err)
 	}
 
-	var user *models.User
+	var user *sharedModels.User
 	var session *models.Session
 
 	// Handle different OTP types
@@ -326,7 +326,18 @@ func (as *AuthService) VerifyOTP(ctx context.Context, req *VerifyOTPRequest) (*V
 	}
 
 	if user != nil {
-		response.User = user.ToResponse()
+		response.User = &UserResponse{
+			ID:          user.ID,
+			PhoneNumber: user.PhoneNumber,
+			Email:       "", // Email not in shared model
+			Username:    user.DisplayName,
+			FirstName:   user.DisplayName,
+			LastName:    "",
+			Country:     user.CountryCode,
+			Language:    user.Locale,
+			TimeZone:    user.Timezone,
+			Status:      string(user.Status),
+		}
 	}
 
 	if session != nil {
@@ -394,7 +405,18 @@ func (as *AuthService) RefreshToken(ctx context.Context, req *RefreshTokenReques
 		AccessToken:  newSession.AccessToken,
 		RefreshToken: newSession.RefreshToken,
 		ExpiresAt:    newSession.ExpiresAt,
-		User:         user.ToResponse(),
+		User: &UserResponse{
+			ID:          user.ID,
+			PhoneNumber: user.PhoneNumber,
+			Email:       "", // Email not in shared model
+			Username:    user.DisplayName,
+			FirstName:   user.DisplayName,
+			LastName:    "",
+			Country:     user.CountryCode,
+			Language:    user.Locale,
+			TimeZone:    user.Timezone,
+			Status:      string(user.Status),
+		},
 	}, nil
 }
 
@@ -425,7 +447,7 @@ func (as *AuthService) Logout(ctx context.Context, sessionID uuid.UUID) error {
 	return nil
 }
 
-func (as *AuthService) ValidateSession(ctx context.Context, accessToken string) (*models.User, *models.Session, error) {
+func (as *AuthService) ValidateSession(ctx context.Context, accessToken string) (*sharedModels.User, *models.Session, error) {
 	if accessToken == "" {
 		return nil, nil, fmt.Errorf("access token is required")
 	}
@@ -456,7 +478,7 @@ func (as *AuthService) ValidateSession(ctx context.Context, accessToken string) 
 	}
 
 	// Check if user is still active
-	if user.Status != models.UserStatusActive {
+	if user.Status != string(sharedModels.UserStatusActive) {
 		// Terminate session if user is not active
 		if err := as.sessionService.TerminateSession(ctx, session.ID, "user_inactive"); err != nil {
 			fmt.Printf("Failed to terminate session for inactive user: %v\n", err)
@@ -665,20 +687,7 @@ type SessionResponse struct {
 	ExpiresAt    time.Time `json:"expires_at"`
 }
 
-// UserResponse alias for consistent naming
-type UserResponse = models.UserResponse
-
-// Missing interfaces that need to be implemented elsewhere
-type EventPublisher interface {
-	Publish(ctx context.Context, event *sharedModels.Event) error
-}
-
-type CreateSessionRequest struct {
-	UserID     uuid.UUID              `json:"user_id"`
-	UserAgent  string                 `json:"user_agent"`
-	IPAddress  string                 `json:"ip_address"`
-	DeviceInfo map[string]interface{} `json:"device_info"`
-}
+// Note: UserResponse, EventPublisher, and CreateSessionRequest are defined in their respective service files
 
 // Additional methods needed by OTP handler
 
@@ -899,22 +908,23 @@ func (as *AuthService) ValidatePhoneNumber(ctx context.Context, phoneNumber, cou
 	}
 
 	// Basic phone number validation using models helper
-	isValid := models.IsValidPhoneNumber(phoneNumber, countryCode)
+	country := models.Country(countryCode)
+	isValid := models.IsValidPhoneNumber(phoneNumber, country)
 
 	// Calculate risk score based on patterns
 	riskScore := as.calculatePhoneRiskScore(phoneNumber, countryCode)
 
 	response := &PhoneValidationResponse{
 		Valid:                  isValid,
-		NormalizedNumber:       models.NormalizePhoneNumber(phoneNumber),
+		NormalizedNumber:       models.NormalizePhoneNumber(phoneNumber, country),
 		CountryCode:            countryCode,
 		CountryName:            countryName,
 		Carrier:                "Unknown", // Would integrate with carrier lookup service
 		LineType:               "mobile",  // Assume mobile for now
 		SupportsSMS:            isValid,
 		RiskScore:              riskScore,
-		FormattedLocal:         models.FormatPhoneNumberLocal(phoneNumber, countryCode),
-		FormattedInternational: models.FormatPhoneNumberInternational(phoneNumber),
+		FormattedLocal:         models.FormatPhoneNumberLocal(phoneNumber, country),
+		FormattedInternational: models.FormatPhoneNumberInternational(phoneNumber, country),
 		ValidationMessages:     []string{},
 	}
 

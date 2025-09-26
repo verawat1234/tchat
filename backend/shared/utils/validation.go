@@ -681,3 +681,71 @@ func ValidateProductInput(name, description string, price int64, inventory int) 
 		Errors:  v.GetErrors(),
 	}
 }
+
+// Southeast Asian specific validation functions
+
+// IsValidPhoneNumber validates phone number format for Southeast Asian countries
+func IsValidPhoneNumber(phoneNumber, countryCode string) bool {
+	// Remove any non-digit characters for validation
+	phoneDigits := regexp.MustCompile(`\D`).ReplaceAllString(phoneNumber, "")
+
+	// Country-specific phone number validation
+	switch countryCode {
+	case "TH": // Thailand: 8-9 digits starting with 6-9
+		return regexp.MustCompile(`^[6-9]\d{7,8}$`).MatchString(phoneDigits)
+	case "SG": // Singapore: 8 digits starting with 6, 8, or 9
+		return regexp.MustCompile(`^[689]\d{7}$`).MatchString(phoneDigits)
+	case "ID": // Indonesia: 8-12 digits starting with 8
+		return regexp.MustCompile(`^8\d{7,11}$`).MatchString(phoneDigits)
+	case "MY": // Malaysia: 9-10 digits starting with 1
+		return regexp.MustCompile(`^1\d{8,9}$`).MatchString(phoneDigits)
+	case "PH": // Philippines: 10 digits starting with 9
+		return regexp.MustCompile(`^9\d{9}$`).MatchString(phoneDigits)
+	case "VN": // Vietnam: 9-10 digits starting with 9
+		return regexp.MustCompile(`^9\d{8,9}$`).MatchString(phoneDigits)
+	default:
+		return false
+	}
+}
+
+// IsValidSEACountryCode validates if a country code is supported in Southeast Asia
+func IsValidSEACountryCode(countryCode string) bool {
+	supportedCountries := map[string]bool{
+		"TH": true, // Thailand
+		"SG": true, // Singapore
+		"ID": true, // Indonesia
+		"MY": true, // Malaysia
+		"PH": true, // Philippines
+		"VN": true, // Vietnam
+	}
+	return supportedCountries[countryCode]
+}
+
+// IsValidEmailAddress validates email format (alternate name for consistency)
+func IsValidEmailAddress(email string) bool {
+	return IsValidEmail(email)
+}
+
+// IsValidUsername validates username format
+func IsValidUsername(username string) bool {
+	if len(username) < 3 || len(username) > 30 {
+		return false
+	}
+
+	// Username should start with letter or number, can contain letters, numbers, underscores, and hyphens
+	for i, r := range username {
+		if i == 0 {
+			// First character must be letter or number
+			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
+				return false
+			}
+		} else {
+			// Other characters can be letters, numbers, underscores, or hyphens
+			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-') {
+				return false
+			}
+		}
+	}
+
+	return true
+}

@@ -1,0 +1,32 @@
+{
+  "score": 90,
+  "issues": [
+    {
+      "type": "authentication",
+      "severity": "major",
+      "description": "Authorization header pattern inconsistency",
+      "web_value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+      "mobile_value": "Bearer mobile-token",
+      "path": "$.headers.Authorization"
+    },
+    {
+      "type": "error_handling",
+      "severity": "minor",
+      "description": "Different status codes for create operations",
+      "web_value": "200",
+      "mobile_value": "201",
+      "path": "$.response.status"
+    }
+  ],
+  "summary": {
+    "total_interactions": 6,
+    "compatible_endpoints": 4,
+    "critical_issues": 0,
+    "major_issues": 1,
+    "minor_issues": 1
+  },
+  "recommendations": [
+    "Review and resolve major compatibility issues to improve cross-platform consistency"
+  ],
+  "timestamp": "2025-09-24T22:29:00.913907+07:00"
+}

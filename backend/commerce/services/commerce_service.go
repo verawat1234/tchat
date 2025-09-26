@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"tchat.dev/commerce/models"
+	sharedModels "tchat.dev/shared/models"
 )
 
 // CommerceService provides e-commerce functionality

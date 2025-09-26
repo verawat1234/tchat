@@ -1,0 +1,83 @@
+# Tchat Backend Test Configuration
+# T007: Configure Test Infrastructure - Test discovery and execution settings
+
+# Coverage Configuration
+COVERAGE_THRESHOLD=80
+COVERAGE_MODE=atomic
+COVERAGE_TIMEOUT=10m
+
+# Test Discovery Patterns
+UNIT_TEST_PATTERN=.*_test\.go$
+INTEGRATION_TEST_PATTERN=.*integration.*_test\.go$
+CONTRACT_TEST_PATTERN=.*contract.*_test\.go$
+PERFORMANCE_TEST_PATTERN=.*performance.*_test\.go$
+SECURITY_TEST_PATTERN=.*security.*_test\.go$
+
+# Test Execution Settings
+TEST_TIMEOUT=10m
+RACE_DETECTION=true
+PARALLEL_TESTS=true
+MAX_PARALLEL=4
+
+# Coverage Exclusions
+COVERAGE_EXCLUDE_PATTERNS=(
+    "vendor/*"
+    "*.pb.go"
+    "*_mock.go"
+    "*_gen.go"
+    "tests/testutil/*"
+    "migrations/*"
+    "docs/*"
+    "scripts/*"
+)
+
+# Test Tags
+UNIT_TAGS=unit
+INTEGRATION_TAGS=integration
+CONTRACT_TAGS=contract
+PERFORMANCE_TAGS=performance
+SECURITY_TAGS=security
+E2E_TAGS=e2e
+
+# Quality Gates
+MIN_UNIT_COVERAGE=85
+MIN_INTEGRATION_COVERAGE=70
+MIN_CONTRACT_COVERAGE=95
+MIN_SECURITY_COVERAGE=90
+
+# Reporting Configuration
+REPORT_FORMAT=json,html,text
+COVERAGE_REPORT_DIR=build/coverage
+TEST_REPORT_DIR=build/reports
+ARTIFACT_RETENTION_DAYS=30
+
+# CI/CD Integration
+FAIL_ON_COVERAGE_BELOW_THRESHOLD=true
+GENERATE_BADGES=true
+UPLOAD_COVERAGE_TO_CODECOV=false
+SLACK_NOTIFICATIONS=false
+
+# Performance Thresholds
+MAX_TEST_EXECUTION_TIME=5m
+MAX_MEMORY_USAGE_MB=512
+PERFORMANCE_BASELINE_FILE=tests/performance/baseline.json
+
+# Database Test Configuration
+TEST_DB_DRIVER=postgres
+TEST_DB_HOST=localhost
+TEST_DB_PORT=5432
+TEST_DB_NAME=tchat_test
+TEST_DB_USER=tchat_test
+TEST_DB_PASSWORD=test_password
+USE_TESTCONTAINERS=true
+
+# Cache Configuration
+CACHE_TEST_RESULTS=true
+CACHE_DURATION_HOURS=24
+CACHE_DIR=.test-cache
+
+# Debugging
+VERBOSE_OUTPUT=false
+DEBUG_MODE=false
+KEEP_TEST_ARTIFACTS=false
+LOG_LEVEL=info

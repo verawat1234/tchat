@@ -271,7 +271,8 @@ func (e *Event) CalculateNextRetry() time.Time {
 	}
 
 	// Add jitter (±25%)
-	jitter := time.Duration(float64(backoffDuration) * 0.25 * (2*time.Now().UnixNano()%2 - 1) / 1e9)
+	jitterFactor := 0.25 * (2*float64(time.Now().UnixNano()%2) - 1)
+	jitter := time.Duration(float64(backoffDuration) * jitterFactor)
 	return time.Now().Add(backoffDuration + jitter)
 }
 

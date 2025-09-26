@@ -264,7 +264,7 @@ func (n *Notification) BeforeCreate(tx *gorm.DB) error {
 	if n.Content.Language == "" {
 		var recipient User
 		if err := tx.First(&recipient, n.RecipientID).Error; err == nil {
-			n.Content.Language = recipient.Profile.Locale
+			n.Content.Language = recipient.Locale
 		} else {
 			n.Content.Language = "en" // Default language
 		}
