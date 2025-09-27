@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,87 +44,22 @@ import com.tchat.mobile.designsystem.TchatSpacing
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.tchat.mobile.utils.PlatformUtils
-
-// Enhanced data models matching web UI
-data class UserItem(
-    val id: String,
-    val name: String,
-    val username: String = "",
-    val avatar: String = "",
-    val isVerified: Boolean = false,
-    val isOnline: Boolean = false,
-    val lastSeen: String = "",
-    val mutualFriends: Int = 0,
-    val status: String = ""
-)
-
-data class PostItem(
-    val id: String,
-    val author: UserItem,
-    val content: String,
-    val timestamp: String,
-    val likes: Int,
-    val comments: Int,
-    val shares: Int,
-    val imageUrl: String? = null,
-    val location: String? = null,
-    val tags: List<String> = emptyList(),
-    val type: PostType = PostType.TEXT,
-    val source: PostSource = PostSource.FOLLOWING,
-    val isLiked: Boolean = false
-)
-
-data class CommentItem(
-    val id: String,
-    val user: UserItem,
-    val text: String,
-    val timestamp: String,
-    val likes: Int,
-    val isLiked: Boolean
-)
-
-data class StoryItem(
-    val id: String,
-    val author: UserItem,
-    val preview: String = "",
-    val content: String = "",
-    val timestamp: String = "",
-    val isViewed: Boolean = false,
-    val isLive: Boolean = false,
-    val expiresAt: String = ""
-)
-
-data class FriendItem(
-    val id: String,
-    val name: String,
-    val username: String,
-    val avatar: String,
-    val isOnline: Boolean,
-    val isFollowing: Boolean,
-    val mutualFriends: Int,
-    val status: String
-)
-
-data class EventItem(
-    val id: String,
-    val title: String,
-    val description: String,
-    val date: String,
-    val location: String,
-    val price: String,
-    val imageUrl: String,
-    val attendeesCount: Int,
-    val category: String,
-    val isAttending: Boolean = false
-)
-
-enum class PostType { TEXT, IMAGE, LIVE, PRODUCT }
-enum class PostSource { FOLLOWING, TRENDING, INTEREST, SPONSORED }
+import com.tchat.mobile.models.Post
+import com.tchat.mobile.models.PostType as UnifiedPostType
+import com.tchat.mobile.repositories.MockPostRepository
+import com.tchat.mobile.components.posts.PostRenderer
+import com.tchat.mobile.services.NavigationService
+import com.tchat.mobile.services.NavigationAction
+import com.tchat.mobile.services.SharingService
+import com.tchat.mobile.services.SharingPlatform
+import com.tchat.mobile.services.ShareResult
+import com.tchat.mobile.models.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SocialScreen(
     onUserClick: (userId: String) -> Unit = {},
+    onMoreClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Tab and UI state
@@ -154,11 +90,20 @@ fun SocialScreen(
     var showCreateStory by remember { mutableStateOf(false) }
     var storyText by remember { mutableStateOf("") }
 
-    val tabs = listOf("Friends", "Feed", "Discover", "Events")
-    val posts = remember { getDummyPosts() }
-    val stories = remember { getDummyStories() }
-    val friends = remember { getDummyFriends() }
-    val events = remember { getDummyEvents() }
+    val tabs = listOf("Friends", "Feed", "All Posts", "Discover", "Events")
+    // Use the unified post repository with all 42 post types
+    val postRepository = remember { MockPostRepository() }
+    var allPosts by remember { mutableStateOf<List<Post>>(emptyList()) }
+
+    // Load posts from repository
+    LaunchedEffect(Unit) {
+        postRepository.getPosts().onSuccess { posts ->
+            allPosts = posts
+        }
+    }
+    val stories = remember { SocialMockData.getDummyStories() }
+    val friends = remember { SocialMockData.getDummyFriends() }
+    val events = remember { SocialMockData.getDummyEvents() }
 
     val keyboardController = LocalSoftwareKeyboardController.current
     val scope = rememberCoroutineScope()
@@ -262,8 +207,8 @@ fun SocialScreen(
         }
     }
 
-    // Combine user posts with feed posts
-    val allPosts = userPosts + posts
+    // Combine user posts with feed posts (legacy - to be removed)
+    // val combinedPosts = userPosts + posts
 
     Column(
         modifier = modifier
@@ -283,6 +228,14 @@ fun SocialScreen(
                 }
                 IconButton(onClick = { showCreatePost = true }) {
                     Icon(Icons.Filled.Add, "New Post")
+                }
+                // Add Settings button to existing top bar
+                IconButton(onClick = onMoreClick) {
+                    Icon(
+                        Icons.Default.Settings,
+                        "Settings",
+                        tint = TchatColors.onSurface
+                    )
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
@@ -390,7 +343,9 @@ fun SocialScreen(
                                     0 -> Icons.Default.People
                                     1 -> Icons.Default.Star
                                     2 -> Icons.Default.Explore
-                                    3 -> Icons.Default.Event
+                                    3 -> Icons.Default.PlayArrow
+                                    4 -> Icons.Default.Explore
+                                    5 -> Icons.Default.Event
                                     else -> Icons.Default.Home
                                 },
                                 contentDescription = title,
@@ -404,7 +359,7 @@ fun SocialScreen(
             // Tab content based on selectedTabIndex
             when (selectedTabIndex) {
                 0 -> FriendsTab(
-                    posts = allPosts.filter { followingUsers.contains(it.author.id) || userPosts.contains(it) },
+                    posts = allPosts.take(10), // Show first 10 unified posts
                     friends = friends,
                     likedPosts = likedPosts,
                     bookmarkedPosts = bookmarkedPosts,
@@ -422,7 +377,28 @@ fun SocialScreen(
                     onAddComment = handleAddComment
                 )
                 1 -> FeedTab(
+                    posts = allPosts, // All 42 post types
+                    likedPosts = likedPosts,
+                    bookmarkedPosts = bookmarkedPosts,
+                    followingUsers = followingUsers,
+                    commentsOpen = commentsOpen,
+                    newComment = newComment,
+                    postComments = postComments,
+                    onLike = handleLike,
+                    onBookmark = handleBookmark,
+                    onFollow = handleFollow,
+                    onComment = handleComment,
+                    onShare = onShare,
+                    onHashtagClick = handleHashtagClick,
+                    onCommentTextChange = { newComment = it },
+                    onAddComment = handleAddComment
+                )
+                2 -> UnifiedPostsTab(
                     posts = allPosts,
+                    modifier = Modifier.fillMaxSize()
+                )
+                3 -> DiscoverTab(
+                    posts = allPosts.filter { it.user.displayName?.contains("Explorer", ignoreCase = true) == true || it.user.displayName?.contains("Cultural", ignoreCase = true) == true },
                     likedPosts = likedPosts,
                     bookmarkedPosts = bookmarkedPosts,
                     followingUsers = followingUsers,
@@ -438,26 +414,9 @@ fun SocialScreen(
                     onCommentTextChange = { newComment = it },
                     onAddComment = handleAddComment
                 )
-                2 -> DiscoverTab(
-                    posts = posts.filter { it.author.name.contains("Explorer") || it.author.name.contains("Cultural") },
-                    likedPosts = likedPosts,
-                    bookmarkedPosts = bookmarkedPosts,
-                    followingUsers = followingUsers,
-                    commentsOpen = commentsOpen,
-                    newComment = newComment,
-                    postComments = postComments,
-                    onLike = handleLike,
-                    onBookmark = handleBookmark,
-                    onFollow = handleFollow,
-                    onComment = handleComment,
-                    onShare = onShare,
-                    onHashtagClick = handleHashtagClick,
-                    onCommentTextChange = { newComment = it },
-                    onAddComment = handleAddComment
-                )
-                3 -> EventsTab(
+                4 -> EventsTab(
                     events = events,
-                    posts = posts.filter { it.content.contains("event") },
+                    posts = allPosts.filter { it.content.text?.contains("event") == true },
                     likedPosts = likedPosts,
                     bookmarkedPosts = bookmarkedPosts,
                     followingUsers = followingUsers,
@@ -822,11 +781,151 @@ private fun CreateStoryDialog(
     }
 }
 
+// Unified Posts Tab - Shows all 42 post types using PostRenderer
+@Composable
+private fun UnifiedPostsTab(
+    posts: List<Post>,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(TchatSpacing.md),
+        contentPadding = PaddingValues(TchatSpacing.md)
+    ) {
+        if (posts.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(TchatSpacing.xl),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(TchatSpacing.sm)
+                    ) {
+                        CircularProgressIndicator(
+                            color = TchatColors.primary
+                        )
+                        Text(
+                            text = "Loading all post types...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TchatColors.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        } else {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = TchatColors.surface)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(TchatSpacing.md)
+                    ) {
+                        Text(
+                            text = "🎉 All 42 Post Types",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = TchatColors.onSurface
+                        )
+                        Text(
+                            text = "Showing ${posts.size} posts with unified PostRenderer",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TchatColors.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            items(posts) { post ->
+                val mockServices = remember {
+                    object {
+                        val navigationService = object : NavigationService {
+                            override suspend fun navigateTo(action: NavigationAction) {
+                                println("Mock navigation to ${action.destination}")
+                            }
+                            override suspend fun navigateBack() {
+                                println("Mock navigate back")
+                            }
+                            override suspend fun navigateToComments(postId: String) {
+                                println("Mock navigate to comments for post: $postId")
+                            }
+                            override suspend fun navigateToHashtagFeed(hashtag: String) {
+                                println("Mock navigate to hashtag: $hashtag")
+                            }
+                            override suspend fun navigateToUserProfile(userId: String) {
+                                println("Mock navigate to user profile: $userId")
+                            }
+                            override suspend fun navigateToProductDetail(productId: String) {
+                                println("Mock navigate to product: $productId")
+                            }
+                            override suspend fun navigateToShopDetail(shopId: String) {
+                                println("Mock navigate to shop: $shopId")
+                            }
+                            override suspend fun navigateToImageViewer(imageUrl: String, postId: String?) {
+                                println("Mock navigate to image viewer: $imageUrl")
+                            }
+                            override suspend fun navigateToVideoPlayer(videoUrl: String, postId: String?) {
+                                println("Mock navigate to video player: $videoUrl")
+                            }
+                            override suspend fun openHashtagSearch(initialQuery: String?) {
+                                println("Mock open hashtag search: $initialQuery")
+                            }
+                            override suspend fun openShareSheet(postId: String) {
+                                println("Mock open share sheet for post: $postId")
+                            }
+                            override suspend fun handleDeepLink(url: String): Boolean {
+                                println("Mock handle deep link: $url")
+                                return true
+                            }
+                        }
+                        val sharingService = object : SharingService {
+                            override suspend fun sharePost(post: Post, platform: SharingPlatform): ShareResult {
+                                return ShareResult(true, platform.displayName, "Mock shared to ${platform.displayName}")
+                            }
+                            override suspend fun shareText(text: String, platform: SharingPlatform): ShareResult {
+                                return ShareResult(true, platform.displayName, "Mock shared text to ${platform.displayName}")
+                            }
+                            override suspend fun shareImage(imageUrl: String, caption: String?, platform: SharingPlatform): ShareResult {
+                                return ShareResult(true, platform.displayName, "Mock shared image to ${platform.displayName}")
+                            }
+                            override suspend fun shareVideo(videoUrl: String, caption: String?, platform: SharingPlatform): ShareResult {
+                                return ShareResult(true, platform.displayName, "Mock shared video to ${platform.displayName}")
+                            }
+                            override suspend fun getAvailablePlatforms(): List<SharingPlatform> {
+                                return listOf(
+                                    SharingPlatform.WHATSAPP,
+                                    SharingPlatform.TWITTER,
+                                    SharingPlatform.FACEBOOK
+                                )
+                            }
+                            override suspend fun isPlatformAvailable(platform: SharingPlatform): Boolean {
+                                return true
+                            }
+                        }
+                    }
+                }
+
+                PostRenderer(
+                    post = post,
+                    postRepository = remember { MockPostRepository() },
+                    sharingService = mockServices.sharingService,
+                    navigationService = mockServices.navigationService,
+                    onPostClick = { },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
 // Continue with Enhanced Tab Components...
 
 @Composable
 private fun FriendsTab(
-    posts: List<PostItem>,
+    posts: List<Post>,
     friends: List<FriendItem>,
     likedPosts: Set<String>,
     bookmarkedPosts: Set<String>,
@@ -894,22 +993,14 @@ private fun FriendsTab(
 
         // Friends' Posts
         items(posts) { post ->
-            EnhancedPostCard(
+            val mockServices = SocialMockData.rememberMockServices()
+            PostRenderer(
                 post = post,
-                isLiked = likedPosts.contains(post.id),
-                isBookmarked = bookmarkedPosts.contains(post.id),
-                isFollowing = followingUsers.contains(post.author.id),
-                commentsOpen = commentsOpen == post.id,
-                newComment = newComment,
-                comments = postComments[post.id] ?: emptyList(),
-                onLike = { onLike(post.id) },
-                onBookmark = { onBookmark(post.id) },
-                onFollow = { onFollow(post.author.id) },
-                onComment = { onComment(post.id) },
-                onShare = { onShare(post) },
-                onHashtagClick = onHashtagClick,
-                onCommentTextChange = onCommentTextChange,
-                onAddComment = { onAddComment(post.id) }
+                postRepository = MockPostRepository(),
+                sharingService = mockServices.sharingService,
+                navigationService = mockServices.navigationService,
+                onPostClick = { },
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }
@@ -917,7 +1008,7 @@ private fun FriendsTab(
 
 @Composable
 private fun FeedTab(
-    posts: List<PostItem>,
+    posts: List<Post>,
     likedPosts: Set<String>,
     bookmarkedPosts: Set<String>,
     followingUsers: Set<String>,
@@ -979,22 +1070,14 @@ private fun FeedTab(
 
         // All Posts
         items(posts) { post ->
-            EnhancedPostCard(
+            val mockServices = SocialMockData.rememberMockServices()
+            PostRenderer(
                 post = post,
-                isLiked = likedPosts.contains(post.id),
-                isBookmarked = bookmarkedPosts.contains(post.id),
-                isFollowing = followingUsers.contains(post.author.id),
-                commentsOpen = commentsOpen == post.id,
-                newComment = newComment,
-                comments = postComments[post.id] ?: emptyList(),
-                onLike = { onLike(post.id) },
-                onBookmark = { onBookmark(post.id) },
-                onFollow = { onFollow(post.author.id) },
-                onComment = { onComment(post.id) },
-                onShare = { onShare(post) },
-                onHashtagClick = onHashtagClick,
-                onCommentTextChange = onCommentTextChange,
-                onAddComment = { onAddComment(post.id) }
+                postRepository = MockPostRepository(),
+                sharingService = mockServices.sharingService,
+                navigationService = mockServices.navigationService,
+                onPostClick = { },
+                modifier = Modifier.fillMaxWidth()
             )
         }
 
@@ -1007,7 +1090,7 @@ private fun FeedTab(
 
 @Composable
 private fun DiscoverTab(
-    posts: List<PostItem>,
+    posts: List<Post>,
     likedPosts: Set<String>,
     bookmarkedPosts: Set<String>,
     followingUsers: Set<String>,
@@ -1070,26 +1153,14 @@ private fun DiscoverTab(
 
         // Trending Posts
         items(posts) { post ->
-            EnhancedPostCard(
-                post = post.copy(
-                    content = "🔥 TRENDING: ${post.content}"
-                ),
-                isLiked = likedPosts.contains(post.id),
-                isBookmarked = bookmarkedPosts.contains(post.id),
-                isFollowing = followingUsers.contains(post.author.id),
-                commentsOpen = commentsOpen == post.id,
-                newComment = newComment,
-                comments = postComments[post.id] ?: emptyList(),
-                onLike = { onLike(post.id) },
-                onBookmark = { onBookmark(post.id) },
-                onFollow = { onFollow(post.author.id) },
-                onComment = { onComment(post.id) },
-                onShare = { onShare(post) },
-                onHashtagClick = onHashtagClick,
-                onCommentTextChange = onCommentTextChange,
-                onAddComment = { onAddComment(post.id) },
-                showSourceBadge = true,
-                sourceBadge = "Trending"
+            val mockServices = SocialMockData.rememberMockServices()
+            PostRenderer(
+                post = post,
+                postRepository = MockPostRepository(),
+                sharingService = mockServices.sharingService,
+                navigationService = mockServices.navigationService,
+                onPostClick = { },
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }
@@ -1098,7 +1169,7 @@ private fun DiscoverTab(
 @Composable
 private fun EventsTab(
     events: List<EventItem>,
-    posts: List<PostItem>,
+    posts: List<Post>,
     likedPosts: Set<String>,
     bookmarkedPosts: Set<String>,
     followingUsers: Set<String>,
@@ -1197,22 +1268,14 @@ private fun EventsTab(
         }
 
         items(posts) { post ->
-            EnhancedPostCard(
+            val mockServices = SocialMockData.rememberMockServices()
+            PostRenderer(
                 post = post,
-                isLiked = likedPosts.contains(post.id),
-                isBookmarked = bookmarkedPosts.contains(post.id),
-                isFollowing = followingUsers.contains(post.author.id),
-                commentsOpen = commentsOpen == post.id,
-                newComment = newComment,
-                comments = postComments[post.id] ?: emptyList(),
-                onLike = { onLike(post.id) },
-                onBookmark = { onBookmark(post.id) },
-                onFollow = { onFollow(post.author.id) },
-                onComment = { onComment(post.id) },
-                onShare = { onShare(post) },
-                onHashtagClick = onHashtagClick,
-                onCommentTextChange = onCommentTextChange,
-                onAddComment = { onAddComment(post.id) }
+                postRepository = MockPostRepository(),
+                sharingService = mockServices.sharingService,
+                navigationService = mockServices.navigationService,
+                onPostClick = { },
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }
@@ -2025,153 +2088,3 @@ private fun EventCategoriesCard(
         }
     }
 }
-
-// Dummy data functions
-private fun getDummyPosts(): List<PostItem> = listOf(
-    PostItem(
-        "1",
-        UserItem("1", "Thai Food Explorer", "@thai_explorer", isVerified = true),
-        "TRENDING: Secret street food spots only locals know about! 🏮🍜 This hidden gem in Chinatown serves the most authentic Tom Yum I've ever tasted. #HiddenGems #TomYum #Chinatown #StreetFood",
-        "15 min ago",
-        847, 123, 45,
-        imageUrl = "https://example.com/tomyum.jpg",
-        location = "Chinatown, Bangkok",
-        tags = listOf("#HiddenGems", "#TomYum", "#Chinatown", "#StreetFood"),
-        source = PostSource.TRENDING
-    ),
-    PostItem(
-        "2",
-        UserItem("2", "Sarah Johnson", "@sarah_foodie"),
-        "Just tried the most amazing Pad Thai at Chatuchak Market! 🍜✨ The vendor taught me his secret ingredient - tamarind paste mixed with palm sugar. Mind blown! 🤯 #PadThai #StreetFood #Bangkok",
-        "25 min ago",
-        47, 12, 3,
-        imageUrl = "https://example.com/padthai.jpg",
-        location = "Chatuchak Weekend Market, Bangkok",
-        tags = listOf("#PadThai", "#StreetFood", "#Bangkok"),
-        source = PostSource.FOLLOWING,
-        isLiked = true
-    ),
-    PostItem(
-        "3",
-        UserItem("3", "Bangkok Food Tours", "@bkk_tours", isVerified = true),
-        "🔥 SPONSORED: Join our sunset food tour tonight! Explore 5 authentic local restaurants, meet fellow food lovers, and discover Bangkok's culinary secrets. Book now and get 20% off! 🌅🍽️ #FoodTour #Bangkok #Sponsored",
-        "45 min ago",
-        234, 56, 18,
-        imageUrl = "https://example.com/foodtour.jpg",
-        location = "Bangkok",
-        tags = listOf("#FoodTour", "#Bangkok", "#Sponsored"),
-        source = PostSource.SPONSORED
-    ),
-    PostItem(
-        "4",
-        UserItem("4", "Cultural Thailand", "@culture_th", isVerified = true),
-        "Did you know? The tradition of floating markets dates back over 150 years! 🛶 These waterways were the original highways of Thailand, connecting communities through trade and culture. Which floating market is your favorite? #FloatingMarket #Culture #History #Thailand",
-        "1 hour ago",
-        892, 167, 234,
-        imageUrl = "https://example.com/floatingmarket.jpg",
-        location = "Thailand",
-        tags = listOf("#FloatingMarket", "#Culture", "#History", "#Thailand"),
-        source = PostSource.INTEREST
-    ),
-    PostItem(
-        "5",
-        UserItem("5", "Mike Chen", "@mike_travels"),
-        "🔥 Going LIVE from the floating market! Come join me as I explore traditional boats selling fresh fruits and local delicacies. The energy here is incredible! 🛶💫 #FloatingMarket #Thailand #LiveStream",
-        "1 hour ago",
-        89, 23, 8,
-        imageUrl = "https://example.com/live.jpg",
-        location = "Damnoen Saduak Floating Market",
-        tags = listOf("#FloatingMarket", "#Thailand", "#LiveStream"),
-        type = PostType.LIVE,
-        source = PostSource.FOLLOWING
-    )
-)
-
-private fun getDummyStories(): List<StoryItem> = listOf(
-    StoryItem(
-        "0",
-        UserItem("you", "Your Story", "you"),
-        content = "Add to your story",
-        timestamp = "now"
-    ),
-    StoryItem(
-        "1",
-        UserItem("1", "Sarah Johnson", "@sarah_foodie"),
-        preview = "https://example.com/story1.jpg",
-        content = "Amazing Pad Thai at Chatuchak Market! 🍜✨",
-        timestamp = "2h ago",
-        isViewed = false
-    ),
-    StoryItem(
-        "2",
-        UserItem("2", "Mike Chen", "@mike_travels"),
-        preview = "https://example.com/story2.jpg",
-        content = "Live from the floating market! 🛶",
-        timestamp = "5m ago",
-        isViewed = false,
-        isLive = true
-    ),
-    StoryItem(
-        "3",
-        UserItem("3", "Emma Wilson", "@emma_culture"),
-        preview = "https://example.com/story3.jpg",
-        content = "Temple hopping day! 🏛️",
-        timestamp = "1d ago",
-        isViewed = true
-    )
-)
-
-private fun getDummyFriends(): List<FriendItem> = listOf(
-    FriendItem(
-        "1", "Sarah Johnson", "@sarah_foodie", "",
-        isOnline = true, isFollowing = true, mutualFriends = 12,
-        status = "Exploring Bangkok street food! 🍜"
-    ),
-    FriendItem(
-        "2", "Mike Chen", "@mike_travels", "",
-        isOnline = true, isFollowing = true, mutualFriends = 8,
-        status = "Live streaming from floating market!"
-    ),
-    FriendItem(
-        "3", "Emma Wilson", "@emma_culture", "",
-        isOnline = false, isFollowing = true, mutualFriends = 15,
-        status = "Temple hopping in Bangkok"
-    ),
-    FriendItem(
-        "4", "Alex Thai", "@alex_local", "",
-        isOnline = true, isFollowing = true, mutualFriends = 23,
-        status = "Local Bangkok guide 🏛️"
-    ),
-    FriendItem(
-        "5", "Luna Park", "@luna_markets", "",
-        isOnline = false, isFollowing = false, mutualFriends = 7,
-        status = "Market photography enthusiast"
-    )
-)
-
-private fun getDummyEvents(): List<EventItem> = listOf(
-    EventItem(
-        "1", "Bangkok Electronic Music Festival 2025",
-        "Calvin Harris, Armin van Buuren & more",
-        "March 15-17, 2025", "Bangkok Convention Center",
-        "From ฿2,500", "", 18500, "Music"
-    ),
-    EventItem(
-        "2", "Thai Street Food Championship",
-        "Master chefs compete & cooking workshops",
-        "Feb 28 - Mar 1, 2025", "Lumpini Park",
-        "From ฿500", "", 12000, "Food"
-    ),
-    EventItem(
-        "3", "Songkran Cultural Festival",
-        "Traditional water festival celebration",
-        "April 13-15, 2025", "Khao San Road",
-        "Free", "", 85000, "Culture"
-    ),
-    EventItem(
-        "4", "Floating Market Food Festival",
-        "Traditional boat vendors and local delicacies",
-        "March 20-22, 2025", "Damnoen Saduak",
-        "From ฿200", "", 25000, "Food"
-    )
-)

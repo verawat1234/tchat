@@ -139,89 +139,89 @@ type ProcessingResult struct {
 }
 
 type Event struct {
-	ID           uuid.UUID         `json:"id" gorm:"primaryKey;type:varchar(36)"`
-	Type         EventType         `json:"type" gorm:"type:varchar(100);not null;index"`
-	Category     EventCategory     `json:"category" gorm:"type:varchar(30);not null;index"`
-	Severity     Severity          `json:"severity" gorm:"type:varchar(20);not null;index"`
-	Status       EventStatus       `json:"status" gorm:"type:varchar(20);default:'pending';index"`
+	ID           uuid.UUID         `json:"id" gorm:"column:id;primaryKey;type:varchar(36)"`
+	Type         EventType         `json:"type" gorm:"column:type;type:varchar(100);not null;index"`
+	Category     EventCategory     `json:"category" gorm:"column:category;type:varchar(30);not null;index"`
+	Severity     Severity          `json:"severity" gorm:"column:severity;type:varchar(20);not null;index"`
+	Status       EventStatus       `json:"status" gorm:"column:status;type:varchar(20);default:'pending';index"`
 
 	// Event Content
-	Subject      string            `json:"subject" gorm:"type:varchar(255);not null"`
-	Description  string            `json:"description" gorm:"type:text"`
-	Data         json.RawMessage   `json:"data" gorm:"type:json"`
-	DataFormat   DataFormat        `json:"data_format" gorm:"type:varchar(20);default:'json'"`
-	DataSchema   string            `json:"data_schema" gorm:"type:varchar(100)"`
+	Subject      string            `json:"subject" gorm:"column:subject;type:varchar(255);not null"`
+	Description  string            `json:"description" gorm:"column:description;type:text"`
+	Data         json.RawMessage   `json:"data" gorm:"column:data;type:json"`
+	DataFormat   DataFormat        `json:"data_format" gorm:"column:data_format;type:varchar(20);default:'json'"`
+	DataSchema   string            `json:"data_schema" gorm:"column:data_schema;type:varchar(100)"`
 
 	// Event Context
-	AggregateID   string           `json:"aggregate_id" gorm:"type:varchar(100);index"`
-	AggregateType string           `json:"aggregate_type" gorm:"type:varchar(50);index"`
-	EventVersion  int              `json:"event_version" gorm:"default:1"`
+	AggregateID   string           `json:"aggregate_id" gorm:"column:aggregate_id;type:varchar(100);index"`
+	AggregateType string           `json:"aggregate_type" gorm:"column:aggregate_type;type:varchar(50);index"`
+	EventVersion  int              `json:"event_version" gorm:"column:event_version;default:1"`
 
 	// Processing Information
-	Metadata      EventMetadata    `json:"metadata" gorm:"type:json"`
-	RetryConfig   RetryConfig      `json:"retry_config" gorm:"type:json"`
-	RetryCount    int              `json:"retry_count" gorm:"default:0"`
-	LastRetryAt   *time.Time       `json:"last_retry_at,omitempty"`
-	NextRetryAt   *time.Time       `json:"next_retry_at,omitempty" gorm:"index"`
+	Metadata      EventMetadata    `json:"metadata" gorm:"column:metadata;type:json"`
+	RetryConfig   RetryConfig      `json:"retry_config" gorm:"column:retry_config;type:json"`
+	RetryCount    int              `json:"retry_count" gorm:"column:retry_count;default:0"`
+	LastRetryAt   *time.Time       `json:"last_retry_at,omitempty" gorm:"column:last_retry_at"`
+	NextRetryAt   *time.Time       `json:"next_retry_at,omitempty" gorm:"column:next_retry_at;index"`
 
 	// Processing Results
-	ProcessingResults []ProcessingResult `json:"processing_results" gorm:"type:json"`
+	ProcessingResults []ProcessingResult `json:"processing_results" gorm:"column:processing_results;type:json"`
 
 	// Timing
-	OccurredAt    time.Time        `json:"occurred_at" gorm:"not null;index"`
-	ProcessedAt   *time.Time       `json:"processed_at,omitempty" gorm:"index"`
-	ExpiresAt     *time.Time       `json:"expires_at,omitempty" gorm:"index"`
+	OccurredAt    time.Time        `json:"occurred_at" gorm:"column:occurred_at;not null;index"`
+	ProcessedAt   *time.Time       `json:"processed_at,omitempty" gorm:"column:processed_at;index"`
+	ExpiresAt     *time.Time       `json:"expires_at,omitempty" gorm:"column:expires_at;index"`
 
 	// Correlation and Causation
-	ParentEventID   *uuid.UUID     `json:"parent_event_id,omitempty" gorm:"type:varchar(36);index"`
-	CorrelationID   string         `json:"correlation_id" gorm:"type:varchar(100);index"`
-	CausationID     string         `json:"causation_id" gorm:"type:varchar(100);index"`
+	ParentEventID   *uuid.UUID     `json:"parent_event_id,omitempty" gorm:"column:parent_event_id;type:varchar(36);index"`
+	CorrelationID   string         `json:"correlation_id" gorm:"column:correlation_id;type:varchar(100);index"`
+	CausationID     string         `json:"causation_id" gorm:"column:causation_id;type:varchar(100);index"`
 
 	// Audit Fields
-	CreatedAt     time.Time        `json:"created_at" gorm:"autoCreateTime;index"`
-	UpdatedAt     time.Time        `json:"updated_at" gorm:"autoUpdateTime"`
+	CreatedAt     time.Time        `json:"created_at" gorm:"column:created_at;autoCreateTime;index"`
+	UpdatedAt     time.Time        `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
 }
 
 type EventSubscription struct {
-	ID            uuid.UUID        `json:"id" gorm:"primaryKey;type:varchar(36)"`
-	Name          string           `json:"name" gorm:"type:varchar(255);not null;uniqueIndex"`
-	ServiceName   string           `json:"service_name" gorm:"type:varchar(100);not null;index"`
-	EventTypes    []string         `json:"event_types" gorm:"type:json;not null"`
-	FilterQuery   string           `json:"filter_query" gorm:"type:text"`
-	Endpoint      string           `json:"endpoint" gorm:"type:varchar(500);not null"`
-	Method        string           `json:"method" gorm:"type:varchar(10);default:'POST'"`
-	Headers       map[string]string `json:"headers" gorm:"type:json"`
-	Timeout       time.Duration    `json:"timeout" gorm:"default:30000000000"` // 30 seconds in nanoseconds
-	RetryConfig   RetryConfig      `json:"retry_config" gorm:"type:json"`
-	IsActive      bool             `json:"is_active" gorm:"default:true;index"`
+	ID            uuid.UUID        `json:"id" gorm:"column:id;primaryKey;type:varchar(36)"`
+	Name          string           `json:"name" gorm:"column:name;type:varchar(255);not null;uniqueIndex"`
+	ServiceName   string           `json:"service_name" gorm:"column:service_name;type:varchar(100);not null;index"`
+	EventTypes    []string         `json:"event_types" gorm:"column:event_types;type:json;not null"`
+	FilterQuery   string           `json:"filter_query" gorm:"column:filter_query;type:text"`
+	Endpoint      string           `json:"endpoint" gorm:"column:endpoint;type:varchar(500);not null"`
+	Method        string           `json:"method" gorm:"column:method;type:varchar(10);default:'POST'"`
+	Headers       map[string]string `json:"headers" gorm:"column:headers;type:json"`
+	Timeout       time.Duration    `json:"timeout" gorm:"column:timeout;default:30000000000"` // 30 seconds in nanoseconds
+	RetryConfig   RetryConfig      `json:"retry_config" gorm:"column:retry_config;type:json"`
+	IsActive      bool             `json:"is_active" gorm:"column:is_active;default:true;index"`
 
 	// Health and Monitoring
-	SuccessCount  int64            `json:"success_count" gorm:"default:0"`
-	FailureCount  int64            `json:"failure_count" gorm:"default:0"`
-	LastSuccess   *time.Time       `json:"last_success,omitempty"`
-	LastFailure   *time.Time       `json:"last_failure,omitempty"`
-	HealthStatus  string           `json:"health_status" gorm:"type:varchar(20);default:'healthy'"`
+	SuccessCount  int64            `json:"success_count" gorm:"column:success_count;default:0"`
+	FailureCount  int64            `json:"failure_count" gorm:"column:failure_count;default:0"`
+	LastSuccess   *time.Time       `json:"last_success,omitempty" gorm:"column:last_success"`
+	LastFailure   *time.Time       `json:"last_failure,omitempty" gorm:"column:last_failure"`
+	HealthStatus  string           `json:"health_status" gorm:"column:health_status;type:varchar(20);default:'healthy'"`
 
 	// Audit Fields
-	CreatedBy     uuid.UUID        `json:"created_by" gorm:"type:varchar(36);index"`
-	CreatedAt     time.Time        `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt     time.Time        `json:"updated_at" gorm:"autoUpdateTime"`
+	CreatedBy     uuid.UUID        `json:"created_by" gorm:"column:created_by;type:varchar(36);index"`
+	CreatedAt     time.Time        `json:"created_at" gorm:"column:created_at;autoCreateTime"`
+	UpdatedAt     time.Time        `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
 }
 
 type EventLog struct {
-	ID               uuid.UUID        `json:"id" gorm:"primaryKey;type:varchar(36)"`
-	EventID          uuid.UUID        `json:"event_id" gorm:"type:varchar(36);not null;index"`
-	SubscriptionID   uuid.UUID        `json:"subscription_id" gorm:"type:varchar(36);not null;index"`
-	Status           string           `json:"status" gorm:"type:varchar(20);not null;index"`
-	AttemptNumber    int              `json:"attempt_number" gorm:"default:1"`
-	ResponseCode     int              `json:"response_code"`
-	ResponseBody     string           `json:"response_body" gorm:"type:text"`
-	ErrorMessage     string           `json:"error_message" gorm:"type:text"`
-	ProcessingTime   time.Duration    `json:"processing_time"`
-	RequestPayload   json.RawMessage  `json:"request_payload" gorm:"type:json"`
-	ResponseHeaders  map[string]string `json:"response_headers" gorm:"type:json"`
-	AttemptedAt      time.Time        `json:"attempted_at" gorm:"not null;index"`
-	CreatedAt        time.Time        `json:"created_at" gorm:"autoCreateTime"`
+	ID               uuid.UUID        `json:"id" gorm:"column:id;primaryKey;type:varchar(36)"`
+	EventID          uuid.UUID        `json:"event_id" gorm:"column:event_id;type:varchar(36);not null;index"`
+	SubscriptionID   uuid.UUID        `json:"subscription_id" gorm:"column:subscription_id;type:varchar(36);not null;index"`
+	Status           string           `json:"status" gorm:"column:status;type:varchar(20);not null;index"`
+	AttemptNumber    int              `json:"attempt_number" gorm:"column:attempt_number;default:1"`
+	ResponseCode     int              `json:"response_code" gorm:"column:response_code"`
+	ResponseBody     string           `json:"response_body" gorm:"column:response_body;type:text"`
+	ErrorMessage     string           `json:"error_message" gorm:"column:error_message;type:text"`
+	ProcessingTime   time.Duration    `json:"processing_time" gorm:"column:processing_time"`
+	RequestPayload   json.RawMessage  `json:"request_payload" gorm:"column:request_payload;type:json"`
+	ResponseHeaders  map[string]string `json:"response_headers" gorm:"column:response_headers;type:json"`
+	AttemptedAt      time.Time        `json:"attempted_at" gorm:"column:attempted_at;not null;index"`
+	CreatedAt        time.Time        `json:"created_at" gorm:"column:created_at;autoCreateTime"`
 }
 
 func (e *Event) BeforeCreate(tx *gorm.DB) error {

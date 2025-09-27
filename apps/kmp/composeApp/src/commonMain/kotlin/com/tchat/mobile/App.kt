@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import com.tchat.mobile.designsystem.TchatColors
 import com.tchat.mobile.designsystem.TchatTypography
 import com.tchat.mobile.navigation.Screen
@@ -16,20 +17,30 @@ import com.tchat.mobile.screens.*
 fun App() {
     val navigationState = rememberScreenNavigationState()
 
+    // Video screen UI visibility state for controlling bottom nav opacity
+    var isVideoUIVisible by remember { mutableStateOf(true) }
+
     // Determine current tab based on the screen
     val currentTab = when (navigationState.currentScreen) {
         is Screen.Chat, is Screen.ChatDetail -> MainTab.CHAT
         is Screen.Store, is Screen.ProductDetail, is Screen.ShopDetail, is Screen.LiveStream -> MainTab.STORE
         is Screen.Social, is Screen.UserProfile -> MainTab.SOCIAL
         is Screen.Video, is Screen.VideoDetail -> MainTab.VIDEO
-        is Screen.More, is Screen.Settings, is Screen.EditProfile -> MainTab.MORE
+        is Screen.More, is Screen.Settings, is Screen.EditProfile -> MainTab.ADD
         is Screen.Search, is Screen.QRScanner, is Screen.Notifications -> MainTab.CHAT // Header actions from Chat
         is Screen.Reviews -> MainTab.STORE // Reviews belong to Store tab
+        is Screen.Web -> MainTab.CHAT // Default fallback to Chat
+        is Screen.CreateChat -> MainTab.CHAT
+        is Screen.CreateProduct -> MainTab.STORE
+        is Screen.CreatePost -> MainTab.SOCIAL
+        is Screen.CreateVideo -> MainTab.VIDEO
     }
 
     // Check if we should show bottom navigation (hide on detailed screens)
     val showBottomNav = when (navigationState.currentScreen) {
         is Screen.Chat, is Screen.Store, is Screen.Social, is Screen.Video, is Screen.More -> true
+        is Screen.Web -> false // Web screen has its own navigation
+        is Screen.CreateChat, is Screen.CreateProduct, is Screen.CreatePost, is Screen.CreateVideo -> false // Hide nav for creation screens
         else -> false
     }
 
@@ -47,12 +58,44 @@ fun App() {
         Scaffold(
             bottomBar = {
                 if (showBottomNav) {
-                    TchatNavigation(
-                        currentTab = currentTab,
-                        onTabSelected = { tab ->
-                            navigationState.navigateTo(tab.screen)
-                        }
-                    )
+                    // Apply opacity to bottom navigation when on Video screen with hidden UI
+                    val navOpacity = if (currentTab == MainTab.VIDEO && !isVideoUIVisible) 0.3f else 1f
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        TchatNavigation(
+                            currentTab = currentTab,
+                            onTabSelected = { tab ->
+                                if (tab == MainTab.ADD) {
+                                    // Context-aware + button functionality
+                                    when (currentTab) {
+                                        MainTab.CHAT -> {
+                                            // Create new chat/conversation
+                                            navigationState.navigateTo(Screen.CreateChat)
+                                        }
+                                        MainTab.STORE -> {
+                                            // Create new product/listing
+                                            navigationState.navigateTo(Screen.CreateProduct)
+                                        }
+                                        MainTab.SOCIAL -> {
+                                            // Create new post
+                                            navigationState.navigateTo(Screen.CreatePost)
+                                        }
+                                        MainTab.VIDEO -> {
+                                            // Create new video
+                                            navigationState.navigateTo(Screen.CreateVideo)
+                                        }
+                                        MainTab.ADD -> {
+                                            // Fallback to More screen
+                                            navigationState.navigateTo(Screen.More)
+                                        }
+                                    }
+                                } else {
+                                    navigationState.navigateTo(tab.screen)
+                                }
+                            },
+                            modifier = Modifier.alpha(navOpacity)
+                        )
+                    }
                 }
             }
         ) { paddingValues ->
@@ -70,6 +113,9 @@ fun App() {
                     onNotificationsClick = {
                         navigationState.navigateTo(Screen.Notifications)
                     },
+                    onMoreClick = {
+                        navigationState.navigateTo(Screen.More)
+                    },
                     modifier = Modifier.padding(paddingValues)
                 )
 
@@ -83,12 +129,18 @@ fun App() {
                     onLiveStreamClick = { streamId ->
                         navigationState.navigateTo(Screen.LiveStream(streamId))
                     },
+                    onMoreClick = {
+                        navigationState.navigateTo(Screen.More)
+                    },
                     modifier = Modifier.padding(paddingValues)
                 )
 
                 is Screen.Social -> SocialScreen(
                     onUserClick = { userId ->
                         navigationState.navigateTo(Screen.UserProfile(userId))
+                    },
+                    onMoreClick = {
+                        navigationState.navigateTo(Screen.More)
                     },
                     modifier = Modifier.padding(paddingValues)
                 )
@@ -97,10 +149,21 @@ fun App() {
                     onVideoClick = { videoId ->
                         navigationState.navigateTo(Screen.VideoDetail(videoId))
                     },
+                    onUIVisibilityChange = { isVisible ->
+                        isVideoUIVisible = isVisible
+                    },
+                    onMoreClick = {
+                        navigationState.navigateTo(Screen.More)
+                    },
                     modifier = Modifier.padding(paddingValues)
                 )
 
                 is Screen.More -> MoreScreen(
+                    onBackClick = {
+                        if (!navigationState.navigateBack()) {
+                            navigationState.navigateTo(Screen.Chat)
+                        }
+                    },
                     onEditProfileClick = {
                         navigationState.navigateTo(Screen.EditProfile)
                     },
@@ -150,10 +213,13 @@ fun App() {
 
                 is Screen.VideoDetail -> VideoDetailScreen(
                     videoId = screen.videoId,
-                    onBackClick = {
+                    onNavigateBack = {
                         if (!navigationState.navigateBack()) {
                             navigationState.navigateTo(Screen.Video)
                         }
+                    },
+                    onVideoClick = { videoId ->
+                        navigationState.navigateTo(Screen.VideoDetail(videoId))
                     }
                 )
 
@@ -246,6 +312,47 @@ fun App() {
                     },
                     onShopClick = { shopId ->
                         navigationState.navigateTo(Screen.ShopDetail(shopId))
+                    }
+                )
+
+                // Content creation screens
+                is Screen.CreateChat -> CreateChatScreen(
+                    onBackClick = {
+                        if (!navigationState.navigateBack()) {
+                            navigationState.navigateTo(Screen.Chat)
+                        }
+                    }
+                )
+
+                is Screen.CreateProduct -> CreateProductScreen(
+                    onBackClick = {
+                        if (!navigationState.navigateBack()) {
+                            navigationState.navigateTo(Screen.Store)
+                        }
+                    }
+                )
+
+                is Screen.CreatePost -> CreatePostScreen(
+                    onBackClick = {
+                        if (!navigationState.navigateBack()) {
+                            navigationState.navigateTo(Screen.Social)
+                        }
+                    }
+                )
+
+                is Screen.CreateVideo -> CreateVideoScreen(
+                    onBackClick = {
+                        if (!navigationState.navigateBack()) {
+                            navigationState.navigateTo(Screen.Video)
+                        }
+                    }
+                )
+
+                is Screen.Web -> WebScreen(
+                    onBackClick = {
+                        if (!navigationState.navigateBack()) {
+                            navigationState.navigateTo(Screen.More)
+                        }
                     }
                 )
             }

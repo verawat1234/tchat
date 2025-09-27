@@ -23,17 +23,41 @@ import com.tchat.mobile.designsystem.TchatSpacing
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MoreScreen(
+    onBackClick: () -> Unit = {},
     onEditProfileClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onUserProfileClick: (userId: String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    LazyColumn(
-        modifier = modifier
-            .background(TchatColors.background),
-        contentPadding = PaddingValues(TchatSpacing.md),
-        verticalArrangement = Arrangement.spacedBy(TchatSpacing.md)
+    Column(
+        modifier = modifier.background(TchatColors.background)
     ) {
+        // Top App Bar
+        TopAppBar(
+            title = { Text("More", fontWeight = FontWeight.Bold) },
+            navigationIcon = {
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        Icons.Default.ArrowBack,
+                        contentDescription = "Back",
+                        tint = TchatColors.onSurface
+                    )
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = TchatColors.surface,
+                titleContentColor = TchatColors.onSurface
+            )
+        )
+
+        // Content
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(TchatColors.background),
+            contentPadding = PaddingValues(TchatSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(TchatSpacing.md)
+        ) {
         // Profile Section
         item {
             ProfileSection()
@@ -78,6 +102,7 @@ fun MoreScreen(
                 modifier = Modifier.fillMaxWidth()
             )
         }
+    }
     }
 }
 

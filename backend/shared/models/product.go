@@ -141,8 +141,8 @@ type ProductInventory struct {
 
 // Product represents a product in the system
 type Product struct {
-	ID         uuid.UUID `json:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	BusinessID uuid.UUID `json:"business_id" gorm:"type:uuid;not null;index"`
+	ID         uuid.UUID `json:"id" gorm:"column:id;type:uuid;primary_key;default:gen_random_uuid()"`
+	BusinessID uuid.UUID `json:"business_id" gorm:"column:business_id;type:uuid;not null;index"`
 
 	// Basic product information
 	Name        string           `json:"name" gorm:"column:name;size:200;not null"`

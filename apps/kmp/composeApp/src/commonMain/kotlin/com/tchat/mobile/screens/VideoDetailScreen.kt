@@ -1,12 +1,17 @@
 package com.tchat.mobile.screens
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -14,352 +19,224 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.tchat.mobile.components.TchatButton
-import com.tchat.mobile.components.TchatButtonVariant
-import com.tchat.mobile.components.TchatInput
-import com.tchat.mobile.components.TchatInputType
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import coil.compose.AsyncImage
+import com.tchat.mobile.components.*
 import com.tchat.mobile.designsystem.TchatColors
 import com.tchat.mobile.designsystem.TchatSpacing
+import com.tchat.mobile.models.*
+import com.tchat.mobile.repositories.MockVideoRepository
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VideoDetailScreen(
-    videoId: String = "1",
-    onBackClick: () -> Unit,
+    videoId: String,
+    onNavigateBack: () -> Unit,
+    onVideoClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val video = getDummyVideoDetail(videoId)
-    var isLiked by remember { mutableStateOf(video.isLiked) }
-    var isBookmarked by remember { mutableStateOf(video.isBookmarked) }
-    var isSubscribed by remember { mutableStateOf(video.isSubscribed) }
-    var commentText by remember { mutableStateOf("") }
+    var video by remember { mutableStateOf<VideoContent?>(null) }
+    var relatedVideos by remember { mutableStateOf<List<VideoContent>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var isLiked by remember { mutableStateOf(false) }
+    var isSubscribed by remember { mutableStateOf(false) }
     var showComments by remember { mutableStateOf(false) }
+    var showShareModal by remember { mutableStateOf(false) }
+    var showDescription by remember { mutableStateOf(false) }
+    var isPlaying by remember { mutableStateOf(true) }
+    var isFullscreen by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = video.title,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
+
+    // Repository
+    val videoRepository = remember { MockVideoRepository() }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Load video data
+    LaunchedEffect(videoId) {
+        isLoading = true
+        try {
+            // Get video details from mock data
+            val longVideos = videoRepository.getLongVideos(VideoCategory.ALL)
+            val shortVideos = videoRepository.getShortVideos(VideoCategory.ALL)
+            val allVideos = longVideos + shortVideos
+
+            video = allVideos.find { it.id == videoId }
+
+            // Get related videos (same category + random others)
+            video?.let { currentVideo ->
+                val sameCategory = allVideos.filter {
+                    it.category == currentVideo.category && it.id != videoId
+                }.take(5)
+                val others = allVideos.filter {
+                    it.category != currentVideo.category && it.id != videoId
+                }.shuffled().take(10 - sameCategory.size)
+                relatedVideos = (sameCategory + others).shuffled()
+            }
+        } finally {
+            isLoading = false
+        }
+    }
+
+    if (isLoading || video == null) {
+        Box(
+            modifier = modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    val currentVideo = video!!
+
+    Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
+        if (isLandscape || isFullscreen) {
+            // Fullscreen mode - video only
+            FullscreenVideoPlayer(
+                video = currentVideo,
+                isPlaying = isPlaying,
+                onPlayPauseClick = { isPlaying = !isPlaying },
+                onFullscreenToggle = { isFullscreen = !isFullscreen },
+                onNavigateBack = onNavigateBack,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            // Portrait mode - video with details
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Video Player Section
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f)
+                        .background(Color.Black)
+                ) {
+                    // Video Player
+                    TchatVideo(
+                        source = VideoSource.Url(currentVideo.videoUrl ?: ""),
+                        modifier = Modifier.fillMaxSize(),
+                        aspectRatio = TchatVideoAspectRatio.Landscape,
+                        autoPlay = isPlaying,
+                        loop = false,
+                        muted = false,
+                        showControls = true,
+                        poster = ImageSource.Url(currentVideo.thumbnail),
+                        onStateChange = { state ->
+                            when (state) {
+                                TchatVideoState.Playing -> isPlaying = true
+                                TchatVideoState.Paused -> isPlaying = false
+                                TchatVideoState.Ended -> isPlaying = false
+                                else -> {}
+                            }
+                        }
                     )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+
+                    // Back button overlay
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(16.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                            .size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
                     }
-                },
-                actions = {
-                    IconButton(onClick = { /* Share video */ }) {
-                        Icon(Icons.Default.Share, "Share")
+
+                    // Fullscreen button overlay
+                    IconButton(
+                        onClick = { isFullscreen = true },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(16.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                            .size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Fullscreen,
+                            contentDescription = "Fullscreen",
+                            tint = Color.White
+                        )
                     }
-                    IconButton(onClick = { /* More options */ }) {
-                        Icon(Icons.Default.MoreVert, "More")
+                }
+
+                // Video Details Section
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(TchatColors.background),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Video Title and Info
+                    item {
+                        VideoInfoSection(
+                            video = currentVideo,
+                            isLiked = isLiked,
+                            isSubscribed = isSubscribed,
+                            showDescription = showDescription,
+                            onLikeClick = { isLiked = !isLiked },
+                            onSubscribeClick = { isSubscribed = !isSubscribed },
+                            onShareClick = { showShareModal = true },
+                            onDescriptionToggle = { showDescription = !showDescription },
+                            onCommentsClick = { showComments = true }
+                        )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = TchatColors.surface
+
+                    // Related Videos Section
+                    item {
+                        Text(
+                            text = "Related Videos",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = TchatColors.onBackground,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+
+                    items(relatedVideos) { relatedVideo ->
+                        RelatedVideoCard(
+                            video = relatedVideo,
+                            onVideoClick = { onVideoClick(relatedVideo.id) }
+                        )
+                    }
+                }
+            }
+        }
+
+        // Share Modal
+        if (showShareModal) {
+            TchatShareModal(
+                isVisible = showShareModal,
+                onDismiss = { showShareModal = false },
+                content = ShareContent(
+                    type = ShareContentType.GENERAL,
+                    title = currentVideo.title,
+                    description = currentVideo.description,
+                    url = "https://tchat.app/videos/${currentVideo.id}",
+                    imageUrl = currentVideo.thumbnail
                 )
             )
         }
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(paddingValues)
-                .background(TchatColors.background),
-            verticalArrangement = Arrangement.spacedBy(TchatSpacing.sm)
-        ) {
-            // Video Player
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(0.dp),
-                    colors = CardDefaults.cardColors(containerColor = TchatColors.surface)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(220.dp)
-                            .background(TchatColors.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // Video preview placeholder
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(TchatColors.primary.copy(alpha = 0.1f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Filled.PlayArrow,
-                                contentDescription = "Play Video",
-                                modifier = Modifier.size(80.dp),
-                                tint = TchatColors.primary
-                            )
-                        }
 
-                        // Duration badge
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(TchatSpacing.sm)
-                                .background(
-                                    TchatColors.surface.copy(alpha = 0.9f),
-                                    RoundedCornerShape(4.dp)
-                                )
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = video.duration,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TchatColors.onSurface
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Video Info
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = TchatColors.surface)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(TchatSpacing.md)
-                    ) {
-                        // Title
-                        Text(
-                            text = video.title,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = TchatColors.onSurface
-                        )
-
-                        Spacer(modifier = Modifier.height(TchatSpacing.xs))
-
-                        // Views and upload time
-                        Text(
-                            text = "${formatCount(video.views)} views • ${video.uploadTime}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TchatColors.onSurfaceVariant
-                        )
-
-                        Spacer(modifier = Modifier.height(TchatSpacing.md))
-
-                        // Action buttons
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            ActionButton(
-                                icon = if (isLiked) Icons.Default.ThumbUp else Icons.Default.ThumbUp,
-                                label = formatCount(video.likesCount + if (isLiked) 1 else 0),
-                                isActive = isLiked,
-                                onClick = { isLiked = !isLiked }
-                            )
-
-                            ActionButton(
-                                icon = Icons.Default.Clear,
-                                label = "Dislike",
-                                isActive = false,
-                                onClick = { /* Handle dislike */ }
-                            )
-
-                            ActionButton(
-                                icon = Icons.Default.Share,
-                                label = "Share",
-                                isActive = false,
-                                onClick = { /* Handle share */ }
-                            )
-
-                            ActionButton(
-                                icon = if (isBookmarked) Icons.Default.Star else Icons.Default.Star,
-                                label = "Save",
-                                isActive = isBookmarked,
-                                onClick = { isBookmarked = !isBookmarked }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Creator Info
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = TchatColors.surface)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(TchatSpacing.md),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Creator avatar
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(TchatColors.primary),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = video.creatorName.first().toString(),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = TchatColors.onPrimary,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(TchatSpacing.sm))
-
-                        Column(
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                text = video.creatorName,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TchatColors.onSurface
-                            )
-                            Text(
-                                text = "${formatCount(video.subscribersCount)} subscribers",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TchatColors.onSurfaceVariant
-                            )
-                        }
-
-                        TchatButton(
-                            onClick = { isSubscribed = !isSubscribed },
-                            text = if (isSubscribed) "Subscribed" else "Subscribe",
-                            variant = if (isSubscribed) TchatButtonVariant.Secondary else TchatButtonVariant.Primary
-                        )
-                    }
-                }
-            }
-
-            // Description
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = TchatColors.surface)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(TchatSpacing.md)
-                    ) {
-                        Text(
-                            text = "Description",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TchatColors.onSurface
-                        )
-
-                        Spacer(modifier = Modifier.height(TchatSpacing.sm))
-
-                        Text(
-                            text = video.description,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TchatColors.onSurface
-                        )
-                    }
-                }
-            }
-
-            // Comments Section
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = TchatColors.surface)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(TchatSpacing.md)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Comments (${video.commentsCount})",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TchatColors.onSurface
-                            )
-
-                            TextButton(
-                                onClick = { showComments = !showComments }
-                            ) {
-                                Text(
-                                    text = if (showComments) "Hide" else "Show All",
-                                    color = TchatColors.primary
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(TchatSpacing.sm))
-
-                        // Comment input
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            TchatInput(
-                                value = commentText,
-                                onValueChange = { commentText = it },
-                                type = TchatInputType.Text,
-                                placeholder = "Add a comment...",
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            Spacer(modifier = Modifier.width(TchatSpacing.sm))
-
-                            TchatButton(
-                                onClick = {
-                                    if (commentText.isNotBlank()) {
-                                        // Add comment
-                                        commentText = ""
-                                    }
-                                },
-                                text = "Post",
-                                variant = TchatButtonVariant.Primary,
-                                enabled = commentText.isNotBlank()
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Comments List (if shown)
-            if (showComments) {
-                items(video.topComments) { comment ->
-                    CommentCard(comment = comment)
-                }
-            }
-
-            // Related Videos
-            item {
-                Text(
-                    text = "Related Videos",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TchatColors.onSurface,
-                    modifier = Modifier.padding(horizontal = TchatSpacing.md)
-                )
-            }
-
-            item {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = TchatSpacing.md),
-                    horizontalArrangement = Arrangement.spacedBy(TchatSpacing.sm)
-                ) {
-                    items(video.relatedVideos) { relatedVideo ->
-                        RelatedVideoCard(
-                            video = relatedVideo,
-                            onClick = { /* Navigate to video */ }
-                        )
-                    }
-                }
+        // Comments Bottom Sheet (placeholder)
+        if (showComments) {
+            // TODO: Implement comments bottom sheet
+            LaunchedEffect(Unit) {
+                showComments = false
             }
         }
     }
@@ -368,26 +245,34 @@ fun VideoDetailScreen(
 @Composable
 private fun ActionButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    isActive: Boolean,
+    text: String,
     onClick: () -> Unit,
+    isActive: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.clickable { onClick() }
     ) {
-        IconButton(onClick = onClick) {
+        Surface(
+            modifier = Modifier.size(40.dp),
+            shape = CircleShape,
+            color = if (isActive) TchatColors.primary.copy(alpha = 0.1f) else TchatColors.surfaceVariant
+        ) {
             Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = if (isActive) TchatColors.primary else TchatColors.onSurfaceVariant
+                icon,
+                contentDescription = text,
+                tint = if (isActive) TchatColors.primary else TchatColors.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp)
             )
         }
         Text(
-            text = label,
+            text = text,
             style = MaterialTheme.typography.labelSmall,
-            color = if (isActive) TchatColors.primary else TchatColors.onSurfaceVariant
+            color = if (isActive) TchatColors.primary else TchatColors.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp)
         )
     }
 }
@@ -593,32 +478,440 @@ private data class RelatedVideo(
     val views: Int
 )
 
-private fun getDummyVideoDetail(videoId: String): VideoDetail = VideoDetail(
-    id = videoId,
-    title = "Amazing AI Demo - The Future is Here!",
-    creatorName = "TechGuru",
-    subscribersCount = 250000,
-    duration = "5:42",
-    views = 2100000,
-    uploadTime = "2 hours ago",
-    likesCount = 45600,
-    commentsCount = 892,
-    description = "In this video, I'll show you the most incredible AI demonstrations that will blow your mind! From natural language processing to computer vision, these AI tools are revolutionizing how we work and live.\n\n🔗 Links mentioned in the video:\n- AI Tool 1: example.com\n- AI Tool 2: example.com\n\n⏰ Timestamps:\n0:00 Introduction\n1:30 Natural Language AI\n3:15 Computer Vision\n4:20 Conclusion\n\n#AI #Technology #Future #Demo",
-    isLiked = true,
-    isBookmarked = false,
-    isSubscribed = false,
-    topComments = listOf(
-        VideoComment("1", "Alice Cooper", "This is absolutely mind-blowing! Thanks for sharing these amazing tools.", "3h", 156),
-        VideoComment("2", "Bob Smith", "The AI landscape is evolving so fast. Great breakdown of the key technologies!", "2h", 89),
-        VideoComment("3", "Carol Johnson", "Can you do a tutorial on how to implement some of these AI features?", "1h", 203),
-        VideoComment("4", "David Lee", "Amazing content as always. Looking forward to the next video!", "45m", 67),
-        VideoComment("5", "Emma Wilson", "The computer vision demo at 3:15 was incredible. How accurate is it in real-world scenarios?", "30m", 124)
-    ),
-    relatedVideos = listOf(
-        RelatedVideo("2", "Machine Learning Basics Explained", "AI Academy", "12:34", 850000),
-        RelatedVideo("3", "Building Your First AI App", "CodeMaster", "18:22", 450000),
-        RelatedVideo("4", "The Future of Artificial Intelligence", "FutureTech", "8:15", 1200000),
-        RelatedVideo("5", "AI Tools for Developers", "DevGuru", "15:30", 680000),
-        RelatedVideo("6", "Deep Learning Made Simple", "TechExplainer", "22:18", 930000)
-    )
-)
+@Composable
+private fun FullscreenVideoPlayer(
+    video: VideoContent,
+    isPlaying: Boolean,
+    onPlayPauseClick: () -> Unit,
+    onFullscreenToggle: () -> Unit,
+    onNavigateBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var showControls by remember { mutableStateOf(true) }
+    var lastInteractionTime by remember { mutableStateOf(System.currentTimeMillis()) }
+
+    // Auto-hide controls after 3 seconds
+    LaunchedEffect(lastInteractionTime) {
+        kotlinx.coroutines.delay(3000)
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastInteractionTime >= 3000) {
+            showControls = false
+        }
+    }
+
+    val onUserInteraction = {
+        lastInteractionTime = System.currentTimeMillis()
+        showControls = true
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        // Video Player
+        TchatVideo(
+            source = VideoSource.Url(video.videoUrl ?: ""),
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { onUserInteraction() },
+            aspectRatio = TchatVideoAspectRatio.Landscape,
+            autoPlay = isPlaying,
+            loop = false,
+            muted = false,
+            showControls = false, // We'll show our custom controls
+            poster = ImageSource.Url(video.thumbnail),
+            onStateChange = { state ->
+                // Handle video state changes
+            }
+        )
+
+        // Custom Controls Overlay
+        AnimatedVisibility(
+            visible = showControls,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Top Controls
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .fillMaxWidth()
+                        .background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                colors = listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)
+                            )
+                        )
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    Text(
+                        text = video.title,
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(horizontal = 16.dp)
+                    )
+
+                    IconButton(
+                        onClick = onFullscreenToggle,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.FullscreenExit,
+                            contentDescription = "Exit Fullscreen",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+
+                // Center Play/Pause Button
+                IconButton(
+                    onClick = {
+                        onPlayPauseClick()
+                        onUserInteraction()
+                    },
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(80.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                ) {
+                    Icon(
+                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        tint = Color.White,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+
+                // Bottom Controls (placeholder for progress bar, volume, etc.)
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))
+                            )
+                        )
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "00:00", // TODO: Show actual current time
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(4.dp)
+                            .padding(horizontal = 16.dp)
+                            .background(Color.White.copy(alpha = 0.3f), RoundedCornerShape(2.dp))
+                    ) {
+                        // TODO: Implement actual progress bar
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.3f) // Mock 30% progress
+                                .fillMaxHeight()
+                                .background(TchatColors.primary, RoundedCornerShape(2.dp))
+                        )
+                    }
+
+                    Text(
+                        text = video.duration,
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoInfoSection(
+    video: VideoContent,
+    isLiked: Boolean,
+    isSubscribed: Boolean,
+    showDescription: Boolean,
+    onLikeClick: () -> Unit,
+    onSubscribeClick: () -> Unit,
+    onShareClick: () -> Unit,
+    onDescriptionToggle: () -> Unit,
+    onCommentsClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        // Video Title
+        Text(
+            text = video.title,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = TchatColors.onBackground,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        // Views and Upload Time
+        Text(
+            text = "${VideoMockData.formatViews(video.views)} views • ${video.uploadTimeFormatted}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TchatColors.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        // Action Buttons Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            // Like Button
+            ActionButton(
+                icon = if (isLiked) Icons.Default.ThumbUp else Icons.Default.ThumbUpOffAlt,
+                text = VideoMockData.formatViews(video.likes),
+                onClick = onLikeClick,
+                isActive = isLiked
+            )
+
+            // Dislike Button
+            ActionButton(
+                icon = Icons.Default.ThumbDownOffAlt,
+                text = "Dislike",
+                onClick = { /* TODO */ }
+            )
+
+            // Share Button
+            ActionButton(
+                icon = Icons.Default.Share,
+                text = "Share",
+                onClick = onShareClick
+            )
+
+            // Download Button
+            ActionButton(
+                icon = Icons.Default.Download,
+                text = "Download",
+                onClick = { /* TODO */ }
+            )
+        }
+
+        Divider(modifier = Modifier.padding(vertical = 16.dp))
+
+        // Channel Info
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AsyncImage(
+                model = video.channel.avatar,
+                contentDescription = "${video.channel.name} avatar",
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = video.channel.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Medium,
+                        color = TchatColors.onBackground
+                    )
+                    if (video.channel.verified) {
+                        Icon(
+                            Icons.Default.Verified,
+                            contentDescription = "Verified",
+                            tint = Color.Blue,
+                            modifier = Modifier.size(16.dp).padding(start = 4.dp)
+                        )
+                    }
+                }
+                Text(
+                    text = "${VideoMockData.formatSubscribers(video.channel.subscribers)} subscribers",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TchatColors.onSurfaceVariant
+                )
+            }
+
+            // Subscribe Button
+            TchatButton(
+                text = if (isSubscribed) "Subscribed" else "Subscribe",
+                onClick = onSubscribeClick,
+                variant = if (isSubscribed) TchatButtonVariant.Outline else TchatButtonVariant.Primary,
+                modifier = Modifier.height(36.dp)
+            )
+        }
+
+        // Description Section
+        if (video.description.isNotEmpty()) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp)
+                    .clickable { onDescriptionToggle() },
+                colors = CardDefaults.cardColors(containerColor = TchatColors.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = if (showDescription) video.description else
+                               video.description.take(100) + if (video.description.length > 100) "..." else "",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TchatColors.onSurfaceVariant,
+                        maxLines = if (showDescription) Int.MAX_VALUE else 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Text(
+                        text = if (showDescription) "Show less" else "Show more",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TchatColors.primary,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+        }
+
+        // Comments Section
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp)
+                .clickable { onCommentsClick() },
+            colors = CardDefaults.cardColors(containerColor = TchatColors.surfaceVariant)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.ChatBubbleOutline,
+                    contentDescription = "Comments",
+                    tint = TchatColors.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Comments ${VideoMockData.formatViews(video.comments)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TchatColors.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Icon(
+                    Icons.Default.ExpandMore,
+                    contentDescription = "Expand comments",
+                    tint = TchatColors.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RelatedVideoCard(
+    video: VideoContent,
+    onVideoClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onVideoClick() },
+        colors = CardDefaults.cardColors(containerColor = TchatColors.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Video Thumbnail
+            Box(
+                modifier = Modifier
+                    .size(width = 120.dp, height = 68.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.Black)
+            ) {
+                AsyncImage(
+                    model = video.thumbnail,
+                    contentDescription = "Video thumbnail",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+
+                // Duration Badge
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp),
+                    color = Color.Black.copy(alpha = 0.8f),
+                    shape = RoundedCornerShape(2.dp)
+                ) {
+                    Text(
+                        text = video.duration,
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            // Video Info
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = video.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = TchatColors.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Text(
+                    text = video.channel.name,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TchatColors.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Text(
+                    text = "${VideoMockData.formatViews(video.views)} views • ${video.uploadTimeFormatted}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TchatColors.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+

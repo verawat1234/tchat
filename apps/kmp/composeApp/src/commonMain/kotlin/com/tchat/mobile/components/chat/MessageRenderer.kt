@@ -4,20 +4,20 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.tchat.mobile.designsystem.TchatColors
-import com.tchat.mobile.models.MessageType
+import com.tchat.mobile.models.ChatMessageType
 
 /**
  * Central message renderer that delegates to specific message type components
  */
 @Composable
 fun MessageRenderer(
-    messageType: MessageType,
+    messageType: ChatMessageType,
     content: String,
     isFromMe: Boolean,
     modifier: Modifier = Modifier
 ) {
     when (messageType) {
-        MessageType.TEXT -> {
+        ChatMessageType.TEXT -> {
             Text(
                 text = content,
                 style = MaterialTheme.typography.bodyMedium,
@@ -25,109 +25,109 @@ fun MessageRenderer(
                 modifier = modifier
             )
         }
-        MessageType.IMAGE -> {
+        ChatMessageType.IMAGE -> {
             ImageMessage(
                 content = content,
                 modifier = modifier
             )
         }
-        MessageType.VIDEO -> {
+        ChatMessageType.VIDEO -> {
             VideoMessage(
                 content = content,
                 modifier = modifier
             )
         }
-        MessageType.AUDIO -> {
+        ChatMessageType.AUDIO -> {
             AudioMessage(
                 content = content,
                 modifier = modifier
             )
         }
-        MessageType.FILE -> {
+        ChatMessageType.FILE -> {
             FileMessage(
                 content = content,
                 modifier = modifier
             )
         }
-        MessageType.LOCATION -> {
+        ChatMessageType.LOCATION -> {
             LocationMessage(
                 content = content,
                 modifier = modifier
             )
         }
-        MessageType.PAYMENT -> {
+        ChatMessageType.PAYMENT -> {
             PaymentMessage(
                 content = content,
                 modifier = modifier
             )
         }
-        MessageType.POLL -> {
+        ChatMessageType.POLL -> {
             PollMessage(
                 content = content,
                 modifier = modifier
             )
         }
-        MessageType.FORM -> {
+        ChatMessageType.FORM -> {
             FormMessage(
                 content = content,
                 modifier = modifier
             )
         }
-        MessageType.SYSTEM -> {
+        ChatMessageType.SYSTEM -> {
             SystemMessage(
                 content = content,
                 modifier = modifier
             )
         }
-        MessageType.STICKER -> {
+        ChatMessageType.STICKER -> {
             StickerMessage(
                 content = content,
                 modifier = modifier
             )
         }
-        MessageType.GIF -> {
+        ChatMessageType.GIF -> {
             GifMessage(
                 content = content,
                 modifier = modifier
             )
         }
-        MessageType.CONTACT -> {
+        ChatMessageType.CONTACT -> {
             ContactMessage(
                 content = content,
                 modifier = modifier
             )
         }
-        MessageType.EVENT -> {
+        ChatMessageType.EVENT -> {
             EventMessage(
                 content = content,
                 modifier = modifier
             )
         }
-        MessageType.EVENT_MESSAGE -> {
+        ChatMessageType.EVENT_MESSAGE -> {
             EventMessage(
                 content = content,
                 modifier = modifier
             )
         }
-        MessageType.EMBED -> {
+        ChatMessageType.EMBED -> {
             EmbedMessage(
                 content = content,
                 modifier = modifier
             )
         }
-        MessageType.DELETED -> {
+        ChatMessageType.DELETED -> {
             DeletedMessage(
                 content = content,
                 modifier = modifier
             )
         }
-        MessageType.FILE_MESSAGE -> {
+        ChatMessageType.FILE_MESSAGE -> {
             FileMessage(
                 content = content,
                 modifier = modifier
             )
         }
-        MessageType.LOCATION_MESSAGE -> {
+        ChatMessageType.LOCATION_MESSAGE -> {
             LocationMessage(
                 content = content,
                 modifier = modifier

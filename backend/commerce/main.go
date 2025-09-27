@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -17,8 +18,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"tchat.dev/commerce/handlers"
-	"tchat.dev/commerce/services"
 	"tchat.dev/shared/config"
 	"tchat.dev/shared/database"
 	"tchat.dev/shared/middleware"
@@ -33,12 +32,6 @@ type App struct {
 	router    *gin.Engine
 	server    *http.Server
 	validator *validator.Validate
-
-	// Services
-	commerceService *services.CommerceService
-
-	// Handlers
-	commerceHandlers *handlers.CommerceHandler
 }
 
 // NewApp creates a new commerce application instance
@@ -49,21 +42,11 @@ func NewApp(cfg *config.Config) *App {
 	}
 }
 
-// Initialize initializes all application components
+// Initialize sets up the application
 func (a *App) Initialize() error {
 	// Initialize database
 	if err := a.initDatabase(); err != nil {
 		return fmt.Errorf("failed to initialize database: %w", err)
-	}
-
-	// Initialize services
-	if err := a.initServices(); err != nil {
-		return fmt.Errorf("failed to initialize services: %w", err)
-	}
-
-	// Initialize handlers
-	if err := a.initHandlers(); err != nil {
-		return fmt.Errorf("failed to initialize handlers: %w", err)
 	}
 
 	// Initialize router
@@ -91,7 +74,7 @@ func (a *App) initDatabase() error {
 	}
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger:         gormLogger,
+		Logger: gormLogger,
 		NamingStrategy: database.NamingStrategy{},
 	})
 	if err != nil {
@@ -129,121 +112,115 @@ func (a *App) runMigrations(db *gorm.DB) error {
 	)
 }
 
-// initServices initializes all business logic services
-func (a *App) initServices() error {
-	// Mock repositories and services
-	shopRepo := &mockShopRepository{db: a.db}
-	productRepo := &mockProductRepository{db: a.db}
-	orderRepo := &mockOrderRepository{db: a.db}
-	cacheService := &mockCacheService{}
-	eventService := &mockEventService{}
-	paymentService := &mockPaymentService{}
-
-	// Initialize commerce service
-	a.commerceService = services.NewCommerceService(
-		shopRepo,
-		productRepo,
-		orderRepo,
-		cacheService,
-		eventService,
-		paymentService,
-		services.DefaultCommerceConfig(),
-	)
-
-	log.Println("Services initialized successfully")
-	return nil
-}
-
-// initHandlers initializes HTTP handlers
-func (a *App) initHandlers() error {
-	// Initialize handlers
-	a.commerceHandlers = handlers.NewCommerceHandler(a.commerceService)
-
-	log.Println("Handlers initialized successfully")
-	return nil
-}
-
-// initRouter initializes the HTTP router with all routes
+// initRouter initializes the HTTP router
 func (a *App) initRouter() error {
-	// Set Gin mode
-	if !a.config.Debug {
-		gin.SetMode(gin.ReleaseMode)
+	gin.SetMode(gin.ReleaseMode)
+	if a.config.Debug {
+		gin.SetMode(gin.DebugMode)
 	}
 
-	router := gin.New()
+	a.router = gin.New()
 
 	// Add middleware
-	router.Use(gin.Logger())
-	router.Use(gin.Recovery())
-	router.Use(middleware.CORS())
-	router.Use(middleware.SecurityHeaders())
-
-	// Rate limiting
-	if a.config.RateLimit.Enabled {
-		rateLimiter := middleware.NewRateLimiter(
-			a.config.RateLimit.RequestsPerMinute,
-			a.config.RateLimit.BurstSize,
-			a.config.RateLimit.CleanupInterval,
-		)
-		router.Use(rateLimiter.Middleware())
-	}
+	a.router.Use(gin.Logger())
+	a.router.Use(gin.Recovery())
+	a.router.Use(middleware.CORS())
+	a.router.Use(middleware.SecurityHeaders())
 
 	// Health check endpoints
-	router.GET("/health", a.healthCheck)
-	router.GET("/ready", a.readinessCheck)
+	a.router.GET("/health", a.healthCheck)
+	a.router.GET("/ready", a.readinessCheck)
 
-	// API routes
-	v1 := router.Group("/api/v1")
+	// Mock commerce endpoints
+	v1 := a.router.Group("/api/v1")
 	{
-		// Commerce routes
-		handlers.RegisterCommerceRoutes(v1, a.commerceService)
+		v1.GET("/shops", a.getShops)
+		v1.POST("/shops", a.createShop)
 	}
 
-	// Swagger documentation (if enabled)
-	if a.config.Debug {
-		// Add swagger routes here if needed
-	}
-
-	a.router = router
-	log.Println("Router initialized successfully")
 	return nil
 }
 
 // initServer initializes the HTTP server
 func (a *App) initServer() {
-	addr := fmt.Sprintf("%s:%d", a.config.Server.Host, a.config.Server.Port)
-
 	a.server = &http.Server{
-		Addr:         addr,
-		Handler:      a.router,
-		ReadTimeout:  a.config.Server.ReadTimeout,
-		WriteTimeout: a.config.Server.WriteTimeout,
-		IdleTimeout:  a.config.Server.IdleTimeout,
+		Addr:    fmt.Sprintf(":%d", a.config.Server.Port),
+		Handler: a.router,
 	}
 }
 
-// Run starts the application server
-func (a *App) Run() error {
-	log.Printf("Starting commerce service on %s", a.server.Addr)
+// healthCheck handles health check requests
+func (a *App) healthCheck(c *gin.Context) {
+	responses.SendSuccessResponse(c, map[string]string{
+		"status":    "healthy",
+		"service":   "commerce-service",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	})
+}
 
-	// Start server in a goroutine
+// readinessCheck handles readiness probe requests
+func (a *App) readinessCheck(c *gin.Context) {
+	// Check database connection
+	sqlDB, err := a.db.DB()
+	if err != nil {
+		responses.SendErrorResponse(c, http.StatusServiceUnavailable, "database connection not available", "DATABASE_ERROR")
+		return
+	}
+
+	if err := sqlDB.Ping(); err != nil {
+		responses.SendErrorResponse(c, http.StatusServiceUnavailable, "database ping failed", "DATABASE_PING_ERROR")
+		return
+	}
+
+	responses.SendSuccessResponse(c, map[string]string{
+		"status":    "ready",
+		"service":   "commerce-service",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+// Mock commerce endpoints
+func (a *App) getShops(c *gin.Context) {
+	responses.SendSuccessResponse(c, []map[string]interface{}{
+		{
+			"id":     uuid.New().String(),
+			"name":   "Sample Shop",
+			"status": "active",
+		},
+	})
+}
+
+func (a *App) createShop(c *gin.Context) {
+	responses.SendSuccessResponse(c, map[string]interface{}{
+		"id":     uuid.New().String(),
+		"name":   "New Shop",
+		"status": "created",
+	})
+}
+
+// Run starts the HTTP server
+func (a *App) Run() error {
+	// Graceful shutdown
 	go func() {
 		if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
 		}
 	}()
 
-	log.Printf("Commerce service is running on %s", a.server.Addr)
-	return nil
-}
+	log.Printf("Commerce service is running on port %d", a.config.Server.Port)
 
-// Shutdown gracefully shuts down the application
-func (a *App) Shutdown(ctx context.Context) error {
-	log.Println("Shutting down commerce service...")
+	// Wait for interrupt signal to gracefully shutdown the server
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
 
-	// Shutdown HTTP server
+	log.Println("Shutdown signal received")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	if err := a.server.Shutdown(ctx); err != nil {
-		return fmt.Errorf("failed to shutdown server: %w", err)
+		return fmt.Errorf("server forced to shutdown: %w", err)
 	}
 
 	// Close database connection
@@ -254,184 +231,7 @@ func (a *App) Shutdown(ctx context.Context) error {
 		}
 	}
 
-	log.Println("Commerce service shutdown completed")
-	return nil
-}
-
-// Health check endpoint
-func (a *App) healthCheck(c *gin.Context) {
-	responses.SuccessResponse(c, gin.H{
-		"status":    "ok",
-		"service":   "commerce",
-		"version":   "1.0.0",
-		"timestamp": time.Now().UTC(),
-	})
-}
-
-// Readiness check endpoint
-func (a *App) readinessCheck(c *gin.Context) {
-	// Check database connection
-	if a.db != nil {
-		sqlDB, err := a.db.DB()
-		if err != nil || sqlDB.Ping() != nil {
-			responses.ErrorResponse(c, http.StatusServiceUnavailable, "Database not ready", "Database connection failed")
-			return
-		}
-	}
-
-	responses.SuccessResponse(c, gin.H{
-		"status":   "ready",
-		"service":  "commerce",
-		"database": "connected",
-	})
-}
-
-// Mock implementations
-
-type mockShopRepository struct {
-	db *gorm.DB
-}
-
-func (m *mockShopRepository) Create(ctx context.Context, shop *models.Shop) error {
-	return m.db.WithContext(ctx).Create(shop).Error
-}
-
-func (m *mockShopRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Shop, error) {
-	var shop models.Shop
-	err := m.db.WithContext(ctx).First(&shop, id).Error
-	return &shop, err
-}
-
-func (m *mockShopRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Shop, error) {
-	var shops []*models.Shop
-	err := m.db.WithContext(ctx).Where("owner_id = ?", userID).Find(&shops).Error
-	return shops, err
-}
-
-func (m *mockShopRepository) Update(ctx context.Context, shop *models.Shop) error {
-	return m.db.WithContext(ctx).Save(shop).Error
-}
-
-func (m *mockShopRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	return m.db.WithContext(ctx).Delete(&models.Shop{}, id).Error
-}
-
-func (m *mockShopRepository) Search(ctx context.Context, query string, limit, offset int) ([]*models.Shop, error) {
-	var shops []*models.Shop
-	err := m.db.WithContext(ctx).Where("name ILIKE ?", "%"+query+"%").Limit(limit).Offset(offset).Find(&shops).Error
-	return shops, err
-}
-
-type mockProductRepository struct {
-	db *gorm.DB
-}
-
-func (m *mockProductRepository) Create(ctx context.Context, product *models.Product) error {
-	return m.db.WithContext(ctx).Create(product).Error
-}
-
-func (m *mockProductRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Product, error) {
-	var product models.Product
-	err := m.db.WithContext(ctx).First(&product, id).Error
-	return &product, err
-}
-
-func (m *mockProductRepository) GetByShopID(ctx context.Context, shopID uuid.UUID, limit, offset int) ([]*models.Product, error) {
-	var products []*models.Product
-	err := m.db.WithContext(ctx).Where("shop_id = ?", shopID).Limit(limit).Offset(offset).Find(&products).Error
-	return products, err
-}
-
-func (m *mockProductRepository) Update(ctx context.Context, product *models.Product) error {
-	return m.db.WithContext(ctx).Save(product).Error
-}
-
-func (m *mockProductRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	return m.db.WithContext(ctx).Delete(&models.Product{}, id).Error
-}
-
-func (m *mockProductRepository) Search(ctx context.Context, query string, filters map[string]interface{}, limit, offset int) ([]*models.Product, error) {
-	var products []*models.Product
-	err := m.db.WithContext(ctx).Where("name ILIKE ?", "%"+query+"%").Limit(limit).Offset(offset).Find(&products).Error
-	return products, err
-}
-
-func (m *mockProductRepository) GetByCategory(ctx context.Context, category string, limit, offset int) ([]*models.Product, error) {
-	var products []*models.Product
-	err := m.db.WithContext(ctx).Where("category = ?", category).Limit(limit).Offset(offset).Find(&products).Error
-	return products, err
-}
-
-func (m *mockProductRepository) UpdateInventory(ctx context.Context, productID uuid.UUID, quantity int) error {
-	return m.db.WithContext(ctx).Model(&models.Product{}).Where("id = ?", productID).Update("inventory_count", quantity).Error
-}
-
-type mockOrderRepository struct {
-	db *gorm.DB
-}
-
-func (m *mockOrderRepository) Create(ctx context.Context, order *models.Order) error {
-	return m.db.WithContext(ctx).Create(order).Error
-}
-
-func (m *mockOrderRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Order, error) {
-	var order models.Order
-	err := m.db.WithContext(ctx).First(&order, id).Error
-	return &order, err
-}
-
-func (m *mockOrderRepository) GetByUserID(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.Order, error) {
-	var orders []*models.Order
-	err := m.db.WithContext(ctx).Where("buyer_id = ?", userID).Limit(limit).Offset(offset).Find(&orders).Error
-	return orders, err
-}
-
-func (m *mockOrderRepository) GetByShopID(ctx context.Context, shopID uuid.UUID, limit, offset int) ([]*models.Order, error) {
-	var orders []*models.Order
-	err := m.db.WithContext(ctx).Where("shop_id = ?", shopID).Limit(limit).Offset(offset).Find(&orders).Error
-	return orders, err
-}
-
-func (m *mockOrderRepository) Update(ctx context.Context, order *models.Order) error {
-	return m.db.WithContext(ctx).Save(order).Error
-}
-
-func (m *mockOrderRepository) GetByStatus(ctx context.Context, status models.OrderStatus, limit, offset int) ([]*models.Order, error) {
-	var orders []*models.Order
-	err := m.db.WithContext(ctx).Where("status = ?", status).Limit(limit).Offset(offset).Find(&orders).Error
-	return orders, err
-}
-
-type mockCacheService struct{}
-
-func (m *mockCacheService) Get(ctx context.Context, key string) (interface{}, error) {
-	return nil, fmt.Errorf("not found")
-}
-
-func (m *mockCacheService) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
-	return nil
-}
-
-func (m *mockCacheService) Delete(ctx context.Context, key string) error {
-	return nil
-}
-
-type mockEventService struct{}
-
-func (m *mockEventService) Publish(ctx context.Context, event interface{}) error {
-	log.Printf("Event published: %+v", event)
-	return nil
-}
-
-type mockPaymentService struct{}
-
-func (m *mockPaymentService) ProcessPayment(ctx context.Context, orderID uuid.UUID, amount float64, paymentMethodID uuid.UUID) error {
-	log.Printf("Payment processed for order %s: $%.2f", orderID, amount)
-	return nil
-}
-
-func (m *mockPaymentService) RefundPayment(ctx context.Context, orderID uuid.UUID, amount float64) error {
-	log.Printf("Refund processed for order %s: $%.2f", orderID, amount)
+	log.Println("Commerce service stopped")
 	return nil
 }
 
@@ -442,33 +242,38 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// Create and initialize application
+	// Override with environment variables if present
+	if dbHost := os.Getenv("DATABASE_HOST"); dbHost != "" {
+		cfg.Database.Host = dbHost
+	}
+	if dbPort := os.Getenv("DATABASE_PORT"); dbPort != "" {
+		if port, err := strconv.Atoi(dbPort); err == nil {
+			cfg.Database.Port = port
+		}
+	}
+	if dbPassword := os.Getenv("DATABASE_PASSWORD"); dbPassword != "" {
+		cfg.Database.Password = dbPassword
+	}
+	if dbName := os.Getenv("COMMERCE_DATABASE_NAME"); dbName != "" {
+		cfg.Database.Database = dbName
+	}
+	if jwtSecret := os.Getenv("JWT_SECRET"); jwtSecret != "" {
+		cfg.JWT.Secret = jwtSecret
+	}
+	if serverPort := os.Getenv("SERVER_PORT"); serverPort != "" {
+		if port, err := strconv.Atoi(serverPort); err == nil {
+			cfg.Server.Port = port
+		}
+	}
+
+	// Create and initialize app
 	app := NewApp(cfg)
 	if err := app.Initialize(); err != nil {
 		log.Fatalf("Failed to initialize application: %v", err)
 	}
 
-	// Setup graceful shutdown
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	// Start the application
+	// Start the server
 	if err := app.Run(); err != nil {
-		log.Fatalf("Failed to start application: %v", err)
+		log.Fatalf("Failed to start server: %v", err)
 	}
-
-	// Wait for shutdown signal
-	<-ctx.Done()
-	log.Println("Shutdown signal received")
-
-	// Graceful shutdown with timeout
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if err := app.Shutdown(shutdownCtx); err != nil {
-		log.Printf("Failed to shutdown gracefully: %v", err)
-		os.Exit(1)
-	}
-
-	log.Println("Commerce service stopped")
 }

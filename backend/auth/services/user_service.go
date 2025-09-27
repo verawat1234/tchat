@@ -97,12 +97,27 @@ func (us *UserService) CreateUser(ctx context.Context, req *CreateUserRequest) (
 	}
 
 	// Create user using shared model with correct field mapping
+	userName := req.FirstName + " " + req.LastName
+	if userName == " " {
+		userName = "User " + req.PhoneNumber[len(req.PhoneNumber)-4:]
+	}
+
+	// Generate unique username from phone number to avoid constraint violations
+	username := "user_" + strings.ReplaceAll(req.PhoneNumber, "+", "") + "_" + fmt.Sprintf("%d", time.Now().Unix())
+
+	// Generate unique dummy email for test users to avoid constraint violations
+	email := "test_" + strings.ReplaceAll(req.PhoneNumber, "+", "") + "_" + fmt.Sprintf("%d", time.Now().Unix()) + "@test.tchat.dev"
+
 	user := &sharedModels.User{
 		ID:          uuid.New(),
+		Username:    username,        // Generate unique username to avoid constraint violations
 		PhoneNumber: req.PhoneNumber,
-		CountryCode: req.Country,
+		Email:       email,           // Generate unique email to avoid constraint violations
+		Name:        userName,        // This is required for validation
+		Country:     req.Country,     // This is required for validation
+		CountryCode: req.Country,     // Also set CountryCode for backwards compatibility
 		Status:      string(sharedModels.UserStatusActive), // Default to active
-		DisplayName: req.FirstName + " " + req.LastName,
+		DisplayName: userName,
 		Locale:      req.Language,
 		Timezone:    req.TimeZone,
 		PhoneVerified: false,
@@ -592,7 +607,10 @@ func (us *UserService) validateCreateUserRequest(req *CreateUserRequest) error {
 	}
 
 	// Validate phone number format for country
-	if !utils.IsValidPhoneNumber(req.PhoneNumber, req.Country) {
+	fmt.Printf("DEBUG: Validating phone number '%s' for country '%s'\n", req.PhoneNumber, req.Country)
+	isValid := utils.IsValidPhoneNumber(req.PhoneNumber, req.Country)
+	fmt.Printf("DEBUG: IsValidPhoneNumber result: %t\n", isValid)
+	if !isValid {
 		return fmt.Errorf("invalid phone number format for country %s", req.Country)
 	}
 

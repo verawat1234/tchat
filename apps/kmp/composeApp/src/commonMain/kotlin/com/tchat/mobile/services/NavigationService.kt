@@ -69,6 +69,15 @@ interface NavigationService {
     suspend fun handleDeepLink(url: String): Boolean
 }
 
+/**
+ * Platform-specific navigation implementation
+ * For KMP projects, consider using:
+ * - Voyager: https://github.com/adrielcafe/voyager
+ * - Decompose: https://github.com/arkivanov/Decompose
+ * - PreCompose: https://github.com/Tlaster/PreCompose
+ */
+// expect class PlatformNavigationService() : NavigationService
+
 class MockNavigationService : NavigationService {
 
     // Mock navigation state

@@ -75,14 +75,14 @@ data class MessagePreview(
     val senderId: String,
     val senderName: String,
     val timestamp: String,
-    val type: MessageType = MessageType.TEXT,
+    val type: ChatMessageType = ChatMessageType.TEXT,
     val isEdited: Boolean = false,
     val reactions: List<String> = emptyList(), // Emoji reactions
     val attachmentCount: Int = 0,
     val replyToId: String? = null
 )
 
-enum class MessageType {
+enum class ChatMessageType {
     TEXT,
     IMAGE,
     VIDEO,

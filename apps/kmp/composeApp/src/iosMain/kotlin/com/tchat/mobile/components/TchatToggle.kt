@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -346,6 +347,7 @@ private fun IOSSegmentedToggle(
             .clip(shape)
             .clickable(
                 enabled = enabled,
+                interactionSource = remember { MutableInteractionSource() },
                 indication = null, // iOS doesn't use ripple
                 onClick = onClick
             ),

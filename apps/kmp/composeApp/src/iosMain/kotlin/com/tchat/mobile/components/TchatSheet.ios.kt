@@ -36,8 +36,10 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalConfiguration
+import com.tchat.mobile.utils.getWindowConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -45,8 +47,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import com.tchat.mobile.designsystem.TchatColors
 import com.tchat.mobile.designsystem.TchatSpacing
@@ -54,11 +54,49 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
+ * Sheet presentation modes for iOS-style sheets
+ */
+enum class SheetPresentationMode {
+    Modal,      // Presented as a modal overlay with backdrop
+    Persistent, // Non-modal sheet that can coexist with other content
+    Fullscreen  // Full-screen presentation
+}
+
+/**
+ * Sheet sizing behavior
+ */
+enum class SheetSizing {
+    FitContent, // Size to fit content height
+    Fractional, // Fractional screen height (0.0-1.0)
+    Fixed,      // Fixed height in dp
+    Expanded    // Full screen height
+}
+
+/**
+ * Sheet dismiss behavior configuration
+ */
+data class SheetDismissBehavior(
+    val confirmDismiss: Boolean = false,
+    val backdropDismiss: Boolean = true,
+    val dragToDismiss: Boolean = true,
+    val dismissThreshold: Float = 0.3f
+)
+
+/**
+ * Sheet animation configuration
+ */
+data class SheetAnimation(
+    val springDamping: Float = 0.8f,
+    val springStiffness: Float = 400f,
+    val dismissalDuration: Int = 250
+)
+
+/**
  * iOS implementation of TchatSheet with native-style sheet presentations
  * Mimics iOS sheet behavior with appropriate animations and gestures
  */
 @Composable
-actual fun TchatSheet(
+fun TchatSheet(
     isVisible: Boolean,
     onDismissRequest: () -> Unit,
     content: @Composable () -> Unit,
@@ -157,7 +195,7 @@ private fun IOSModalSheet(
     interactionSource: MutableInteractionSource,
     contentDescription: String?
 ) {
-    val configuration = LocalConfiguration.current
+    val windowConfig = getWindowConfiguration()
     val density = LocalDensity.current
     var dragOffset by remember { mutableStateOf(0f) }
 
@@ -173,7 +211,7 @@ private fun IOSModalSheet(
 
     if (isVisible) {
         Dialog(
-            onDismissRequest = if (dismissBehavior.backdropDismiss) handleDismiss else {},
+            onDismissRequest = if (dismissBehavior.backdropDismiss) handleDismiss else { },
             properties = DialogProperties(
                 dismissOnBackPress = dismissBehavior.backdropDismiss,
                 dismissOnClickOutside = dismissBehavior.backdropDismiss,
@@ -219,9 +257,7 @@ private fun IOSModalSheet(
                                 when (sizing) {
                                     SheetSizing.FitContent -> Modifier.wrapContentHeight()
                                     SheetSizing.Fractional -> Modifier.height(
-                                        with(density) {
-                                            (configuration.screenHeightDp * sizeValue).dp
-                                        }
+                                        (windowConfig.screenHeightDp * sizeValue).dp
                                     )
                                     SheetSizing.Fixed -> Modifier.height(sizeValue.dp)
                                     SheetSizing.Expanded -> Modifier.fillMaxSize()
@@ -258,7 +294,7 @@ private fun IOSModalSheet(
                                 contentDescription?.let {
                                     this.contentDescription = it
                                 }
-                                role = Role.Dialog
+                                role = Role.Button
                             },
                         color = backgroundColor,
                         shape = shape
@@ -319,7 +355,7 @@ private fun IOSPersistentSheet(
     interactionSource: MutableInteractionSource,
     contentDescription: String?
 ) {
-    val configuration = LocalConfiguration.current
+    val windowConfig = getWindowConfiguration()
     val density = LocalDensity.current
     var dragOffset by remember { mutableStateOf(0f) }
 
@@ -344,9 +380,7 @@ private fun IOSPersistentSheet(
                     when (sizing) {
                         SheetSizing.FitContent -> Modifier.wrapContentHeight()
                         SheetSizing.Fractional -> Modifier.height(
-                            with(density) {
-                                (configuration.screenHeightDp * sizeValue).dp
-                            }
+                            (windowConfig.screenHeightDp * sizeValue).dp
                         )
                         SheetSizing.Fixed -> Modifier.height(sizeValue.dp)
                         SheetSizing.Expanded -> Modifier.fillMaxSize()
@@ -383,7 +417,7 @@ private fun IOSPersistentSheet(
                     contentDescription?.let {
                         this.contentDescription = it
                     }
-                    role = Role.Generic
+                    role = Role.Button
                 },
             color = backgroundColor,
             shape = shape
@@ -438,7 +472,7 @@ private fun IOSFullscreenSheet(
 ) {
     if (isVisible) {
         Dialog(
-            onDismissRequest = if (dismissBehavior.backdropDismiss) onDismissRequest else {},
+            onDismissRequest = if (dismissBehavior.backdropDismiss) onDismissRequest else { },
             properties = DialogProperties(
                 dismissOnBackPress = dismissBehavior.backdropDismiss,
                 dismissOnClickOutside = false,
@@ -466,7 +500,7 @@ private fun IOSFullscreenSheet(
                             contentDescription?.let {
                                 this.contentDescription = it
                             }
-                            role = Role.Dialog
+                            role = Role.Button
                         },
                     color = backgroundColor
                 ) {

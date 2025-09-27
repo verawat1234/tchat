@@ -21,6 +21,7 @@ import com.tchat.mobile.components.TchatButton
 import com.tchat.mobile.components.TchatButtonVariant
 import com.tchat.mobile.components.TchatInput
 import com.tchat.mobile.components.TchatInputType
+import com.tchat.mobile.components.TchatTopBar
 import com.tchat.mobile.designsystem.TchatColors
 import com.tchat.mobile.designsystem.TchatSpacing
 
@@ -31,6 +32,7 @@ fun ChatScreen(
     onSearchClick: () -> Unit = {},
     onQRScannerClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
+    onMoreClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableStateOf(0) }
@@ -90,6 +92,14 @@ fun ChatScreen(
                             )
                         )
                     }
+                }
+                // Add Settings button to existing top bar
+                IconButton(onClick = onMoreClick) {
+                    Icon(
+                        Icons.Default.Settings,
+                        "Settings",
+                        tint = TchatColors.onSurface
+                    )
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(

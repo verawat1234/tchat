@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -141,6 +142,7 @@ actual fun TchatSelect(
                     .clip(RoundedCornerShape(12.dp)) // iOS uses more rounded corners
                     .clickable(
                         enabled = enabled && !isLoading,
+                        interactionSource = interactionSource,
                         indication = null // iOS doesn't use ripple
                     ) {
                         expanded = !expanded
@@ -205,6 +207,7 @@ actual fun TchatSelect(
                                         .size(22.dp)
                                         .clickable(
                                             enabled = enabled,
+                                            interactionSource = remember { MutableInteractionSource() },
                                             indication = null
                                         ) {
                                             onTrailingIconClick?.invoke()
@@ -442,6 +445,7 @@ private fun IOSSelectOptionItem(
             .clip(RoundedCornerShape(8.dp))
             .clickable(
                 enabled = enabled,
+                interactionSource = remember { MutableInteractionSource() },
                 indication = null // iOS doesn't use ripple
             ) { onClick() },
         color = backgroundColor

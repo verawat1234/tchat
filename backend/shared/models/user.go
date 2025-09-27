@@ -124,12 +124,15 @@ type User struct {
 	EmailVerified   bool `json:"is_email_verified" gorm:"column:is_email_verified;default:false"`
 	PhoneVerified   bool `json:"is_phone_verified" gorm:"column:is_phone_verified;default:false"`
 
-	// User preferences - removed non-existent columns
-	// Note: Actual preference columns need to be created in database if needed
-	// Current DB schema only has profile_* columns, not pref_* columns
+	// User preferences - matching actual database schema
+	PrefTheme             string `json:"pref_theme,omitempty" gorm:"column:pref_theme;size:20"`
+	PrefLanguage          string `json:"pref_language,omitempty" gorm:"column:pref_language;size:10"`
+	PrefNotificationsEmail bool  `json:"pref_notifications_email" gorm:"column:pref_notifications_email;default:true"`
+	PrefNotificationsPush  bool  `json:"pref_notifications_push" gorm:"column:pref_notifications_push;default:true"`
+	PrefPrivacyLevel      string `json:"pref_privacy_level,omitempty" gorm:"column:pref_privacy_level;size:20"`
 
-	// Metadata - DISABLED: column doesn't exist in current database schema
-	// Metadata *string `json:"metadata,omitempty" gorm:"column:metadata;type:jsonb;default:'{}'"`
+	// Metadata - matching actual database schema
+	Metadata json.RawMessage `json:"metadata,omitempty" gorm:"column:metadata;type:jsonb;default:'{}'"`
 
 	// Timestamps
 	CreatedAt time.Time      `json:"created_at" gorm:"column:created_at;default:CURRENT_TIMESTAMP"`

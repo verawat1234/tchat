@@ -46,25 +46,35 @@ func (j *JSON) Scan(value interface{}) error {
 }
 
 // Session represents a user authentication session
+// Maps to the user_sessions table in the database
 type Session struct {
-	ID               uuid.UUID              `json:"id" db:"id"`
-	UserID           uuid.UUID              `json:"user_id" db:"user_id"`
-	DeviceID         string                 `json:"device_id" db:"device_id"`
-	AccessToken      string                 `json:"access_token" db:"access_token_hash"`
-	RefreshToken     string                 `json:"refresh_token" db:"refresh_token_hash"`
-	ExpiresAt        time.Time              `json:"expires_at" db:"expires_at"`
-	RefreshExpiresAt time.Time              `json:"refresh_expires_at" db:"refresh_expires_at"`
-	IsActive         bool                   `json:"is_active" db:"is_active"`
-	IPAddress        string                 `json:"ip_address" db:"ip_address"`
-	UserAgent        string                 `json:"user_agent" db:"user_agent"`
-	DeviceInfo       JSON `json:"device_info" gorm:"type:jsonb"`
-	Metadata         JSON `json:"metadata" gorm:"type:jsonb"`
-	CreatedAt        time.Time              `json:"created_at" db:"created_at"`
-	UpdatedAt        time.Time              `json:"updated_at" db:"updated_at"`
-	LastActiveAt     time.Time              `json:"last_active_at" db:"last_active_at"`
-	LastUsed         time.Time              `json:"last_used" db:"last_used"`
-	RevokedAt        *time.Time             `json:"revoked_at,omitempty" db:"revoked_at"`
-	Status           SessionStatus          `json:"status" db:"status"`
+	ID            uuid.UUID `json:"id" gorm:"column:id;type:uuid;primary_key"`
+	UserID        uuid.UUID `json:"user_id" gorm:"column:user_id;type:uuid;not null;index"`
+	SessionToken  string    `json:"session_token" gorm:"column:session_token;type:text;not null;unique"`
+	RefreshToken  string    `json:"refresh_token" gorm:"column:refresh_token;type:text;not null;unique"`
+	DeviceID      string    `json:"device_id" gorm:"column:device_id;type:text"`
+	DeviceType    string    `json:"device_type" gorm:"column:device_type;type:varchar(50)"`
+	IPAddress     string    `json:"ip_address" gorm:"column:ip_address;type:inet"`
+	UserAgent     string    `json:"user_agent" gorm:"column:user_agent;type:text"`
+	ExpiresAt     time.Time `json:"expires_at" gorm:"column:expires_at;not null"`
+	CreatedAt     time.Time `json:"created_at" gorm:"column:created_at;autoCreateTime"`
+	LastUsedAt    time.Time `json:"last_used_at" gorm:"column:last_used_at;autoUpdateTime"`
+
+	// Additional fields for JWT tokens (not stored in DB)
+	AccessToken      string                 `json:"access_token,omitempty" gorm:"-"`
+	RefreshExpiresAt time.Time              `json:"refresh_expires_at,omitempty" gorm:"-"`
+	IsActive         bool                   `json:"is_active,omitempty" gorm:"-"`
+	DeviceInfo       JSON `json:"device_info,omitempty" gorm:"-"`
+	Metadata         JSON `json:"metadata,omitempty" gorm:"-"`
+	UpdatedAt        time.Time              `json:"updated_at,omitempty" gorm:"-"`
+	LastActiveAt     time.Time              `json:"last_active_at,omitempty" gorm:"-"`
+	RevokedAt        *time.Time             `json:"revoked_at,omitempty" gorm:"-"`
+	Status           SessionStatus          `json:"status,omitempty" gorm:"column:status;size:20;default:'active'"`
+}
+
+// TableName returns the table name for the Session model
+func (Session) TableName() string {
+	return "user_sessions"
 }
 
 // SessionStatus represents the current state of a session
@@ -127,18 +137,7 @@ func (s *Session) Validate() error {
 		errs = append(errs, "user_id is required")
 	}
 
-	// Device ID validation
-	if strings.TrimSpace(s.DeviceID) == "" {
-		errs = append(errs, "device_id is required")
-	}
-	if len(s.DeviceID) > 255 {
-		errs = append(errs, "device_id must not exceed 255 characters")
-	}
-
-	// Token validation
-	if s.AccessToken == "" {
-		errs = append(errs, "access_token is required")
-	}
+	// RefreshToken validation (main token stored in DB)
 	if s.RefreshToken == "" {
 		errs = append(errs, "refresh_token is required")
 	}
@@ -148,9 +147,14 @@ func (s *Session) Validate() error {
 		errs = append(errs, "expires_at is required")
 	}
 
-	// Status validation
-	if !s.Status.IsValid() {
-		errs = append(errs, fmt.Sprintf("invalid session status: %s", s.Status))
+	// Device ID validation (optional in DB schema, reasonable upper limit)
+	if len(s.DeviceID) > 1000 {
+		errs = append(errs, "device_id must not exceed 1000 characters")
+	}
+
+	// Device Type validation (optional in DB schema)
+	if len(s.DeviceType) > 50 {
+		errs = append(errs, "device_type must not exceed 50 characters")
 	}
 
 	// IP Address validation if provided
@@ -158,11 +162,6 @@ func (s *Session) Validate() error {
 		if err := s.validateIPAddress(s.IPAddress); err != nil {
 			errs = append(errs, fmt.Sprintf("invalid IP address: %v", err))
 		}
-	}
-
-	// User Agent validation if provided
-	if len(s.UserAgent) > 512 {
-		errs = append(errs, "user_agent must not exceed 512 characters")
 	}
 
 	if len(errs) > 0 {
@@ -192,36 +191,34 @@ func (s *Session) BeforeCreate(tx *gorm.DB) error {
 	// Set timestamps
 	now := time.Now().UTC()
 	s.CreatedAt = now
-	s.LastUsed = now
+	s.LastUsedAt = now
 
-	// Set default status
-	if s.Status == "" {
-		s.Status = SessionStatusActive
-	}
-
-	// Set active flag based on status
-	s.IsActive = (s.Status == SessionStatusActive)
-
-	// Set default expiry if not provided
+	// Set default expiry if not provided (30 days for refresh token)
 	if s.ExpiresAt.IsZero() {
-		s.ExpiresAt = now.Add(AccessTokenExpiry)
+		s.ExpiresAt = now.Add(RefreshTokenExpiry)
 	}
 
-	// Generate tokens if not provided
-	if s.AccessToken == "" {
+	// Generate session token if not provided
+	if s.SessionToken == "" {
 		token, err := s.generateSecureToken()
 		if err != nil {
-			return fmt.Errorf("failed to generate access token: %v", err)
+			return fmt.Errorf("failed to generate session token: %v", err)
 		}
-		s.AccessToken = token
+		s.SessionToken = token
 	}
 
+	// Generate refresh token if not provided
 	if s.RefreshToken == "" {
 		token, err := s.generateSecureToken()
 		if err != nil {
 			return fmt.Errorf("failed to generate refresh token: %v", err)
 		}
 		s.RefreshToken = token
+	}
+
+	// Set default device type if not provided
+	if s.DeviceType == "" {
+		s.DeviceType = "unknown"
 	}
 
 	// Validate before creation
@@ -231,10 +228,7 @@ func (s *Session) BeforeCreate(tx *gorm.DB) error {
 // BeforeUpdate sets up the session before database update
 func (s *Session) BeforeUpdate(tx *gorm.DB) error {
 	// Update last used timestamp
-	s.LastUsed = time.Now().UTC()
-
-	// Update active flag based on status
-	s.IsActive = (s.Status == SessionStatusActive) && !s.IsExpired()
+	s.LastUsedAt = time.Now().UTC()
 
 	// Validate before update
 	return s.Validate()
@@ -279,6 +273,12 @@ func (s *Session) Refresh() error {
 		return errors.New("session cannot be refreshed")
 	}
 
+	// Generate new session token
+	newSessionToken, err := s.generateSecureToken()
+	if err != nil {
+		return fmt.Errorf("failed to generate new session token: %v", err)
+	}
+
 	// Generate new access token
 	newAccessToken, err := s.generateSecureToken()
 	if err != nil {
@@ -287,9 +287,10 @@ func (s *Session) Refresh() error {
 
 	// Update session
 	now := time.Now().UTC()
+	s.SessionToken = newSessionToken
 	s.AccessToken = newAccessToken
 	s.ExpiresAt = now.Add(AccessTokenExpiry)
-	s.LastUsed = now
+	s.LastUsedAt = now
 	s.Status = SessionStatusActive
 	s.IsActive = true
 
@@ -302,7 +303,7 @@ func (s *Session) Revoke(reason string) error {
 	s.Status = SessionStatusRevoked
 	s.IsActive = false
 	s.RevokedAt = &now
-	s.LastUsed = now
+	s.LastUsedAt = now
 
 	return s.Validate()
 }
@@ -312,7 +313,7 @@ func (s *Session) Expire() error {
 	now := time.Now().UTC()
 	s.Status = SessionStatusExpired
 	s.IsActive = false
-	s.LastUsed = now
+	s.LastUsedAt = now
 
 	return s.Validate()
 }
@@ -321,7 +322,7 @@ func (s *Session) Expire() error {
 func (s *Session) Suspend() error {
 	s.Status = SessionStatusSuspended
 	s.IsActive = false
-	s.LastUsed = time.Now().UTC()
+	s.LastUsedAt = time.Now().UTC()
 
 	return s.Validate()
 }
@@ -342,14 +343,14 @@ func (s *Session) Reactivate() error {
 
 	s.Status = SessionStatusActive
 	s.IsActive = true
-	s.LastUsed = time.Now().UTC()
+	s.LastUsedAt = time.Now().UTC()
 
 	return s.Validate()
 }
 
 // UpdateActivity updates the last used timestamp
 func (s *Session) UpdateActivity() {
-	s.LastUsed = time.Now().UTC()
+	s.LastUsedAt = time.Now().UTC()
 }
 
 // CanTransitionToStatus checks if session can transition to given status
@@ -409,7 +410,7 @@ func (s *Session) ToSessionInfo() map[string]interface{} {
 		"is_active":  s.IsActive,
 		"status":     s.Status,
 		"created_at": s.CreatedAt,
-		"last_used":  s.LastUsed,
+		"last_used":  s.LastUsedAt,
 		"expires_at": s.ExpiresAt,
 		"ip_address": s.IPAddress,
 		"user_agent": s.UserAgent,
@@ -419,7 +420,7 @@ func (s *Session) ToSessionInfo() map[string]interface{} {
 // SessionCreateRequest represents a request to create a new session
 type SessionCreateRequest struct {
 	UserID    uuid.UUID `json:"user_id" validate:"required"`
-	DeviceID  string    `json:"device_id" validate:"required,max=255"`
+	DeviceID  string    `json:"device_id" validate:"required,max=1000"`
 	IPAddress *string   `json:"ip_address,omitempty"`
 	UserAgent *string   `json:"user_agent,omitempty,max=512"`
 }

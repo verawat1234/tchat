@@ -24,6 +24,9 @@ sealed class Screen(val route: String) {
     data object Video : Screen("video")
     data object More : Screen("more")
 
+    // Top bar screen
+    data object Web : Screen("web")
+
     // Detail screens
     data class ChatDetail(val chatId: String, val chatName: String) : Screen("chat_detail/$chatId")
     data class ProductDetail(val productId: String) : Screen("product_detail/$productId")
@@ -39,6 +42,12 @@ sealed class Screen(val route: String) {
     data object Search : Screen("search")
     data object QRScanner : Screen("qr_scanner")
     data object Notifications : Screen("notifications")
+
+    // Content creation screens
+    data object CreateChat : Screen("create_chat")
+    data object CreateProduct : Screen("create_product")
+    data object CreatePost : Screen("create_post")
+    data object CreateVideo : Screen("create_video")
 }
 
 enum class MainTab(
@@ -51,7 +60,7 @@ enum class MainTab(
     STORE(Screen.Store, "Store", Icons.Filled.ShoppingCart, Icons.Outlined.ShoppingCart),
     SOCIAL(Screen.Social, "Social", Icons.Filled.Person, Icons.Filled.Person),
     VIDEO(Screen.Video, "Video", Icons.Filled.PlayArrow, Icons.Outlined.PlayArrow),
-    MORE(Screen.More, "More", Icons.Filled.Menu, Icons.Outlined.MoreVert)
+    ADD(Screen.More, "+", Icons.Filled.Add, Icons.Outlined.Add)
 }
 
 @Composable
@@ -62,8 +71,8 @@ fun TchatNavigation(
 ) {
     NavigationBar(
         modifier = modifier,
-        containerColor = TchatColors.background,
-        contentColor = TchatColors.primary
+        containerColor = TchatColors.surface,
+        contentColor = TchatColors.onSurface
     ) {
         MainTab.entries.forEach { tab ->
             NavigationBarItem(
@@ -75,18 +84,24 @@ fun TchatNavigation(
                         contentDescription = tab.title
                     )
                 },
-                label = { Text(tab.title) },
+                label = {
+                    Text(
+                        text = tab.title,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = TchatColors.primary,
                     selectedTextColor = TchatColors.primary,
                     unselectedIconColor = TchatColors.onSurfaceVariant,
                     unselectedTextColor = TchatColors.onSurfaceVariant,
-                    indicatorColor = TchatColors.primary.copy(alpha = 0.1f)
+                    indicatorColor = TchatColors.primary.copy(alpha = 0.12f)
                 )
             )
         }
     }
 }
+
 
 /**
  * Screen State Management
@@ -114,7 +129,7 @@ class ScreenNavigationState {
         } else {
             // If no history, check if we can navigate to parent screen
             when (currentScreen) {
-                is Screen.Chat, is Screen.Store, is Screen.Social, is Screen.Video, is Screen.More -> false
+                is Screen.Chat, is Screen.Store, is Screen.Social, is Screen.Video -> false
                 is Screen.ChatDetail -> {
                     currentScreen = Screen.Chat
                     true
@@ -131,12 +146,32 @@ class ScreenNavigationState {
                     currentScreen = Screen.Video
                     true
                 }
-                is Screen.Settings, is Screen.EditProfile -> {
-                    currentScreen = Screen.More
+                is Screen.More, is Screen.Settings, is Screen.EditProfile -> {
+                    currentScreen = Screen.Chat // Navigate to Chat instead of More
                     true
                 }
                 is Screen.Search, is Screen.QRScanner, is Screen.Notifications -> {
                     currentScreen = Screen.Chat
+                    true
+                }
+                is Screen.Web -> {
+                    currentScreen = Screen.Chat
+                    true
+                }
+                is Screen.CreateChat -> {
+                    currentScreen = Screen.Chat
+                    true
+                }
+                is Screen.CreateProduct -> {
+                    currentScreen = Screen.Store
+                    true
+                }
+                is Screen.CreatePost -> {
+                    currentScreen = Screen.Social
+                    true
+                }
+                is Screen.CreateVideo -> {
+                    currentScreen = Screen.Video
                     true
                 }
             }

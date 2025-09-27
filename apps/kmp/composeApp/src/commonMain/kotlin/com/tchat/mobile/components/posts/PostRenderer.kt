@@ -46,7 +46,7 @@ fun PostRenderer(
     modifier: Modifier = Modifier
 ) {
     var isLiked by remember { mutableStateOf(post.interactions.isLiked) }
-    var likeCount by remember { mutableIntStateOf(post.interactions.likes) }
+    var likeCount by remember { mutableIntStateOf(post.interactions.reactions.count { it.type == ReactionType.LIKE }) }
     var isBookmarked by remember { mutableStateOf(post.interactions.isBookmarked) }
     var showShareMenu by remember { mutableStateOf(false) }
 
@@ -123,7 +123,6 @@ fun PostRenderer(
             // Interaction Bar
             PostInteractionBar(
                 interactions = post.interactions.copy(
-                    likes = likeCount,
                     isLiked = isLiked,
                     isBookmarked = isBookmarked
                 ),
@@ -137,7 +136,7 @@ fun PostRenderer(
 
                         result.onSuccess { updatedInteractions ->
                             isLiked = updatedInteractions.isLiked
-                            likeCount = updatedInteractions.likes
+                            likeCount = updatedInteractions.reactions.count { it.type == ReactionType.LIKE }
                         }
                     }
                 },
@@ -557,87 +556,275 @@ private fun PostInteractionBar(
     onShareClick: () -> Unit,
     onBookmarkClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    var showReactionMenu by remember { mutableStateOf(false) }
+
+    Column {
+        // Engagement metrics (views, reach)
+        if (interactions.views > 0 || interactions.reach > 0) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                if (interactions.views > 0) {
+                    Text(
+                        text = "${formatEngagementCount(interactions.views)} views",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TchatColors.onSurfaceVariant
+                    )
+                }
+                if (interactions.reach > 0 && interactions.reach != interactions.views) {
+                    Text(
+                        text = "${formatEngagementCount(interactions.reach)} reached",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TchatColors.onSurfaceVariant
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // Main interaction bar
         Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Like button
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable { onLikeClick() }
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = if (interactions.isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = "Like",
-                    tint = if (interactions.isLiked) Color.Red else TchatColors.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
-                )
-                if (interactions.likes > 0) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = interactions.likes.toString(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TchatColors.onSurfaceVariant
+                // Enhanced Like/Reaction button
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { showReactionMenu = true }
+                ) {
+                    val dominantReaction = interactions.reactions
+                        .groupBy { it.type }
+                        .maxByOrNull { it.value.size }
+
+                    Icon(
+                        imageVector = when {
+                            interactions.isLiked -> Icons.Default.Favorite
+                            dominantReaction?.key == ReactionType.LOVE -> Icons.Default.FavoriteBorder
+                            dominantReaction?.key == ReactionType.FIRE -> Icons.Default.Whatshot
+                            dominantReaction?.key == ReactionType.CLAP -> Icons.Default.PanTool
+                            else -> Icons.Default.FavoriteBorder
+                        },
+                        contentDescription = "React",
+                        tint = when {
+                            interactions.isLiked -> Color.Red
+                            dominantReaction?.key == ReactionType.LOVE -> Color(0xFFFF69B4)
+                            dominantReaction?.key == ReactionType.FIRE -> Color(0xFFFF4500)
+                            dominantReaction?.key == ReactionType.CLAP -> Color(0xFFFFD700)
+                            else -> TchatColors.onSurfaceVariant
+                        },
+                        modifier = Modifier.size(22.dp)
                     )
+                    if (interactions.reactions.isNotEmpty()) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = formatEngagementCount(interactions.reactions.size),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TchatColors.onSurfaceVariant,
+                            fontWeight = if (interactions.isLiked) FontWeight.Medium else FontWeight.Normal
+                        )
+                    }
                 }
+
+                // Comment button
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { onCommentClick() }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ChatBubbleOutline,
+                        contentDescription = "Comment",
+                        tint = TchatColors.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    if (interactions.comments.isNotEmpty()) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = formatEngagementCount(interactions.comments.size),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TchatColors.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Share button
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { onShareClick() }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "Share",
+                        tint = TchatColors.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    if (interactions.shares.isNotEmpty()) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = formatEngagementCount(interactions.shares.size),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TchatColors.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Send/DM button (TikTok/Instagram style)
+                Icon(
+                    imageVector = Icons.Default.Send,
+                    contentDescription = "Send",
+                    tint = TchatColors.onSurfaceVariant,
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clickable { /* TODO: Implement direct message sharing */ }
+                )
             }
 
-            // Comment button
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable { onCommentClick() }
-            ) {
+            // Bookmark button (right aligned like Instagram)
+            IconButton(onClick = onBookmarkClick) {
                 Icon(
-                    imageVector = Icons.Default.ChatBubbleOutline,
-                    contentDescription = "Comment",
-                    tint = TchatColors.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
+                    imageVector = if (interactions.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                    contentDescription = "Save",
+                    tint = if (interactions.isBookmarked) TchatColors.primary else TchatColors.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp)
                 )
-                if (interactions.comments > 0) {
-                    Spacer(modifier = Modifier.width(4.dp))
+            }
+        }
+
+        // Engagement summary (Instagram style)
+        if (interactions.reactions.isNotEmpty() || interactions.comments.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (interactions.reactions.isNotEmpty()) {
                     Text(
-                        text = interactions.comments.toString(),
+                        text = "${formatEngagementCount(interactions.reactions.size)} likes",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TchatColors.onSurfaceVariant
+                        fontWeight = FontWeight.Medium,
+                        color = TchatColors.onSurface
                     )
                 }
-            }
-
-            // Share button
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable { onShareClick() }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Share,
-                    contentDescription = "Share",
-                    tint = TchatColors.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
-                )
-                if (interactions.shares > 0) {
-                    Spacer(modifier = Modifier.width(4.dp))
+                if (interactions.comments.isNotEmpty()) {
+                    if (interactions.reactions.isNotEmpty()) {
+                        Text(
+                            text = " • ",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TchatColors.onSurfaceVariant
+                        )
+                    }
                     Text(
-                        text = interactions.shares.toString(),
+                        text = "View all ${formatEngagementCount(interactions.comments.size)} comments",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TchatColors.onSurfaceVariant
+                        color = TchatColors.onSurfaceVariant,
+                        modifier = Modifier.clickable { onCommentClick() }
                     )
                 }
             }
         }
+    }
 
-        // Bookmark button
-        IconButton(onClick = onBookmarkClick) {
-            Icon(
-                imageVector = if (interactions.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                contentDescription = "Bookmark",
-                tint = if (interactions.isBookmarked) TchatColors.primary else TchatColors.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
+    // Reaction Menu (similar to Facebook/Instagram)
+    if (showReactionMenu) {
+        ReactionMenu(
+            onReactionSelected = { reaction ->
+                onLikeClick() // For now, just trigger like
+                showReactionMenu = false
+            },
+            onDismiss = { showReactionMenu = false }
+        )
+    }
+}
+
+private fun formatEngagementCount(count: Int): String {
+    return when {
+        count < 1000 -> count.toString()
+        count < 1000000 -> {
+            val k = count / 1000f
+            if (k % 1 == 0f) "${k.toInt()}K" else "${(k * 10).toInt() / 10f}K"
+        }
+        else -> {
+            val m = count / 1000000f
+            if (m % 1 == 0f) "${m.toInt()}M" else "${(m * 10).toInt() / 10f}M"
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReactionMenu(
+    onReactionSelected: (ReactionType) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "Choose Reaction",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(ReactionType.values()) { reaction ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.clickable { onReactionSelected(reaction) }
+                    ) {
+                        Icon(
+                            imageVector = when (reaction) {
+                                ReactionType.LIKE -> Icons.Default.Favorite
+                                ReactionType.LOVE -> Icons.Default.FavoriteBorder
+                                ReactionType.HAHA -> Icons.Default.SentimentSatisfied
+                                ReactionType.WOW -> Icons.Default.SentimentVeryDissatisfied
+                                ReactionType.SAD -> Icons.Default.SentimentDissatisfied
+                                ReactionType.ANGRY -> Icons.Default.SentimentVeryDissatisfied
+                                ReactionType.CARE -> Icons.Default.Favorite
+                                ReactionType.FIRE -> Icons.Default.Whatshot
+                                ReactionType.CLAP -> Icons.Default.PanTool
+                                ReactionType.CELEBRATE -> Icons.Default.Celebration
+                            },
+                            contentDescription = reaction.name,
+                            tint = when (reaction) {
+                                ReactionType.LIKE -> Color.Red
+                                ReactionType.LOVE -> Color(0xFFFF69B4)
+                                ReactionType.HAHA -> Color(0xFFFFD700)
+                                ReactionType.WOW -> Color(0xFF87CEEB)
+                                ReactionType.SAD -> Color(0xFF4169E1)
+                                ReactionType.ANGRY -> Color(0xFFFF4500)
+                                ReactionType.CARE -> Color(0xFFFF69B4)
+                                ReactionType.FIRE -> Color(0xFFFF4500)
+                                ReactionType.CLAP -> Color(0xFFFFD700)
+                                ReactionType.CELEBRATE -> Color(0xFF32CD32)
+                            },
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = reaction.name.lowercase().replaceFirstChar { it.uppercase() },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TchatColors.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }

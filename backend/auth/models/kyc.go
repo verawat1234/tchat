@@ -49,40 +49,40 @@ const (
 
 // KYC represents a Know Your Customer verification record
 type KYC struct {
-	ID               uuid.UUID        `json:"id" gorm:"primaryKey;type:varchar(36)"`
-	UserID           uuid.UUID        `json:"user_id" gorm:"type:varchar(36);not null;index"`
-	DocumentType     DocumentType     `json:"document_type" gorm:"type:varchar(20);not null"`
-	DocumentNumber   string           `json:"document_number" gorm:"type:varchar(50);not null"`
-	FullName         string           `json:"full_name" gorm:"type:varchar(200);not null"`
-	DateOfBirth      time.Time        `json:"date_of_birth" gorm:"not null"`
-	Nationality      string           `json:"nationality" gorm:"type:varchar(2);not null"` // ISO 3166-1 alpha-2
-	PlaceOfBirth     string           `json:"place_of_birth" gorm:"type:varchar(100)"`
-	Gender           string           `json:"gender" gorm:"type:varchar(10)"`
+	ID               uuid.UUID        `json:"id" gorm:"column:id;primaryKey;type:varchar(36)"`
+	UserID           uuid.UUID        `json:"user_id" gorm:"column:user_id;type:varchar(36);not null;index"`
+	DocumentType     DocumentType     `json:"document_type" gorm:"column:document_type;type:varchar(20);not null"`
+	DocumentNumber   string           `json:"document_number" gorm:"column:document_number;type:varchar(50);not null"`
+	FullName         string           `json:"full_name" gorm:"column:full_name;type:varchar(200);not null"`
+	DateOfBirth      time.Time        `json:"date_of_birth" gorm:"column:date_of_birth;not null"`
+	Nationality      string           `json:"nationality" gorm:"column:nationality;type:varchar(2);not null"` // ISO 3166-1 alpha-2
+	PlaceOfBirth     string           `json:"place_of_birth" gorm:"column:place_of_birth;type:varchar(100)"`
+	Gender           string           `json:"gender" gorm:"column:gender;type:varchar(10)"`
 	Address          *Address         `json:"address,omitempty" gorm:"embedded;embeddedPrefix:address_"`
-	DocumentImages   DocumentImages   `json:"document_images" gorm:"type:json"`
-	SelfieImage      string           `json:"selfie_image" gorm:"type:varchar(500)"`
-	Status           KYCStatus        `json:"status" gorm:"type:varchar(20);default:'pending'"`
-	Tier             VerificationTier `json:"tier" gorm:"default:0"`
-	SubmittedAt      *time.Time       `json:"submitted_at"`
-	ReviewedAt       *time.Time       `json:"reviewed_at"`
-	ApprovedAt       *time.Time       `json:"approved_at"`
-	RejectedAt       *time.Time       `json:"rejected_at"`
-	ExpiresAt        *time.Time       `json:"expires_at"`
-	ReviewerID       *uuid.UUID       `json:"reviewer_id,omitempty" gorm:"type:varchar(36)"`
-	RejectionReason  string           `json:"rejection_reason,omitempty" gorm:"type:text"`
-	ReviewNotes      string           `json:"review_notes,omitempty" gorm:"type:text"`
-	ComplianceFlags  ComplianceFlags  `json:"compliance_flags" gorm:"type:json"`
-	CreatedAt        time.Time        `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt        time.Time        `json:"updated_at" gorm:"autoUpdateTime"`
+	DocumentImages   DocumentImages   `json:"document_images" gorm:"column:document_images;type:json"`
+	SelfieImage      string           `json:"selfie_image" gorm:"column:selfie_image;type:varchar(500)"`
+	Status           KYCStatus        `json:"status" gorm:"column:status;type:varchar(20);default:'pending'"`
+	Tier             VerificationTier `json:"tier" gorm:"column:tier;default:0"`
+	SubmittedAt      *time.Time       `json:"submitted_at" gorm:"column:submitted_at"`
+	ReviewedAt       *time.Time       `json:"reviewed_at" gorm:"column:reviewed_at"`
+	ApprovedAt       *time.Time       `json:"approved_at" gorm:"column:approved_at"`
+	RejectedAt       *time.Time       `json:"rejected_at" gorm:"column:rejected_at"`
+	ExpiresAt        *time.Time       `json:"expires_at" gorm:"column:expires_at"`
+	ReviewerID       *uuid.UUID       `json:"reviewer_id,omitempty" gorm:"column:reviewer_id;type:varchar(36)"`
+	RejectionReason  string           `json:"rejection_reason,omitempty" gorm:"column:rejection_reason;type:text"`
+	ReviewNotes      string           `json:"review_notes,omitempty" gorm:"column:review_notes;type:text"`
+	ComplianceFlags  ComplianceFlags  `json:"compliance_flags" gorm:"column:compliance_flags;type:json"`
+	CreatedAt        time.Time        `json:"created_at" gorm:"column:created_at;autoCreateTime"`
+	UpdatedAt        time.Time        `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
 }
 
 // Address represents a physical address for KYC verification
 type Address struct {
-	Street     string `json:"street" gorm:"type:varchar(200)"`
-	City       string `json:"city" gorm:"type:varchar(100)"`
-	State      string `json:"state" gorm:"type:varchar(100)"`
-	PostalCode string `json:"postal_code" gorm:"type:varchar(20)"`
-	Country    string `json:"country" gorm:"type:varchar(2)"` // ISO 3166-1 alpha-2
+	Street     string `json:"street" gorm:"column:street;type:varchar(200)"`
+	City       string `json:"city" gorm:"column:city;type:varchar(100)"`
+	State      string `json:"state" gorm:"column:state;type:varchar(100)"`
+	PostalCode string `json:"postal_code" gorm:"column:postal_code;type:varchar(20)"`
+	Country    string `json:"country" gorm:"column:country;type:varchar(2)"` // ISO 3166-1 alpha-2
 }
 
 // DocumentImages contains URLs to document images

@@ -63,5 +63,32 @@ func LogInfo(c *gin.Context, message string, data gin.H) {
 	}
 
 	// In production, this would go to a proper logging system
-	println("LOG:", message)
+	println("LOG INFO:", message)
+}
+
+// LogWarning logs a warning message with request context
+func LogWarning(c *gin.Context, message string, data gin.H) {
+	// Simple logging implementation
+	// In production, you would use a structured logger like logrus or zap
+	userID, _ := c.Get("user_id")
+	sessionID, _ := c.Get("session_id")
+
+	logData := gin.H{
+		"level":     "warning",
+		"message":   message,
+		"timestamp": time.Now().UTC(),
+		"request_id": c.GetHeader("X-Request-ID"),
+		"user_id":   userID,
+		"session_id": sessionID,
+		"ip":        c.ClientIP(),
+		"method":    c.Request.Method,
+		"path":      c.Request.URL.Path,
+	}
+
+	for k, v := range data {
+		logData[k] = v
+	}
+
+	// In production, this would go to a proper logging system
+	println("LOG WARNING:", message)
 }

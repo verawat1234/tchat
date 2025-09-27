@@ -689,19 +689,49 @@ func IsValidPhoneNumber(phoneNumber, countryCode string) bool {
 	// Remove any non-digit characters for validation
 	phoneDigits := regexp.MustCompile(`\D`).ReplaceAllString(phoneNumber, "")
 
-	// Country-specific phone number validation
+	// Strip country code prefix if present
 	switch countryCode {
-	case "TH": // Thailand: 8-9 digits starting with 6-9
+	case "TH": // Thailand
+		// Remove +66 prefix if present (international format)
+		if strings.HasPrefix(phoneDigits, "66") && len(phoneDigits) > 9 {
+			phoneDigits = phoneDigits[2:] // Remove "66"
+		}
+		// Thailand mobile: 8-9 digits starting with 6-9
 		return regexp.MustCompile(`^[6-9]\d{7,8}$`).MatchString(phoneDigits)
-	case "SG": // Singapore: 8 digits starting with 6, 8, or 9
+	case "SG": // Singapore
+		// Remove +65 prefix if present
+		if strings.HasPrefix(phoneDigits, "65") && len(phoneDigits) > 8 {
+			phoneDigits = phoneDigits[2:] // Remove "65"
+		}
+		// Singapore: 8 digits starting with 6, 8, or 9
 		return regexp.MustCompile(`^[689]\d{7}$`).MatchString(phoneDigits)
-	case "ID": // Indonesia: 8-12 digits starting with 8
+	case "ID": // Indonesia
+		// Remove +62 prefix if present
+		if strings.HasPrefix(phoneDigits, "62") && len(phoneDigits) > 10 {
+			phoneDigits = phoneDigits[2:] // Remove "62"
+		}
+		// Indonesia: 8-12 digits starting with 8
 		return regexp.MustCompile(`^8\d{7,11}$`).MatchString(phoneDigits)
-	case "MY": // Malaysia: 9-10 digits starting with 1
+	case "MY": // Malaysia
+		// Remove +60 prefix if present
+		if strings.HasPrefix(phoneDigits, "60") && len(phoneDigits) > 9 {
+			phoneDigits = phoneDigits[2:] // Remove "60"
+		}
+		// Malaysia: 9-10 digits starting with 1
 		return regexp.MustCompile(`^1\d{8,9}$`).MatchString(phoneDigits)
-	case "PH": // Philippines: 10 digits starting with 9
+	case "PH": // Philippines
+		// Remove +63 prefix if present
+		if strings.HasPrefix(phoneDigits, "63") && len(phoneDigits) > 10 {
+			phoneDigits = phoneDigits[2:] // Remove "63"
+		}
+		// Philippines: 10 digits starting with 9
 		return regexp.MustCompile(`^9\d{9}$`).MatchString(phoneDigits)
-	case "VN": // Vietnam: 9-10 digits starting with 9
+	case "VN": // Vietnam
+		// Remove +84 prefix if present
+		if strings.HasPrefix(phoneDigits, "84") && len(phoneDigits) > 9 {
+			phoneDigits = phoneDigits[2:] // Remove "84"
+		}
+		// Vietnam: 9-10 digits starting with 9
 		return regexp.MustCompile(`^9\d{8,9}$`).MatchString(phoneDigits)
 	default:
 		return false

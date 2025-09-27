@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -151,18 +152,18 @@ func (a *App) runMigrations(db *gorm.DB) error {
 		return fmt.Errorf("failed to migrate user profile columns: %w", err)
 	}
 
-	// Run auto migration for other models that don't have constraint issues
+	// Run auto migration for all models including User
 	if err := db.AutoMigrate(
+		&sharedModels.User{},
 		&models.Session{},
 		&models.KYC{},
 		&sharedModels.Event{},
+		&services.OTP{},
 	); err != nil {
 		return err
 	}
 
-	// Skip User AutoMigrate for now due to NOT NULL constraint issues
-	// Instead rely on manual column management
-	log.Printf("Skipping User AutoMigrate - using manual schema management")
+	log.Printf("All database migrations completed successfully")
 
 	return nil
 }
@@ -347,8 +348,8 @@ func (a *App) initServices() error {
 
 	// Initialize services
 	a.userService = services.NewUserService(userRepo, eventPublisher, a.db)
-	a.sessionService = services.NewSessionService(sessionRepo, eventPublisher, a.db)
 	a.jwtService = services.NewJWTService(a.config)
+	a.sessionService = services.NewSessionService(sessionRepo, eventPublisher, a.jwtService, a.db)
 	a.kycService = services.NewKYCService(kycRepo, a.userService, nil, nil, nil, eventPublisher, a.db)
 	// Create mock dependencies for AuthService
 	mockOTPRepo := &mockOTPRepository{}
@@ -612,14 +613,15 @@ func (m *mockSessionRepository) GetByID(ctx context.Context, id uuid.UUID) (*mod
 }
 
 func (m *mockSessionRepository) GetByAccessToken(ctx context.Context, accessToken string) (*models.Session, error) {
-	var session models.Session
-	err := m.db.WithContext(ctx).Where("access_token = ?", accessToken).First(&session).Error
-	return &session, err
+	// Parse JWT to extract session ID (access tokens are not stored in DB)
+	// For now, return error since we should validate tokens through JWT parsing
+	// This method should not be used for access token validation
+	return nil, errors.New("access tokens are not stored in database - use JWT validation instead")
 }
 
 func (m *mockSessionRepository) GetByRefreshToken(ctx context.Context, refreshToken string) (*models.Session, error) {
 	var session models.Session
-	err := m.db.WithContext(ctx).Where("refresh_token = ?", refreshToken).First(&session).Error
+	err := m.db.WithContext(ctx).Where("refresh_token_hash = ?", refreshToken).First(&session).Error
 	return &session, err
 }
 

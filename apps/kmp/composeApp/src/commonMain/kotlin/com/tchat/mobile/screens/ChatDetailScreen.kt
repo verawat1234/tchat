@@ -22,7 +22,7 @@ import com.tchat.mobile.components.*
 import com.tchat.mobile.components.chat.MessageRenderer
 import com.tchat.mobile.designsystem.TchatColors
 import com.tchat.mobile.designsystem.TchatSpacing
-import com.tchat.mobile.models.MessageType
+import com.tchat.mobile.models.ChatMessageType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -138,7 +138,7 @@ fun ChatDetailScreen(
                             timestamp = "Now",
                             isFromMe = true,
                             status = MessageStatus.SENT,
-                            messageType = MessageType.TEXT
+                            messageType = ChatMessageType.TEXT
                         )
                         messages = listOf(newMessage) + messages
                         messageText = ""
@@ -729,7 +729,7 @@ private data class MessageItem(
     val timestamp: String,
     val isFromMe: Boolean,
     val status: MessageStatus = MessageStatus.SENT,
-    val messageType: MessageType = MessageType.TEXT
+    val messageType: ChatMessageType = ChatMessageType.TEXT
 )
 
 private enum class MessageStatus {
@@ -738,57 +738,57 @@ private enum class MessageStatus {
 
 private fun getMessagesForChat(chatId: String): List<MessageItem> = when (chatId) {
     "family" -> listOf(
-        MessageItem("f8", "See you at dinner tomorrow! 🍽️", "4:15 PM", false, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("f7", "Photo shared: Family vacation memories", "4:10 PM", true, MessageStatus.READ, MessageType.IMAGE),
-        MessageItem("f6", "Love you too mom! ❤️", "4:05 PM", true, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("f5", "Hope you're having a great day, love you!", "4:00 PM", false, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("f4", "Voice message: 0:32 duration", "3:55 PM", false, MessageStatus.READ, MessageType.AUDIO),
-        MessageItem("f3", "Thanks for the birthday wishes! 🎂", "3:50 PM", true, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("f2", "Happy birthday! Hope you have an amazing day! 🎉", "3:45 PM", false, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("f1", "Good morning family! ☀️", "9:00 AM", true, MessageStatus.READ, MessageType.TEXT)
+        MessageItem("f8", "See you at dinner tomorrow! 🍽️", "4:15 PM", false, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("f7", "Photo shared: Family vacation memories", "4:10 PM", true, MessageStatus.READ, ChatMessageType.IMAGE),
+        MessageItem("f6", "Love you too mom! ❤️", "4:05 PM", true, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("f5", "Hope you're having a great day, love you!", "4:00 PM", false, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("f4", "Voice message: 0:32 duration", "3:55 PM", false, MessageStatus.READ, ChatMessageType.AUDIO),
+        MessageItem("f3", "Thanks for the birthday wishes! 🎂", "3:50 PM", true, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("f2", "Happy birthday! Hope you have an amazing day! 🎉", "3:45 PM", false, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("f1", "Good morning family! ☀️", "9:00 AM", true, MessageStatus.READ, ChatMessageType.TEXT)
     )
 
     "customer" -> listOf(
-        MessageItem("c6", "Perfect! Thank you for the quick response.", "2:30 PM", false, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("c5", "Your order has been shipped! Tracking: TC123456789", "2:25 PM", true, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("c4", "When will my order be ready?", "2:20 PM", false, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("c3", "Payment confirmed: $85.99 for Premium Package", "2:15 PM", true, MessageStatus.READ, MessageType.PAYMENT),
-        MessageItem("c2", "Thank you! I'll proceed with the payment.", "2:10 PM", false, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("c1", "Hello! Welcome to our service. How can I help you today?", "2:05 PM", true, MessageStatus.READ, MessageType.TEXT)
+        MessageItem("c6", "Perfect! Thank you for the quick response.", "2:30 PM", false, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("c5", "Your order has been shipped! Tracking: TC123456789", "2:25 PM", true, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("c4", "When will my order be ready?", "2:20 PM", false, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("c3", "Payment confirmed: $85.99 for Premium Package", "2:15 PM", true, MessageStatus.READ, ChatMessageType.PAYMENT),
+        MessageItem("c2", "Thank you! I'll proceed with the payment.", "2:10 PM", false, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("c1", "Hello! Welcome to our service. How can I help you today?", "2:05 PM", true, MessageStatus.READ, ChatMessageType.TEXT)
     )
 
     "lead_score_95" -> listOf(
-        MessageItem("l6", "Proposal sent: Enterprise Solution Package", "5:45 PM", true, MessageStatus.READ, MessageType.FILE_MESSAGE),
-        MessageItem("l5", "This looks exactly what we need. Can you send a proposal?", "5:40 PM", false, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("l4", "We handle 50,000+ transactions daily with 99.9% uptime", "5:35 PM", true, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("l3", "What's your current transaction volume capacity?", "5:30 PM", false, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("l2", "I'm interested in your enterprise solutions for our fintech company", "5:25 PM", false, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("l1", "Hello! I saw your demo and I'm very impressed.", "5:20 PM", false, MessageStatus.READ, MessageType.TEXT)
+        MessageItem("l6", "Proposal sent: Enterprise Solution Package", "5:45 PM", true, MessageStatus.READ, ChatMessageType.FILE_MESSAGE),
+        MessageItem("l5", "This looks exactly what we need. Can you send a proposal?", "5:40 PM", false, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("l4", "We handle 50,000+ transactions daily with 99.9% uptime", "5:35 PM", true, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("l3", "What's your current transaction volume capacity?", "5:30 PM", false, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("l2", "I'm interested in your enterprise solutions for our fintech company", "5:25 PM", false, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("l1", "Hello! I saw your demo and I'm very impressed.", "5:20 PM", false, MessageStatus.READ, ChatMessageType.TEXT)
     )
 
     "ai_bot_assistant" -> listOf(
-        MessageItem("a5", "Is there anything else I can help you with today?", "6:15 PM", false, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("a4", "Perfect! I've scheduled that for you. You'll receive a confirmation email shortly.", "6:10 PM", false, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("a3", "Yes, please schedule it for 2 PM tomorrow", "6:05 PM", true, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("a2", "I found an available slot tomorrow at 2 PM. Would you like me to book it?", "6:00 PM", false, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("a1", "Hi! I need to schedule a product demo this week", "5:55 PM", true, MessageStatus.READ, MessageType.TEXT)
+        MessageItem("a5", "Is there anything else I can help you with today?", "6:15 PM", false, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("a4", "Perfect! I've scheduled that for you. You'll receive a confirmation email shortly.", "6:10 PM", false, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("a3", "Yes, please schedule it for 2 PM tomorrow", "6:05 PM", true, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("a2", "I found an available slot tomorrow at 2 PM. Would you like me to book it?", "6:00 PM", false, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("a1", "Hi! I need to schedule a product demo this week", "5:55 PM", true, MessageStatus.READ, ChatMessageType.TEXT)
     )
 
     "project_team" -> listOf(
-        MessageItem("p8", "Great work everyone! Let's deploy to staging tomorrow 🚀", "7:30 PM", false, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("p7", "All tests are passing now! Ready for review.", "7:25 PM", true, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("p6", "Code review complete. Just a few minor suggestions.", "7:20 PM", false, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("p5", "Document attached: Technical_Specification_v3.pdf", "7:15 PM", true, MessageStatus.READ, MessageType.FILE),
-        MessageItem("p4", "Sprint review meeting: Tomorrow 10 AM in Conference Room B", "7:10 PM", false, MessageStatus.READ, MessageType.EVENT_MESSAGE),
-        MessageItem("p3", "I'll have the API integration ready by EOD", "7:05 PM", true, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("p2", "The new feature is 80% complete. Working on final testing.", "7:00 PM", false, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("p1", "Daily standup: Backend API integration progress", "6:55 PM", true, MessageStatus.READ, MessageType.TEXT)
+        MessageItem("p8", "Great work everyone! Let's deploy to staging tomorrow 🚀", "7:30 PM", false, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("p7", "All tests are passing now! Ready for review.", "7:25 PM", true, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("p6", "Code review complete. Just a few minor suggestions.", "7:20 PM", false, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("p5", "Document attached: Technical_Specification_v3.pdf", "7:15 PM", true, MessageStatus.READ, ChatMessageType.FILE),
+        MessageItem("p4", "Sprint review meeting: Tomorrow 10 AM in Conference Room B", "7:10 PM", false, MessageStatus.READ, ChatMessageType.EVENT_MESSAGE),
+        MessageItem("p3", "I'll have the API integration ready by EOD", "7:05 PM", true, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("p2", "The new feature is 80% complete. Working on final testing.", "7:00 PM", false, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("p1", "Daily standup: Backend API integration progress", "6:55 PM", true, MessageStatus.READ, ChatMessageType.TEXT)
     )
 
     else -> listOf(
         // Default messages for unknown chats
-        MessageItem("d3", "Thanks for reaching out! 😊", "3:00 PM", false, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("d2", "Hello! How can I help you today?", "2:58 PM", true, MessageStatus.READ, MessageType.TEXT),
-        MessageItem("d1", "Hi there!", "2:55 PM", false, MessageStatus.READ, MessageType.TEXT)
+        MessageItem("d3", "Thanks for reaching out! 😊", "3:00 PM", false, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("d2", "Hello! How can I help you today?", "2:58 PM", true, MessageStatus.READ, ChatMessageType.TEXT),
+        MessageItem("d1", "Hi there!", "2:55 PM", false, MessageStatus.READ, ChatMessageType.TEXT)
     )
 }

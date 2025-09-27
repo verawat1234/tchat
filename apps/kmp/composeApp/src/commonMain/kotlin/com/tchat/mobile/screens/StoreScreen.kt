@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tchat.mobile.components.TchatInput
 import com.tchat.mobile.components.TchatInputType
+import com.tchat.mobile.components.TchatTopBar
 import com.tchat.mobile.designsystem.TchatColors
 import com.tchat.mobile.designsystem.TchatSpacing
 
@@ -73,6 +74,7 @@ fun StoreScreen(
     onProductClick: (productId: String) -> Unit = {},
     onShopClick: (shopId: String) -> Unit = {},
     onLiveStreamClick: (streamId: String) -> Unit = {},
+    onMoreClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableStateOf(0) }
@@ -111,6 +113,14 @@ fun StoreScreen(
                     Icon(
                         Icons.Filled.FilterList,
                         "Filter",
+                        tint = TchatColors.onSurface
+                    )
+                }
+                // Add Settings button to existing top bar
+                IconButton(onClick = onMoreClick) {
+                    Icon(
+                        Icons.Default.Settings,
+                        "Settings",
                         tint = TchatColors.onSurface
                     )
                 }

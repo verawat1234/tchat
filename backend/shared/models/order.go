@@ -192,10 +192,10 @@ type OrderTimestamps struct {
 
 // Order represents an order in the system
 type Order struct {
-	ID         uuid.UUID `json:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
+	ID         uuid.UUID `json:"id" gorm:"column:id;type:uuid;primary_key;default:gen_random_uuid()"`
 	OrderNumber string   `json:"order_number" gorm:"column:order_number;size:50;not null;uniqueIndex"`
-	BusinessID uuid.UUID `json:"business_id" gorm:"type:uuid;not null;index"`
-	CustomerID uuid.UUID `json:"customer_id" gorm:"type:uuid;not null;index"`
+	BusinessID uuid.UUID `json:"business_id" gorm:"column:business_id;type:uuid;not null;index"`
+	CustomerID uuid.UUID `json:"customer_id" gorm:"column:customer_id;type:uuid;not null;index"`
 
 	// Order status
 	Status            OrderStatus       `json:"status" gorm:"column:status;type:varchar(20);not null;default:'pending'"`

@@ -29,6 +29,7 @@ type SessionRepository interface {
 type SessionService struct {
 	sessionRepo    SessionRepository
 	eventPublisher EventPublisher
+	jwtService     *JWTService
 	db             *gorm.DB
 }
 
@@ -40,10 +41,11 @@ type SessionConfig struct {
 	AllowConcurrentSessions bool     `json:"allow_concurrent_sessions"`
 }
 
-func NewSessionService(sessionRepo SessionRepository, eventPublisher EventPublisher, db *gorm.DB) *SessionService {
+func NewSessionService(sessionRepo SessionRepository, eventPublisher EventPublisher, jwtService *JWTService, db *gorm.DB) *SessionService {
 	return &SessionService{
 		sessionRepo:    sessionRepo,
 		eventPublisher: eventPublisher,
+		jwtService:     jwtService,
 		db:             db,
 	}
 }
@@ -54,38 +56,64 @@ func (ss *SessionService) CreateSession(ctx context.Context, req *CreateSessionR
 		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
-	// Generate tokens
-	accessToken, err := ss.generateToken(64) // 64 bytes = 128 hex chars
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate access token: %w", err)
+	// Get user for JWT token generation
+	var user sharedModels.User
+	if err := ss.db.WithContext(ctx).First(&user, req.UserID).Error; err != nil {
+		return nil, fmt.Errorf("failed to get user for token generation: %w", err)
 	}
 
-	refreshToken, err := ss.generateToken(64)
+	// Generate device ID from device info
+	deviceID := "unknown"
+	if req.DeviceInfo != nil {
+		if deviceIDValue, exists := req.DeviceInfo["device_id"]; exists {
+			if deviceIDStr, ok := deviceIDValue.(string); ok && deviceIDStr != "" {
+				deviceID = deviceIDStr
+			}
+		}
+	}
+
+	// Generate session ID first
+	sessionID := uuid.New()
+
+	// Generate JWT tokens using JWT service
+	tokenPair, err := ss.jwtService.GenerateTokenPair(ctx, &user, sessionID, deviceID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+		return nil, fmt.Errorf("failed to generate JWT tokens: %w", err)
 	}
 
 	// Calculate expiry times
 	now := time.Now()
-	accessExpiry := now.Add(24 * time.Hour)    // 24 hours for access token
-	refreshExpiry := now.Add(30 * 24 * time.Hour) // 30 days for refresh token
 
-	// Create session
+	// Extract device type from device info
+	deviceType := "unknown"
+	if req.DeviceInfo != nil {
+		if deviceTypeValue, exists := req.DeviceInfo["device_type"]; exists {
+			if deviceTypeStr, ok := deviceTypeValue.(string); ok && deviceTypeStr != "" {
+				deviceType = deviceTypeStr
+			}
+		}
+	}
+
+	// Create session - only fields that map to user_sessions table
 	session := &models.Session{
-		ID:               uuid.New(),
-		UserID:           req.UserID,
-		AccessToken:      accessToken,
-		RefreshToken:     refreshToken,
-		Status:           models.SessionStatusActive,
-		ExpiresAt:        accessExpiry,
-		RefreshExpiresAt: refreshExpiry,
-		UserAgent:        req.UserAgent,
-		IPAddress:        req.IPAddress,
+		ID:           sessionID,
+		UserID:       req.UserID,
+		DeviceID:     deviceID,
+		DeviceType:   deviceType,
+		RefreshToken: tokenPair.RefreshToken,
+		UserAgent:    req.UserAgent,
+		IPAddress:    req.IPAddress,
+		ExpiresAt:    tokenPair.RefreshExpiresAt, // This is the refresh token expiry in the DB
+		CreatedAt:    now,
+		LastUsedAt:   now,
+
+		// Additional fields for response (not stored in DB)
+		AccessToken:      tokenPair.AccessToken,
+		RefreshExpiresAt: tokenPair.RefreshExpiresAt,
+		IsActive:         true,
 		DeviceInfo:       req.DeviceInfo,
 		Metadata:         req.Metadata,
-		CreatedAt:        now,
-		UpdatedAt:        now,
-		LastActiveAt:     now,
+		Status:           models.SessionStatusActive,
 	}
 
 	// Check for existing active sessions
@@ -208,23 +236,24 @@ func (ss *SessionService) RotateTokens(ctx context.Context, sessionID uuid.UUID)
 		return nil, fmt.Errorf("session is not active")
 	}
 
-	// Generate new tokens
-	newAccessToken, err := ss.generateToken(64)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate new access token: %w", err)
+	// Get user for JWT token generation
+	var user sharedModels.User
+	if err := ss.db.WithContext(ctx).First(&user, session.UserID).Error; err != nil {
+		return nil, fmt.Errorf("failed to get user for token refresh: %w", err)
 	}
 
-	newRefreshToken, err := ss.generateToken(64)
+	// Generate new JWT tokens using JWT service
+	tokenPair, err := ss.jwtService.GenerateTokenPair(ctx, &user, session.ID, session.DeviceID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate new refresh token: %w", err)
+		return nil, fmt.Errorf("failed to generate new JWT tokens: %w", err)
 	}
 
 	// Update session with new tokens and extended expiry
 	now := time.Now()
-	session.AccessToken = newAccessToken
-	session.RefreshToken = newRefreshToken
-	session.ExpiresAt = now.Add(24 * time.Hour)       // Extend access token by 24 hours
-	session.RefreshExpiresAt = now.Add(30 * 24 * time.Hour) // Extend refresh token by 30 days
+	session.AccessToken = tokenPair.AccessToken
+	session.RefreshToken = tokenPair.RefreshToken
+	session.ExpiresAt = tokenPair.RefreshExpiresAt // Use JWT service expiry times
+	session.RefreshExpiresAt = tokenPair.RefreshExpiresAt
 	session.UpdatedAt = now
 	session.LastActiveAt = now
 

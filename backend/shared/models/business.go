@@ -67,8 +67,8 @@ type BusinessComplianceData struct {
 
 // Business represents a commercial entity on the platform
 type Business struct {
-	ID          uuid.UUID                  `json:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	OwnerID     uuid.UUID                  `json:"owner_id" gorm:"type:uuid;not null;index"`
+	ID          uuid.UUID                  `json:"id" gorm:"column:id;type:uuid;primary_key;default:gen_random_uuid()"`
+	OwnerID     uuid.UUID                  `json:"owner_id" gorm:"column:owner_id;type:uuid;not null;index"`
 	Name        string                     `json:"name" gorm:"column:name;size:100;not null"`
 	Description string                     `json:"description" gorm:"column:description;size:1000"`
 	Category    string                     `json:"category" gorm:"column:category;size:50;not null"`
@@ -79,12 +79,12 @@ type Business struct {
 	VerificationNotes  string                     `json:"verification_notes,omitempty" gorm:"column:verification_notes;size:500"`
 
 	// Contact and location
-	ContactInfo BusinessContactInfo `json:"contact_info" gorm:"embedded;embeddedPrefix:contact_"`
-	Address     BusinessAddress     `json:"address" gorm:"embedded;embeddedPrefix:address_"`
+	ContactInfo BusinessContactInfo `json:"contact_info" gorm:"embedded"`
+	Address     BusinessAddress     `json:"address" gorm:"embedded"`
 
 	// Business settings and compliance
-	BusinessSettings   BusinessSettings       `json:"business_settings" gorm:"embedded;embeddedPrefix:settings_"`
-	ComplianceData     BusinessComplianceData `json:"compliance_data" gorm:"embedded;embeddedPrefix:compliance_"`
+	BusinessSettings   BusinessSettings       `json:"business_settings" gorm:"embedded"`
+	ComplianceData     BusinessComplianceData `json:"compliance_data" gorm:"embedded"`
 
 	// Platform metrics
 	TotalProducts    int     `json:"total_products" gorm:"column:total_products;default:0"`
@@ -104,8 +104,8 @@ type Business struct {
 	UpdatedAt time.Time      `json:"updated_at" gorm:"column:updated_at;not null"`
 	DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"column:deleted_at;index"`
 
-	// Relationships
-	Owner *User `json:"owner,omitempty" gorm:"foreignKey:OwnerID;references:ID"`
+	// Relationships - temporarily disabled for testing
+	// Owner *User `json:"owner,omitempty" gorm:"foreignKey:OwnerID;references:ID"`
 }
 
 // TableName returns the table name for the Business model

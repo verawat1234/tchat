@@ -48,6 +48,12 @@ interface SharingService {
     suspend fun isPlatformAvailable(platform: SharingPlatform): Boolean
 }
 
+/**
+ * Platform-specific sharing implementation
+ * Use expect/actual pattern for true cross-platform sharing
+ */
+// expect class PlatformSharingService() : SharingService
+
 class MockSharingService : SharingService {
 
     override suspend fun sharePost(post: Post, platform: SharingPlatform): ShareResult {
@@ -255,7 +261,7 @@ class MockSharingService : SharingService {
                 val rating = "⭐".repeat(((post.metadata?.rating ?: 0.8f) * 5).toInt())
                 "Great review by $user! $rating\n\n$baseText"
             }
-            com.tchat.mobile.models.PostType.SOCIAL -> {
+            com.tchat.mobile.models.PostType.TEXT -> {
                 "$baseText\n\n- $user"
             }
             com.tchat.mobile.models.PostType.VIDEO -> {
