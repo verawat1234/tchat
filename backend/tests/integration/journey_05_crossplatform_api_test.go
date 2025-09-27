@@ -20,28 +20,13 @@ import (
 )
 
 // AuthenticatedUser represents an authenticated user session
-type AuthenticatedUser struct {
-	UserID       string `json:"userId"`
-	Email        string `json:"email"`
-	AccessToken  string `json:"accessToken"`
-	RefreshToken string `json:"refreshToken"`
-	Country      string `json:"country"`
-	Language     string `json:"language"`
-}
+// Note: AuthenticatedUser is now defined in types.go
 
 // LocationData represents location information for content or user activities
-type LocationData struct {
-	Country     string      `json:"country"`
-	City        string      `json:"city,omitempty"`
-	Coordinates Coordinates `json:"coordinates,omitempty"`
-	PlaceName   string      `json:"placeName,omitempty"`
-}
+// Note: LocationData is now defined in types.go
 
 // Coordinates represents geographic coordinates
-type Coordinates struct {
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
-}
+// Note: Coordinates is now defined in types.go
 
 type Journey05CrossPlatformAPISuite struct {
 	suite.Suite

@@ -409,8 +409,15 @@ func (a *App) initRouter() error {
 	// API routes
 	v1 := router.Group("/api/v1")
 	{
-		// Auth routes
-		handlers.RegisterAuthRoutes(v1, a.authHandlers, middleware.NewAuthMiddleware(a.config).RequireAuth())
+		// Auth routes - registered directly for reliability
+		auth := v1.Group("/auth")
+		{
+			auth.POST("/register", a.authHandlers.RequestOTP)
+			auth.POST("/login", a.authHandlers.RequestOTP)
+			auth.POST("/verify-otp", a.authHandlers.VerifyOTP)
+			auth.POST("/refresh", a.authHandlers.RefreshToken)
+			auth.GET("/health", a.authHealth)
+		}
 
 		// Profile routes - temporarily disabled
 		// handlers.RegisterProfileRoutes(v1, a.userService, a.kycService)
@@ -479,7 +486,7 @@ func (a *App) Shutdown(ctx context.Context) error {
 func (a *App) healthCheck(c *gin.Context) {
 	responses.SendSuccessResponse(c, gin.H{
 		"status":    "ok",
-		"service":   "auth",
+		"service":   "auth-service",
 		"version":   "1.0.0",
 		"timestamp": time.Now().UTC(),
 	})
@@ -498,8 +505,18 @@ func (a *App) readinessCheck(c *gin.Context) {
 
 	responses.SendSuccessResponse(c, gin.H{
 		"status":   "ready",
-		"service":  "auth",
+		"service":  "auth-service",
 		"database": "connected",
+	})
+}
+
+// authHealth provides a simple auth service health check endpoint for API routes
+func (a *App) authHealth(c *gin.Context) {
+	responses.SendSuccessResponse(c, gin.H{
+		"status":    "ok",
+		"service":   "auth-service",
+		"api":       "available",
+		"timestamp": time.Now().UTC(),
 	})
 }
 

@@ -115,17 +115,17 @@ var ErrorSuggestions = map[string]string{
 
 // ErrorHelpURLs provides documentation URLs for each error type
 var ErrorHelpURLs = map[string]string{
-	"VALIDATION_ERROR":        "https://docs.tchat-backend/errors/validation",
-	"AUTHENTICATION_FAILED":   "https://docs.tchat-backend/authentication",
-	"AUTHORIZATION_FAILED":    "https://docs.tchat-backend/authorization",
-	"RESOURCE_NOT_FOUND":      "https://docs.tchat-backend/resources",
-	"METHOD_NOT_ALLOWED":      "https://docs.tchat-backend/api-methods",
-	"RESOURCE_CONFLICT":       "https://docs.tchat-backend/errors/conflicts",
-	"UNPROCESSABLE_ENTITY":    "https://docs.tchat-backend/validation",
-	"RATE_LIMIT_EXCEEDED":     "https://docs.tchat-backend/rate-limits",
-	"INTERNAL_SERVER_ERROR":   "https://docs.tchat-backend/troubleshooting",
+	"VALIDATION_ERROR":        "https://docs.tchat.dev/errors/validation",
+	"AUTHENTICATION_FAILED":   "https://docs.tchat.dev/authentication",
+	"AUTHORIZATION_FAILED":    "https://docs.tchat.dev/authorization",
+	"RESOURCE_NOT_FOUND":      "https://docs.tchat.dev/resources",
+	"METHOD_NOT_ALLOWED":      "https://docs.tchat.dev/api-methods",
+	"RESOURCE_CONFLICT":       "https://docs.tchat.dev/errors/conflicts",
+	"UNPROCESSABLE_ENTITY":    "https://docs.tchat.dev/validation",
+	"RATE_LIMIT_EXCEEDED":     "https://docs.tchat.dev/rate-limits",
+	"INTERNAL_SERVER_ERROR":   "https://docs.tchat.dev/troubleshooting",
 	"SERVICE_UNAVAILABLE":     "https://status.tchat.dev",
-	"GATEWAY_TIMEOUT":         "https://docs.tchat-backend/troubleshooting/timeouts",
+	"GATEWAY_TIMEOUT":         "https://docs.tchat.dev/troubleshooting/timeouts",
 }
 
 // Southeast Asian Localized Error Messages

@@ -16,14 +16,7 @@ import (
 )
 
 // AuthenticatedUser represents an authenticated user session
-type AuthenticatedUser struct {
-	UserID       string `json:"userId"`
-	Email        string `json:"email"`
-	AccessToken  string `json:"accessToken"`
-	RefreshToken string `json:"refreshToken"`
-	Country      string `json:"country"`
-	Language     string `json:"language"`
-}
+// Note: AuthenticatedUser is now defined in types.go
 
 // AdminUser represents an administrative user with elevated permissions
 type AdminUser struct {

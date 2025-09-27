@@ -13,21 +13,24 @@ import (
 
 // Dialog represents a conversation between users (direct message, group, channel, or business)
 type Dialog struct {
-	ID            uuid.UUID   `json:"id" db:"id"`
-	Type          DialogType  `json:"type" db:"type"`
-	Name          *string     `json:"name,omitempty" db:"name"`
-	Avatar        *string     `json:"avatar,omitempty" db:"avatar"`
-	Description   *string     `json:"description,omitempty" db:"description"`
-	Participants  UUIDSlice   `json:"participants" db:"participants"`
-	AdminIDs      UUIDSlice   `json:"admin_ids,omitempty" db:"admin_ids"`
-	LastMessageID *uuid.UUID  `json:"last_message_id,omitempty" db:"last_message_id"`
-	UnreadCount   int         `json:"unread_count" db:"unread_count"`
-	IsPinned      bool        `json:"is_pinned" db:"is_pinned"`
-	IsArchived    bool        `json:"is_archived" db:"is_archived"`
-	IsMuted       bool        `json:"is_muted" db:"is_muted"`
-	Settings      DialogSettings `json:"settings" db:"settings"`
-	CreatedAt     time.Time   `json:"created_at" db:"created_at"`
-	UpdatedAt     time.Time   `json:"updated_at" db:"updated_at"`
+	ID               uuid.UUID   `json:"id" db:"id"`
+	Type             DialogType  `json:"type" db:"type"`
+	Name             *string     `json:"name,omitempty" db:"name"`
+	Title            *string     `json:"title,omitempty" db:"title"` // Alias for name for compatibility
+	Avatar           *string     `json:"avatar,omitempty" db:"avatar"`
+	Description      *string     `json:"description,omitempty" db:"description"`
+	Participants     UUIDSlice   `json:"participants" db:"participants"`
+	ParticipantCount int         `json:"participant_count" db:"participant_count"`
+	AdminIDs         UUIDSlice   `json:"admin_ids,omitempty" db:"admin_ids"`
+	LastMessageID    *uuid.UUID  `json:"last_message_id,omitempty" db:"last_message_id"`
+	UnreadCount      int         `json:"unread_count" db:"unread_count"`
+	IsPinned         bool        `json:"is_pinned" db:"is_pinned"`
+	IsArchived       bool        `json:"is_archived" db:"is_archived"`
+	IsMuted          bool        `json:"is_muted" db:"is_muted"`
+	Settings         DialogSettings `json:"settings" db:"settings"`
+	Metadata         map[string]interface{} `json:"metadata,omitempty" db:"metadata"`
+	CreatedAt        time.Time   `json:"created_at" db:"created_at"`
+	UpdatedAt        time.Time   `json:"updated_at" db:"updated_at"`
 }
 
 // DialogType represents the type of dialog/conversation
@@ -39,6 +42,40 @@ const (
 	DialogTypeChannel  DialogType = "channel"  // Broadcast channel
 	DialogTypeBusiness DialogType = "business" // Business/customer service chat
 )
+
+// ParticipantRole represents the role of a participant in a dialog
+type ParticipantRole string
+
+const (
+	ParticipantRoleMember ParticipantRole = "member"
+	ParticipantRoleAdmin  ParticipantRole = "admin"
+	ParticipantRoleOwner  ParticipantRole = "owner"
+	ParticipantRoleGuest  ParticipantRole = "guest"
+)
+
+// ParticipantStatus represents the status of a participant in a dialog
+type ParticipantStatus string
+
+const (
+	ParticipantStatusActive   ParticipantStatus = "active"
+	ParticipantStatusInactive ParticipantStatus = "inactive"
+	ParticipantStatusBanned   ParticipantStatus = "banned"
+	ParticipantStatusLeft     ParticipantStatus = "left"
+)
+
+// DialogParticipant represents a participant in a dialog
+type DialogParticipant struct {
+	ID        uuid.UUID         `json:"id" db:"id"`
+	DialogID  uuid.UUID         `json:"dialog_id" db:"dialog_id"`
+	UserID    uuid.UUID         `json:"user_id" db:"user_id"`
+	Role      ParticipantRole   `json:"role" db:"role"`
+	Status    ParticipantStatus `json:"status" db:"status"`
+	JoinedAt  time.Time         `json:"joined_at" db:"joined_at"`
+	LeftAt    *time.Time        `json:"left_at,omitempty" db:"left_at"`
+	UpdatedAt time.Time         `json:"updated_at" db:"updated_at"`
+	IsActive  bool              `json:"is_active" db:"is_active"`
+	IsMuted   bool              `json:"is_muted" db:"is_muted"`
+}
 
 // DialogSettings represents dialog-specific settings and permissions
 type DialogSettings struct {
@@ -178,6 +215,55 @@ func (dt DialogType) IsValid() bool {
 // String returns the string representation of DialogType
 func (dt DialogType) String() string {
 	return string(dt)
+}
+
+// ValidParticipantRoles returns all supported participant roles
+func ValidParticipantRoles() []ParticipantRole {
+	return []ParticipantRole{
+		ParticipantRoleMember,
+		ParticipantRoleAdmin,
+		ParticipantRoleOwner,
+		ParticipantRoleGuest,
+	}
+}
+
+// IsValid validates if the participant role is supported
+func (pr ParticipantRole) IsValid() bool {
+	for _, valid := range ValidParticipantRoles() {
+		if pr == valid {
+			return true
+		}
+	}
+	return false
+}
+
+// String returns the string representation of ParticipantRole
+func (pr ParticipantRole) String() string {
+	return string(pr)
+}
+
+// BeforeCreate sets up the DialogParticipant before database creation
+func (dp *DialogParticipant) BeforeCreate() error {
+	if dp.ID == uuid.Nil {
+		dp.ID = uuid.New()
+	}
+	dp.JoinedAt = time.Now().UTC()
+	dp.IsActive = true
+	return nil
+}
+
+// Validate performs validation on the DialogParticipant model
+func (dp *DialogParticipant) Validate() error {
+	if dp.DialogID == uuid.Nil {
+		return errors.New("dialog_id is required")
+	}
+	if dp.UserID == uuid.Nil {
+		return errors.New("user_id is required")
+	}
+	if !dp.Role.IsValid() {
+		return fmt.Errorf("invalid participant role: %s", dp.Role)
+	}
+	return nil
 }
 
 // GetMaxParticipants returns the maximum participants allowed for this dialog type
@@ -590,4 +676,9 @@ func (d *Dialog) ToPublicDialog(forUserID uuid.UUID) map[string]interface{} {
 	}
 
 	return response
+}
+
+// GetMaxParticipants returns the maximum participants allowed for this dialog
+func (d *Dialog) GetMaxParticipants() int {
+	return d.Type.GetMaxParticipants()
 }

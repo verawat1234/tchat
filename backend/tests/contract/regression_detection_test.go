@@ -1290,7 +1290,7 @@ func (suite *RegressionDetectionTestSuite) generateRegressionAlert(regression Me
 		},
 		Annotations: map[string]string{
 			"description": fmt.Sprintf("Performance regression: %.1f%% degradation", regression.PercentageChange),
-			"runbook":     "https://wiki.tchat-backend/performance-regression-runbook",
+			"runbook":     "https://wiki.tchat.dev/performance-regression-runbook",
 		},
 	}
 

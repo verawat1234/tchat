@@ -40,7 +40,7 @@ func DefaultKafkaConfig() *KafkaConfig {
 		Brokers:          []string{"localhost:9092"},
 		SecurityProtocol: "plaintext",
 		TopicPrefix:      "tchat",
-		GroupID:          "tchat-backend",
+		GroupID:          "tchat.dev",
 		BatchSize:        100,
 		BatchTimeout:     10 * time.Second,
 		ReadTimeout:      30 * time.Second,

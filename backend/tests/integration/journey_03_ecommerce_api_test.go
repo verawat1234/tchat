@@ -18,15 +18,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-// AuthenticatedUser represents an authenticated user session
-type AuthenticatedUser struct {
-	UserID       string `json:"userId"`
-	Email        string `json:"email"`
-	AccessToken  string `json:"accessToken"`
-	RefreshToken string `json:"refreshToken"`
-	Country      string `json:"country"`
-	Language     string `json:"language"`
-}
+// Note: AuthenticatedUser is now defined in types.go
 
 type Journey03EcommerceAPISuite struct {
 	suite.Suite
@@ -37,19 +29,7 @@ type Journey03EcommerceAPISuite struct {
 	buyer      *AuthenticatedUser // Maria (Philippines)
 }
 
-type CreateProductRequest struct {
-	Name            string                 `json:"name"`
-	Description     string                 `json:"description"`
-	Price           int64                  `json:"price"` // Price in cents/minor currency unit
-	Currency        string                 `json:"currency"`
-	Category        string                 `json:"category"`
-	Tags            []string               `json:"tags,omitempty"`
-	Images          []ProductImage         `json:"images,omitempty"`
-	Specifications  map[string]interface{} `json:"specifications,omitempty"`
-	ShippingOptions []ShippingOption       `json:"shippingOptions,omitempty"`
-	Inventory       ProductInventory       `json:"inventory"`
-	Status          string                 `json:"status"` // "draft", "active", "inactive"
-}
+// Note: CreateProductRequest is now defined in types.go
 
 type ProductImage struct {
 	URL    string `json:"url"`
@@ -238,13 +218,7 @@ type OrderResponse struct {
 	UpdatedAt     string          `json:"updatedAt"`
 }
 
-type OrderItem struct {
-	ProductID  string `json:"productId"`
-	Name       string `json:"name"`
-	Price      int64  `json:"price"`
-	Quantity   int    `json:"quantity"`
-	VariantSKU string `json:"variantSku,omitempty"`
-}
+// Note: OrderItem is now defined in types.go
 
 type ShippingDetails struct {
 	Method        string `json:"method"`

@@ -316,7 +316,7 @@ func (a *App) Shutdown(ctx context.Context) error {
 func (a *App) healthCheck(c *gin.Context) {
 	responses.SuccessResponse(c, gin.H{
 		"status":    "ok",
-		"service":   "payment",
+		"service":   "payment-service",
 		"version":   "1.0.0",
 		"timestamp": time.Now().UTC(),
 	})
@@ -335,7 +335,7 @@ func (a *App) readinessCheck(c *gin.Context) {
 
 	responses.SuccessResponse(c, gin.H{
 		"status":   "ready",
-		"service":  "payment",
+		"service":  "payment-service",
 		"database": "connected",
 	})
 }

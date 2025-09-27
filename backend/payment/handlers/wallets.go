@@ -9,9 +9,9 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 
-	"tchat-backend/payment/services"
-	"tchat-backend/shared/middleware"
-	"tchat-backend/shared/responses"
+	"tchat.dev/payment/services"
+	"tchat.dev/shared/middleware"
+	"tchat.dev/shared/responses"
 )
 
 type WalletHandler struct {

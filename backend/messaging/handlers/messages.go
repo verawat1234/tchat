@@ -10,9 +10,9 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 
-	"tchat-backend/messaging/services"
-	"tchat-backend/shared/middleware"
-	"tchat-backend/shared/responses"
+	"tchat.dev/messaging/services"
+	"tchat.dev/shared/middleware"
+	"tchat.dev/shared/responses"
 )
 
 type MessageHandler struct {

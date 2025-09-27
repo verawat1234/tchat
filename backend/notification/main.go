@@ -228,7 +228,7 @@ func (a *App) Shutdown(ctx context.Context) error {
 func (a *App) healthCheck(c *gin.Context) {
 	responses.SendSuccessResponse(c, gin.H{
 		"status":    "ok",
-		"service":   "notification",
+		"service":   "notification-service",
 		"version":   "1.0.0",
 		"timestamp": time.Now().UTC(),
 	})
@@ -247,7 +247,7 @@ func (a *App) readinessCheck(c *gin.Context) {
 
 	responses.SendSuccessResponse(c, gin.H{
 		"status":   "ready",
-		"service":  "notification",
+		"service":  "notification-service",
 		"database": "connected",
 	})
 }

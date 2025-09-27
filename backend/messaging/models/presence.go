@@ -127,6 +127,22 @@ type BusinessHours struct {
 	Days      []int  `json:"days"`       // 0=Sunday, 1=Monday, etc.
 }
 
+// Location is an alias for UserLocation for compatibility
+type Location = UserLocation
+
+// PresenceSettings represents user settings for presence management
+type PresenceSettings struct {
+	AutoAway         bool          `json:"auto_away"`          // Enable auto-away
+	AutoAwayAfter    time.Duration `json:"auto_away_after"`    // Auto-away timeout
+	AutoOffline      bool          `json:"auto_offline"`       // Enable auto-offline
+	AutoOfflineAfter time.Duration `json:"auto_offline_after"` // Auto-offline timeout
+	ShowOnlineStatus bool          `json:"show_online_status"` // Show online status
+	ShowLastSeen     bool          `json:"show_last_seen"`     // Show last seen
+	ShowActivity     bool          `json:"show_activity"`      // Show activity status
+	ShowLocation     bool          `json:"show_location"`      // Show location
+	BusinessHours    *BusinessHours `json:"business_hours,omitempty"` // Business hours
+}
+
 // Value implements the driver.Valuer interface for DeviceInfo
 func (di DeviceInfo) Value() (driver.Value, error) {
 	return json.Marshal(di)
@@ -588,7 +604,7 @@ func (p *Presence) setDefaults() {
 	}
 
 	// Initialize metadata if empty
-	if p.Metadata == (PresenceMetadata{}) {
+	if p.Metadata.AutoAwayAfter == nil {
 		autoAway := 10 * time.Minute
 		autoOffline := 30 * time.Minute
 		p.Metadata = PresenceMetadata{

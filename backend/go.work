@@ -10,4 +10,13 @@ use (
 	./notification
 	./payment
 	./shared
+	./tests
+	./tests/contract
+	./tests/coverage
+	./tests/errors
+	./tests/fixtures
+	./tests/integration
+	./tests/performance
+	./tests/security
+	./tests/testutil
 )

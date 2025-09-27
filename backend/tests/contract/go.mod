@@ -2,12 +2,26 @@ module contract-tests
 
 go 1.24.3
 
+// Local module replacements
+replace tchat.dev/tests/testutil => ../testutil
+replace tchat.dev/shared => ../../shared
+replace tchat.dev/auth => ../../auth
+replace tchat.dev/commerce => ../../commerce
+replace tchat.dev/content => ../../content
+replace tchat.dev/notification => ../../notification
+
 require (
 	github.com/gin-gonic/gin v1.11.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/pact-foundation/pact-go/v2 v2.0.7
 	github.com/stretchr/testify v1.11.1
+	tchat.dev/tests/testutil v0.0.0
+	tchat.dev/shared v0.0.0
+	tchat.dev/auth v0.0.0
+	tchat.dev/commerce v0.0.0
+	tchat.dev/content v0.0.0
+	tchat.dev/notification v0.0.0
 )
 
 require (

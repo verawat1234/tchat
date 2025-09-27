@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"backend/messaging/models"
-	sharedModels "backend/shared/models"
+	"tchat.dev/messaging/models"
+	sharedModels "tchat.dev/shared/models"
 )
 
 type MessageRepository interface {
@@ -170,9 +170,9 @@ func (ms *MessageService) SendMessage(ctx context.Context, req *SendMessageReque
 		DialogID:     req.DialogID,
 		SenderID:     req.SenderID,
 		Type:         req.Type,
-		Content:      req.Content,
-		MediaURL:     req.MediaURL,
-		ThumbnailURL: req.ThumbnailURL,
+		Content:      models.MessageContent{"text": req.Content},
+		MediaURL:     &req.MediaURL,
+		ThumbnailURL: &req.ThumbnailURL,
 		Status:       models.MessageStatusSent,
 		Metadata:     req.Metadata,
 		SentAt:       time.Now(),
@@ -191,26 +191,17 @@ func (ms *MessageService) SendMessage(ctx context.Context, req *SendMessageReque
 		if err == nil && replyToMessage.DialogID == req.DialogID {
 			message.ReplyToID = req.ReplyToID
 			message.ReplyTo = &models.MessageReply{
-				MessageID: replyToMessage.ID,
-				SenderID:  replyToMessage.SenderID,
-				Content:   ms.truncateContent(replyToMessage.Content, 100),
-				Type:      replyToMessage.Type,
+				MessageID:   replyToMessage.ID,
+				SenderID:    replyToMessage.SenderID,
+				Content:     ms.truncateContent(replyToMessage.Content, 100),
+				MessageType: string(replyToMessage.Type),
 			}
 		}
 	}
 
-	// Handle forward context
-	if req.ForwardFromID != nil {
-		forwardFromMessage, err := ms.messageRepo.GetByID(ctx, *req.ForwardFromID)
-		if err == nil {
-			message.ForwardFromID = req.ForwardFromID
-			message.ForwardFrom = &models.MessageForward{
-				MessageID:      forwardFromMessage.ID,
-				OriginalSender: forwardFromMessage.SenderID,
-				OriginalDialog: forwardFromMessage.DialogID,
-			}
-		}
-	}
+	// Handle forward context - temporarily disabled until model supports it
+	// TODO: Add ForwardFromID and ForwardFrom fields to Message model
+	_ = req.ForwardFromID // Suppress unused variable warning
 
 	// Save message
 	if err := ms.messageRepo.Create(ctx, message); err != nil {
@@ -239,9 +230,9 @@ func (ms *MessageService) SendMessage(ctx context.Context, req *SendMessageReque
 		"message_id":  message.ID,
 		"dialog_id":   message.DialogID,
 		"message_type": message.Type,
-		"has_media":   message.MediaURL != "",
+		"has_media":   message.MediaURL != nil && *message.MediaURL != "",
 		"is_reply":    message.ReplyToID != nil,
-		"is_forward":  message.ForwardFromID != nil,
+		"is_forward":  false, // TODO: Add forward support
 	}); err != nil {
 		fmt.Printf("Failed to publish message sent event: %v\n", err)
 	}
@@ -338,21 +329,11 @@ func (ms *MessageService) EditMessage(ctx context.Context, messageID uuid.UUID, 
 		}
 	}
 
-	// Store original content in edit history
-	if message.EditHistory == nil {
-		message.EditHistory = make([]models.MessageEdit, 0)
-	}
+	// TODO: Implement edit history functionality
+	// For now, just update the content directly
 
-	originalEdit := models.MessageEdit{
-		Content:   message.Content,
-		EditedAt:  message.SentAt,
-		EditedBy:  message.SenderID,
-	}
-
-	message.EditHistory = append(message.EditHistory, originalEdit)
-
-	// Update message
-	message.Content = newContent
+	// Update message content
+	message.Content = models.MessageContent{"text": newContent}
 	message.IsEdited = true
 	message.EditedAt = &time.Time{}
 	*message.EditedAt = time.Now()
@@ -365,9 +346,8 @@ func (ms *MessageService) EditMessage(ctx context.Context, messageID uuid.UUID, 
 
 	// Publish message edited event
 	if err := ms.publishMessageEvent(ctx, "message.edited", messageID, userID, map[string]interface{}{
-		"original_content": originalEdit.Content,
-		"new_content":     newContent,
-		"edit_count":      len(message.EditHistory),
+		"new_content": newContent,
+		"is_edited":   true,
 	}); err != nil {
 		fmt.Printf("Failed to publish message edited event: %v\n", err)
 	}
@@ -397,7 +377,7 @@ func (ms *MessageService) DeleteMessage(ctx context.Context, messageID uuid.UUID
 		message.IsDeleted = true
 		message.DeletedAt = &time.Time{}
 		*message.DeletedAt = time.Now()
-		message.DeletedBy = &userID
+		// TODO: Add DeletedBy field to Message model if needed
 		message.UpdatedAt = time.Now()
 
 		if err := ms.messageRepo.Update(ctx, message); err != nil {
@@ -524,7 +504,7 @@ func (ms *MessageService) processMediaContent(ctx context.Context, messageType m
 		return ms.mediaProcessor.ProcessImageUpload(ctx, mediaData, metadata)
 	case models.MessageTypeVideo:
 		return ms.mediaProcessor.ProcessVideoUpload(ctx, mediaData, metadata)
-	case models.MessageTypeVoice, models.MessageTypeAudio:
+	case models.MessageTypeVoice:
 		return ms.mediaProcessor.ProcessAudioUpload(ctx, mediaData, metadata)
 	default:
 		return nil, fmt.Errorf("unsupported media type: %s", messageType)
@@ -545,11 +525,17 @@ func (ms *MessageService) deliverMessageAsync(ctx context.Context, message *mode
 	}
 }
 
-func (ms *MessageService) truncateContent(content string, maxLength int) string {
-	if len(content) <= maxLength {
-		return content
+func (ms *MessageService) truncateContent(content models.MessageContent, maxLength int) string {
+	// Extract text content from MessageContent map
+	if textContent, exists := content["text"]; exists {
+		if textStr, ok := textContent.(string); ok {
+			if len(textStr) <= maxLength {
+				return textStr
+			}
+			return textStr[:maxLength] + "..."
+		}
 	}
-	return content[:maxLength] + "..."
+	return "[Media content]"
 }
 
 func (ms *MessageService) validateSendMessageRequest(req *SendMessageRequest) error {
@@ -653,35 +639,47 @@ type MessageListResponse struct {
 	TotalPages int                `json:"total_pages"`
 }
 
-func (message *models.Message) ToResponse() *MessageResponse {
+func MessageToResponse(message *models.Message) *MessageResponse {
+	// Extract text content from MessageContent
+	content := ""
+	if textContent, exists := message.Content["text"]; exists {
+		if textStr, ok := textContent.(string); ok {
+			content = textStr
+		}
+	}
+
+	// Handle MediaURL pointer
+	mediaURL := ""
+	if message.MediaURL != nil {
+		mediaURL = *message.MediaURL
+	}
+
+	// Handle ThumbnailURL pointer
+	thumbnailURL := ""
+	if message.ThumbnailURL != nil {
+		thumbnailURL = *message.ThumbnailURL
+	}
+
 	response := &MessageResponse{
 		ID:           message.ID,
 		DialogID:     message.DialogID,
 		SenderID:     message.SenderID,
 		Type:         message.Type,
-		Content:      message.Content,
-		MediaURL:     message.MediaURL,
-		ThumbnailURL: message.ThumbnailURL,
+		Content:      content,
+		MediaURL:     mediaURL,
+		ThumbnailURL: thumbnailURL,
 		Status:       message.Status,
 		IsEdited:     message.IsEdited,
 		IsDeleted:    message.IsDeleted,
 		ReplyTo:      message.ReplyTo,
-		ForwardFrom:  message.ForwardFrom,
+		ForwardFrom:  nil, // TODO: Add ForwardFrom support
 		SentAt:       message.SentAt,
 		EditedAt:     message.EditedAt,
 		DeletedAt:    message.DeletedAt,
 	}
 
-	// Convert read receipts if available
-	if message.ReadBy != nil {
-		response.ReadBy = make([]MessageReadInfo, len(message.ReadBy))
-		for i, read := range message.ReadBy {
-			response.ReadBy[i] = MessageReadInfo{
-				UserID: read.UserID,
-				ReadAt: read.ReadAt,
-			}
-		}
-	}
+	// TODO: Implement read receipts functionality
+	// ReadBy field not implemented in Message model yet
 
 	return response
 }

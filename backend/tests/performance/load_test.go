@@ -16,7 +16,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"tchat-backend/tests/testutil"
+	"tchat.dev/tests/testutil"
 )
 
 // LoadTestConfig defines configuration for load tests

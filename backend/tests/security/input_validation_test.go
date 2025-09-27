@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"tchat-backend/tests/fixtures"
+	"tchat.dev/tests/fixtures"
 )
 
 // InputValidationTestSuite provides comprehensive input validation security testing

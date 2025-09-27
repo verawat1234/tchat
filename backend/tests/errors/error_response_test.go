@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"tchat-backend/tests/fixtures"
+	"tchat.dev/tests/fixtures"
 )
 
 // ErrorResponseTestSuite provides comprehensive error response standardization testing
@@ -630,28 +630,28 @@ func (suite *ErrorResponseTestSuite) TestErrorResponseSuggestions() {
 			name:        "Authentication failure suggestion",
 			errorCode:   "AUTHENTICATION_FAILED",
 			suggestion:  "Please check your credentials and try again. If you forgot your password, use the password reset feature.",
-			helpURL:     "https://docs.tchat-backend/authentication",
+			helpURL:     "https://docs.tchat.dev/authentication",
 			description: "Authentication error with helpful suggestion",
 		},
 		{
 			name:        "Rate limit suggestion",
 			errorCode:   "RATE_LIMIT_EXCEEDED",
 			suggestion:  "Please wait before making another request. Consider upgrading your plan for higher limits.",
-			helpURL:     "https://docs.tchat-backend/rate-limits",
+			helpURL:     "https://docs.tchat.dev/rate-limits",
 			description: "Rate limit error with upgrade suggestion",
 		},
 		{
 			name:        "Validation error suggestion",
 			errorCode:   "VALIDATION_ERROR",
 			suggestion:  "Please check the highlighted fields and correct any errors before resubmitting.",
-			helpURL:     "https://docs.tchat-backend/validation",
+			helpURL:     "https://docs.tchat.dev/validation",
 			description: "Validation error with correction guidance",
 		},
 		{
 			name:        "Resource not found suggestion",
 			errorCode:   "RESOURCE_NOT_FOUND",
 			suggestion:  "The resource may have been deleted or moved. Please check the ID and try again.",
-			helpURL:     "https://docs.tchat-backend/resources",
+			helpURL:     "https://docs.tchat.dev/resources",
 			description: "Not found error with troubleshooting help",
 		},
 	}
@@ -776,7 +776,7 @@ func (suite *ErrorResponseTestSuite) createStandardErrorResponse(
 
 	if hasSuggestion {
 		errorDetails.Suggestion = "This is a test suggestion for error resolution"
-		errorDetails.HelpURL = "https://docs.tchat-backend/errors/" + strings.ToLower(code)
+		errorDetails.HelpURL = "https://docs.tchat.dev/errors/" + strings.ToLower(code)
 	}
 
 	return StandardErrorResponse{

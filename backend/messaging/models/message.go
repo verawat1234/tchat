@@ -13,20 +13,27 @@ import (
 
 // Message represents a message in a dialog/conversation
 type Message struct {
-	ID        uuid.UUID    `json:"id" db:"id"`
-	DialogID  uuid.UUID    `json:"dialog_id" db:"dialog_id"`
-	SenderID  uuid.UUID    `json:"sender_id" db:"sender_id"`
-	Type      MessageType  `json:"type" db:"type"`
-	Content   MessageContent `json:"content" db:"content"`
-	ReplyToID *uuid.UUID   `json:"reply_to_id,omitempty" db:"reply_to_id"`
-	IsEdited  bool         `json:"is_edited" db:"is_edited"`
-	IsPinned  bool         `json:"is_pinned" db:"is_pinned"`
-	IsDeleted bool         `json:"is_deleted" db:"is_deleted"`
-	Mentions  UUIDSlice    `json:"mentions,omitempty" db:"mentions"`
-	Reactions MessageReactions `json:"reactions,omitempty" db:"reactions"`
-	CreatedAt time.Time    `json:"created_at" db:"created_at"`
-	EditedAt  *time.Time   `json:"edited_at,omitempty" db:"edited_at"`
-	DeletedAt *time.Time   `json:"deleted_at,omitempty" db:"deleted_at"`
+	ID           uuid.UUID         `json:"id" db:"id"`
+	DialogID     uuid.UUID         `json:"dialog_id" db:"dialog_id"`
+	SenderID     uuid.UUID         `json:"sender_id" db:"sender_id"`
+	Type         MessageType       `json:"type" db:"type"`
+	Content      MessageContent    `json:"content" db:"content"`
+	MediaURL     *string           `json:"media_url,omitempty" db:"media_url"`
+	ThumbnailURL *string           `json:"thumbnail_url,omitempty" db:"thumbnail_url"`
+	Status       MessageStatus     `json:"status" db:"status"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty" db:"metadata"`
+	ReplyToID    *uuid.UUID        `json:"reply_to_id,omitempty" db:"reply_to_id"`
+	ReplyTo      *MessageReply     `json:"reply_to,omitempty" db:"reply_to"`
+	IsEdited     bool              `json:"is_edited" db:"is_edited"`
+	IsPinned     bool              `json:"is_pinned" db:"is_pinned"`
+	IsDeleted    bool              `json:"is_deleted" db:"is_deleted"`
+	Mentions     UUIDSlice         `json:"mentions,omitempty" db:"mentions"`
+	Reactions    MessageReactions  `json:"reactions,omitempty" db:"reactions"`
+	SentAt       time.Time         `json:"sent_at" db:"sent_at"`
+	CreatedAt    time.Time         `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time         `json:"updated_at" db:"updated_at"`
+	EditedAt     *time.Time        `json:"edited_at,omitempty" db:"edited_at"`
+	DeletedAt    *time.Time        `json:"deleted_at,omitempty" db:"deleted_at"`
 }
 
 // MessageType represents the type of message content
@@ -43,6 +50,32 @@ const (
 	MessageTypeSticker  MessageType = "sticker"
 	MessageTypeSystem   MessageType = "system"
 )
+
+// MessageStatus represents the status of a message
+type MessageStatus string
+
+const (
+	MessageStatusSent      MessageStatus = "sent"
+	MessageStatusDelivered MessageStatus = "delivered"
+	MessageStatusRead      MessageStatus = "read"
+	MessageStatusFailed    MessageStatus = "failed"
+)
+
+// MessageReply represents a reply reference in a message
+type MessageReply struct {
+	MessageID   uuid.UUID `json:"message_id"`
+	SenderID    uuid.UUID `json:"sender_id"`
+	Content     string    `json:"content"`
+	MessageType string    `json:"message_type"`
+}
+
+// MessageForward represents a forward reference in a message
+type MessageForward struct {
+	OriginalMessageID uuid.UUID `json:"original_message_id"`
+	OriginalSenderID  uuid.UUID `json:"original_sender_id"`
+	OriginalDialogID  uuid.UUID `json:"original_dialog_id"`
+	ForwardedAt       time.Time `json:"forwarded_at"`
+}
 
 // MessageContent represents the content of a message (varies by type)
 type MessageContent map[string]interface{}
@@ -728,6 +761,26 @@ func (m *Message) IsMentioned(userID uuid.UUID) bool {
 		}
 	}
 	return false
+}
+
+// CanEdit checks if the message can be edited
+func (m *Message) CanEdit() bool {
+	// System messages cannot be edited
+	if m.Type == MessageTypeSystem {
+		return false
+	}
+
+	// Deleted messages cannot be edited
+	if m.IsDeleted {
+		return false
+	}
+
+	// Only text messages can be edited for now
+	if m.Type != MessageTypeText {
+		return false
+	}
+
+	return true
 }
 
 // ToPublicMessage returns a sanitized version for public API responses

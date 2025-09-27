@@ -29,32 +29,9 @@ type Journey04ContentAPISuite struct {
 	viewer     *AuthenticatedUser // Maya (Thailand) - Content Viewer
 }
 
-type AuthenticatedUser struct {
-	UserID       string `json:"userId"`
-	Email        string `json:"email"`
-	AccessToken  string `json:"accessToken"`
-	RefreshToken string `json:"refreshToken"`
-	Country      string `json:"country"`
-	Language     string `json:"language"`
-}
+// Note: AuthenticatedUser is now defined in types.go
 
-type CreateContentRequest struct {
-	Type         string                 `json:"type"` // "text", "image", "video", "audio", "live", "story"
-	Title        string                 `json:"title"`
-	Description  string                 `json:"description,omitempty"`
-	Content      string                 `json:"content,omitempty"` // For text content
-	Tags         []string               `json:"tags,omitempty"`
-	Category     string                 `json:"category"` // "entertainment", "education", "lifestyle", "business", "travel", "food"
-	Language     string                 `json:"language"`
-	Visibility   string                 `json:"visibility"`   // "public", "private", "unlisted", "subscribers"
-	Monetization MonetizationSettings   `json:"monetization"`
-	Location     LocationData           `json:"location,omitempty"`
-	VideoData    *VideoUploadData       `json:"videoData,omitempty"`
-	ImageData    *ImageUploadData       `json:"imageData,omitempty"`
-	AudioData    *AudioUploadData       `json:"audioData,omitempty"`
-	Scheduling   *ContentScheduling     `json:"scheduling,omitempty"`
-	Metadata     map[string]interface{} `json:"metadata,omitempty"`
-}
+// Note: CreateContentRequest is now defined in types.go
 
 type MonetizationSettings struct {
 	Enabled         bool    `json:"enabled"`
@@ -65,17 +42,9 @@ type MonetizationSettings struct {
 	Currency        string  `json:"currency,omitempty"`
 }
 
-type LocationData struct {
-	Country     string      `json:"country"`
-	City        string      `json:"city,omitempty"`
-	Coordinates Coordinates `json:"coordinates,omitempty"`
-	PlaceName   string      `json:"placeName,omitempty"`
-}
+// Note: LocationData is now defined in types.go
 
-type Coordinates struct {
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
-}
+// Note: Coordinates is now defined in types.go
 
 type VideoUploadData struct {
 	Duration   int    `json:"duration"`   // Duration in seconds
@@ -108,27 +77,7 @@ type ContentScheduling struct {
 	Timezone  string    `json:"timezone"`
 }
 
-type ContentResponse struct {
-	ID           string                 `json:"id"`
-	CreatorID    string                 `json:"creatorId"`
-	Type         string                 `json:"type"`
-	Title        string                 `json:"title"`
-	Description  string                 `json:"description,omitempty"`
-	Content      string                 `json:"content,omitempty"`
-	Tags         []string               `json:"tags,omitempty"`
-	Category     string                 `json:"category"`
-	Language     string                 `json:"language"`
-	Visibility   string                 `json:"visibility"`
-	Status       string                 `json:"status"` // "draft", "processing", "published", "failed", "archived"
-	Monetization MonetizationSettings   `json:"monetization"`
-	Location     LocationData           `json:"location,omitempty"`
-	MediaURLs    MediaURLs              `json:"mediaUrls,omitempty"`
-	Analytics    ContentAnalytics       `json:"analytics,omitempty"`
-	CreatedAt    string                 `json:"createdAt"`
-	UpdatedAt    string                 `json:"updatedAt"`
-	PublishedAt  string                 `json:"publishedAt,omitempty"`
-	Metadata     map[string]interface{} `json:"metadata,omitempty"`
-}
+// Note: ContentResponse is now defined in types.go
 
 type MediaURLs struct {
 	Original     string   `json:"original,omitempty"`

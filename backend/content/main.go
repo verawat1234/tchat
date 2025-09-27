@@ -189,8 +189,15 @@ func (a *App) initRouter() error {
 	// API routes
 	v1 := router.Group("/api/v1")
 	{
-		// Content routes
-		handlers.RegisterContentRoutes(v1, a.contentHandlers)
+		// Content routes - registered directly for reliability
+		content := v1.Group("/content")
+		{
+			content.GET("", a.contentHandlers.GetContentItems)
+			content.POST("", a.contentHandlers.CreateContent)
+			content.GET("/items", a.contentHandlers.GetContentItems)
+			content.GET("/categories", a.contentHandlers.GetContentCategories)
+			content.GET("/health", a.contentHealth)
+		}
 	}
 
 	// Swagger documentation (if enabled)
@@ -256,7 +263,7 @@ func (a *App) Shutdown(ctx context.Context) error {
 func (a *App) healthCheck(c *gin.Context) {
 	utils.SuccessResponse(c, gin.H{
 		"status":    "ok",
-		"service":   "content",
+		"service":   "content-service",
 		"version":   "1.0.0",
 		"timestamp": time.Now().UTC(),
 	})
@@ -275,8 +282,18 @@ func (a *App) readinessCheck(c *gin.Context) {
 
 	utils.SuccessResponse(c, gin.H{
 		"status":   "ready",
-		"service":  "content",
+		"service":  "content-service",
 		"database": "connected",
+	})
+}
+
+// contentHealth provides a simple content service health check endpoint for API routes
+func (a *App) contentHealth(c *gin.Context) {
+	utils.SuccessResponse(c, gin.H{
+		"status":    "ok",
+		"service":   "content-service",
+		"api":       "available",
+		"timestamp": time.Now().UTC(),
 	})
 }
 

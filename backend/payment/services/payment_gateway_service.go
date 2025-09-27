@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"tchat-backend/payment/models"
-	"tchat-backend/payment/repositories"
-	"tchat-backend/shared/events"
+	"tchat.dev/payment/models"
+	"tchat.dev/payment/repositories"
+	"tchat.dev/shared/events"
 )
 
 type PaymentGatewayService struct {

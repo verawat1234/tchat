@@ -701,7 +701,7 @@ func (pm *PaymentMethod) BeforeCreate() error {
 	}
 
 	// Initialize security info
-	if pm.SecurityInfo == (SecurityInfo{}) {
+	if pm.SecurityInfo.SecurityLevel == "" {
 		pm.SecurityInfo = SecurityInfo{
 			RiskScore:     50.0, // Medium risk by default
 			SecurityLevel: "medium",

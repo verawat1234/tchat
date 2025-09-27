@@ -287,8 +287,92 @@ journeys: ## List all available journey tests
 	@echo ""
 	@echo "Run specific journey with: make test-journey JOURNEY=XX"
 
+# === COMPREHENSIVE INTEGRATION TESTS ===
+# New microservice-level integration tests for all APIs
+
+integration: setup check-deps ## Run comprehensive microservice integration tests
+	@echo -e "$(BLUE)[INFO]$(NC) Running comprehensive microservice integration tests..."
+	@./run_integration_tests.sh
+
+integration-verbose: setup check-deps ## Run integration tests with verbose output
+	@echo -e "$(BLUE)[INFO]$(NC) Running integration tests with verbose output..."
+	@./run_integration_tests.sh -v
+
+integration-parallel: setup check-deps ## Run integration tests in parallel
+	@echo -e "$(BLUE)[INFO]$(NC) Running integration tests in parallel..."
+	@./run_integration_tests.sh -p
+
+integration-coverage: setup check-deps ## Run integration tests with coverage reports
+	@echo -e "$(BLUE)[INFO]$(NC) Running integration tests with coverage analysis..."
+	@./run_integration_tests.sh -c
+
+integration-full: setup check-deps ## Run full integration test suite (parallel + coverage + verbose)
+	@echo -e "$(BLUE)[INFO]$(NC) Running full integration test suite..."
+	@./run_integration_tests.sh -p -c -v
+
+# Individual microservice integration tests
+integration-auth: setup check-deps ## Run Authentication service integration tests
+	@./run_integration_tests.sh -s auth -v
+
+integration-content: setup check-deps ## Run Content service integration tests
+	@./run_integration_tests.sh -s content -v
+
+integration-commerce: setup check-deps ## Run Commerce service integration tests
+	@./run_integration_tests.sh -s commerce -v
+
+integration-messaging: setup check-deps ## Run Messaging service integration tests
+	@./run_integration_tests.sh -s messaging -v
+
+integration-notification: setup check-deps ## Run Notification service integration tests
+	@./run_integration_tests.sh -s notification -v
+
+integration-payment: setup check-deps ## Run Payment service integration tests
+	@./run_integration_tests.sh -s payment -v
+
+# Environment-specific integration tests
+integration-localhost: setup check-deps ## Run integration tests on localhost
+	@./run_integration_tests.sh -e localhost -v
+
+integration-staging: setup check-deps ## Run integration tests on staging
+	@./run_integration_tests.sh -e staging -v
+
+integration-production: setup check-deps ## Run integration tests on production
+	@./run_integration_tests.sh -e production -v
+
+# Direct Go integration test execution
+integration-go: check-deps ## Run integration tests directly with Go
+	@echo -e "$(BLUE)[INFO]$(NC) Running integration tests directly with Go..."
+	@go test -v -run TestRunAllIntegrationTests
+
+integration-go-coverage: check-deps ## Run Go integration tests with coverage
+	@echo -e "$(BLUE)[INFO]$(NC) Running integration tests with coverage..."
+	@go test -v -coverprofile=integration_coverage.out -run TestRunAllIntegrationTests
+	@go tool cover -html=integration_coverage.out -o $(TEST_RESULTS_DIR)/integration_coverage.html
+
+# Combined test targets
+test-comprehensive: integration test ## Run both journey tests and integration tests
+	@echo -e "$(GREEN)[SUCCESS]$(NC) Comprehensive testing completed"
+
+test-all-apis: integration ## Alias for comprehensive API integration tests
+	@echo -e "$(GREEN)[SUCCESS]$(NC) All API integration tests completed"
+
+# Service health checks
+health-check: setup ## Check health of all microservices
+	@echo -e "$(BLUE)[INFO]$(NC) Checking health of all microservices..."
+	@for port in 8081 8082 8083 8084 8085 8086; do \
+		echo -n "Checking port $$port: "; \
+		if curl -sf http://localhost:$$port/health >/dev/null 2>&1; then \
+			echo -e "${GREEN}HEALTHY${NC}"; \
+		else \
+			echo -e "${RED}UNHEALTHY${NC}"; \
+		fi; \
+	done
+
 # Quick access aliases
 t: test ## Quick alias for test
 tv: test-verbose ## Quick alias for test-verbose
 tr: report ## Quick alias for report
 tc: clean ## Quick alias for clean
+ti: integration ## Quick alias for integration tests
+tip: integration-parallel ## Quick alias for parallel integration tests
+tic: integration-coverage ## Quick alias for integration tests with coverage

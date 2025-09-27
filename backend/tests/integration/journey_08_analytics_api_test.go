@@ -16,14 +16,7 @@ import (
 )
 
 // AuthenticatedUser represents an authenticated user session
-type AuthenticatedUser struct {
-	UserID       string `json:"userId"`
-	Email        string `json:"email"`
-	AccessToken  string `json:"accessToken"`
-	RefreshToken string `json:"refreshToken"`
-	Country      string `json:"country"`
-	Language     string `json:"language"`
-}
+// Note: AuthenticatedUser is now defined in types.go
 
 // AnalyticsEvent represents a trackable user event
 type AnalyticsEvent struct {
@@ -82,21 +75,7 @@ type BusinessMetrics struct {
 }
 
 // PerformanceMetrics represents system performance analytics
-type PerformanceMetrics struct {
-	Timestamp           time.Time `json:"timestamp"`
-	ResponseTime        float64   `json:"response_time_ms"`
-	ThroughputRPS       float64   `json:"throughput_rps"`
-	ErrorRate           float64   `json:"error_rate"`
-	MemoryUsageMB       float64   `json:"memory_usage_mb"`
-	CPUUsagePercent     float64   `json:"cpu_usage_percent"`
-	DiskIOPS            float64   `json:"disk_iops"`
-	NetworkThroughput   float64   `json:"network_throughput_mbps"`
-	ActiveConnections   int       `json:"active_connections"`
-	QueueDepth          int       `json:"queue_depth"`
-	CacheHitRate        float64   `json:"cache_hit_rate"`
-	DatabaseConnections int       `json:"database_connections"`
-	ServiceAvailability float64   `json:"service_availability"`
-}
+// Note: PerformanceMetrics is now defined in types.go
 
 // RevenueAnalytics represents financial performance data
 type RevenueAnalytics struct {

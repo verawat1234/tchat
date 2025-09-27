@@ -4,7 +4,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"tchat-backend/auth/models"
+	authModels "tchat.dev/auth/models"
+	sharedModels "tchat.dev/shared/models"
 )
 
 // UserFixtures provides test data for User models
@@ -20,54 +21,53 @@ func NewUserFixtures(seed ...int64) *UserFixtures {
 }
 
 // BasicUser creates a basic user for testing
-func (u *UserFixtures) BasicUser(country string) *models.User {
+func (u *UserFixtures) BasicUser(country string) *sharedModels.User {
 	countryCode := u.CountryCode(country)
 	phone := u.Phone(countryCode)
 	email := u.Email("test-user", "tchat-test.com")
 	name := u.Name(countryCode)
 
-	return &models.User{
+	return &sharedModels.User{
 		ID:         u.UUID("basic-user-" + countryCode),
-		Phone:      &phone,
-		Email:      &email,
+		Phone:      phone,
+		Email:      email,
 		Name:       name,
-		Avatar:     nil,
-		Country:    models.Country(countryCode),
+		Avatar:     "",
+		Country:    countryCode,
 		Locale:     u.Locale(countryCode),
-		KYCTier:    models.KYCTier(u.KYCTier()),
-		Status:     models.UserStatusActive,
+		KYCTier:    u.KYCTier(),
+		Status:     "active",
 		LastSeen:   nil,
-		IsVerified: false,
+		Verified:   false,
 		CreatedAt:  u.PastTime(60), // Created 1 hour ago
 		UpdatedAt:  u.PastTime(30), // Updated 30 minutes ago
 	}
 }
 
 // VerifiedUser creates a verified user for testing
-func (u *UserFixtures) VerifiedUser(country string) *models.User {
+func (u *UserFixtures) VerifiedUser(country string) *sharedModels.User {
 	user := u.BasicUser(country)
 	user.ID = u.UUID("verified-user-" + country)
-	user.IsVerified = true
-	user.KYCTier = models.KYCTier2
+	user.Verified = true
+	user.KYCTier = 2
 	lastSeen := u.PastTime(5) // Last seen 5 minutes ago
 	user.LastSeen = &lastSeen
 	return user
 }
 
 // PremiumUser creates a premium user (KYC Tier 3) for testing
-func (u *UserFixtures) PremiumUser(country string) *models.User {
+func (u *UserFixtures) PremiumUser(country string) *sharedModels.User {
 	user := u.VerifiedUser(country)
 	user.ID = u.UUID("premium-user-" + country)
-	user.KYCTier = models.KYCTier3
-	avatar := "https://example.com/avatars/premium-user.jpg"
-	user.Avatar = &avatar
+	user.KYCTier = 3
+	user.Avatar = "https://example.com/avatars/premium-user.jpg"
 	return user
 }
 
 // TestUsers creates a collection of test users across different countries
-func (u *UserFixtures) TestUsers() []*models.User {
+func (u *UserFixtures) TestUsers() []*sharedModels.User {
 	countries := []string{"TH", "SG", "ID", "MY", "VN", "PH"}
-	users := make([]*models.User, 0, len(countries)*3)
+	users := make([]*sharedModels.User, 0, len(countries)*3)
 
 	for _, country := range countries {
 		users = append(users, u.BasicUser(country))
@@ -79,48 +79,48 @@ func (u *UserFixtures) TestUsers() []*models.User {
 }
 
 // UserWithEmail creates a user with specific email
-func (u *UserFixtures) UserWithEmail(email, country string) *models.User {
+func (u *UserFixtures) UserWithEmail(email, country string) *sharedModels.User {
 	user := u.BasicUser(country)
 	user.ID = u.UUID("user-email-" + email)
-	user.Email = &email
+	user.Email = email
 	return user
 }
 
 // UserWithPhone creates a user with specific phone
-func (u *UserFixtures) UserWithPhone(phone, country string) *models.User {
+func (u *UserFixtures) UserWithPhone(phone, country string) *sharedModels.User {
 	user := u.BasicUser(country)
 	user.ID = u.UUID("user-phone-" + phone)
-	user.Phone = &phone
+	user.Phone = phone
 	return user
 }
 
 // InactiveUser creates an inactive user for testing
-func (u *UserFixtures) InactiveUser(country string) *models.User {
+func (u *UserFixtures) InactiveUser(country string) *sharedModels.User {
 	user := u.BasicUser(country)
 	user.ID = u.UUID("inactive-user-" + country)
-	user.Status = models.UserStatusInactive
+	user.Status = string(sharedModels.UserStatusDeleted)
 	user.LastSeen = nil
 	return user
 }
 
 // SuspendedUser creates a suspended user for testing
-func (u *UserFixtures) SuspendedUser(country string) *models.User {
+func (u *UserFixtures) SuspendedUser(country string) *sharedModels.User {
 	user := u.BasicUser(country)
 	user.ID = u.UUID("suspended-user-" + country)
-	user.Status = models.UserStatusSuspended
+	user.Status = string(sharedModels.UserStatusSuspended)
 	lastSeen := u.PastTime(1440) // Last seen 24 hours ago
 	user.LastSeen = &lastSeen
 	return user
 }
 
 // DeletedUser creates a deleted user for testing
-func (u *UserFixtures) DeletedUser(country string) *models.User {
+func (u *UserFixtures) DeletedUser(country string) *sharedModels.User {
 	user := u.BasicUser(country)
 	user.ID = u.UUID("deleted-user-" + country)
-	user.Status = models.UserStatusInactive
-	user.IsVerified = false
-	user.Phone = nil // Privacy: phone removed
-	user.Email = nil // Privacy: email removed
+	user.Status = string(sharedModels.UserStatusDeleted)
+	user.Verified = false
+	user.Phone = "" // Privacy: phone removed
+	user.Email = "" // Privacy: email removed
 	return user
 }
 
@@ -137,12 +137,12 @@ func NewSessionFixtures(seed ...int64) *SessionFixtures {
 }
 
 // ActiveSession creates an active session for testing
-func (s *SessionFixtures) ActiveSession(userID uuid.UUID, platform string) *models.Session {
+func (s *SessionFixtures) ActiveSession(userID uuid.UUID, platform string) *authModels.Session {
 	deviceID := s.DeviceID(platform)
 	ipAddress := s.IPAddress("TH") // Default to Thailand IP
 	userAgent := s.UserAgent(platform)
 
-	return &models.Session{
+	return &authModels.Session{
 		ID:               s.UUID("session-" + userID.String()),
 		UserID:           userID,
 		DeviceID:         deviceID,
@@ -165,37 +165,37 @@ func (s *SessionFixtures) ActiveSession(userID uuid.UUID, platform string) *mode
 		CreatedAt:    s.PastTime(30), // Created 30 minutes ago
 		UpdatedAt:    s.PastTime(5),  // Updated 5 minutes ago
 		LastActiveAt: s.PastTime(1),  // Last active 1 minute ago
-		LastUsed:     s.PastTime(1),  // Last used 1 minute ago
+		LastUsedAt:   s.PastTime(1),  // Last used 1 minute ago
 		RevokedAt:    nil,
-		Status:       models.SessionStatusActive,
+		Status:       authModels.SessionStatusActive,
 	}
 }
 
 // ExpiredSession creates an expired session for testing
-func (s *SessionFixtures) ExpiredSession(userID uuid.UUID, platform string) *models.Session {
+func (s *SessionFixtures) ExpiredSession(userID uuid.UUID, platform string) *authModels.Session {
 	session := s.ActiveSession(userID, platform)
 	session.ID = s.UUID("expired-session-" + userID.String())
 	session.ExpiresAt = s.PastTime(60) // Expired 1 hour ago
 	session.IsActive = false
-	session.Status = models.SessionStatusExpired
+	session.Status = authModels.SessionStatusExpired
 	return session
 }
 
 // RevokedSession creates a revoked session for testing
-func (s *SessionFixtures) RevokedSession(userID uuid.UUID, platform string) *models.Session {
+func (s *SessionFixtures) RevokedSession(userID uuid.UUID, platform string) *authModels.Session {
 	session := s.ActiveSession(userID, platform)
 	session.ID = s.UUID("revoked-session-" + userID.String())
 	session.IsActive = false
-	session.Status = models.SessionStatusRevoked
+	session.Status = authModels.SessionStatusRevoked
 	revokedAt := s.PastTime(30)
 	session.RevokedAt = &revokedAt
 	return session
 }
 
 // MultiDeviceSessions creates sessions for multiple devices
-func (s *SessionFixtures) MultiDeviceSessions(userID uuid.UUID) []*models.Session {
+func (s *SessionFixtures) MultiDeviceSessions(userID uuid.UUID) []*authModels.Session {
 	platforms := []string{"ios", "android", "web"}
-	sessions := make([]*models.Session, 0, len(platforms))
+	sessions := make([]*authModels.Session, 0, len(platforms))
 
 	for _, platform := range platforms {
 		session := s.ActiveSession(userID, platform)
@@ -219,17 +219,17 @@ func NewKYCFixtures(seed ...int64) *KYCFixtures {
 }
 
 // BasicKYC creates basic KYC data for testing
-func (k *KYCFixtures) BasicKYC(userID uuid.UUID, country string) *models.KYC {
-	return &models.KYC{
+func (k *KYCFixtures) BasicKYC(userID uuid.UUID, country string) *authModels.KYC {
+	return &authModels.KYC{
 		ID:           k.UUID("kyc-" + userID.String()),
 		UserID:       userID,
-		Tier:         models.TierBasic,
-		Status:       models.KYCStatusPending,
-		DocumentType: models.DocumentTypeNationalID,
+		Tier:         authModels.TierBasic,
+		Status:       authModels.KYCStatusPending,
+		DocumentType: authModels.DocumentTypeNationalID,
 		Nationality:  country,
 		DateOfBirth:  time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC),
 		FullName:     k.Name(country),
-		Address: &models.Address{
+		Address: &authModels.Address{
 			Street:     "123 Test Street",
 			City:       "Bangkok",
 			State:      "Bangkok",
@@ -245,21 +245,21 @@ func (k *KYCFixtures) BasicKYC(userID uuid.UUID, country string) *models.KYC {
 }
 
 // VerifiedKYC creates verified KYC data for testing
-func (k *KYCFixtures) VerifiedKYC(userID uuid.UUID, country string) *models.KYC {
+func (k *KYCFixtures) VerifiedKYC(userID uuid.UUID, country string) *authModels.KYC {
 	kyc := k.BasicKYC(userID, country)
 	kyc.ID = k.UUID("verified-kyc-" + userID.String())
-	kyc.Status = models.KYCStatusApproved
-	kyc.Tier = models.TierIdentity
+	kyc.Status = authModels.KYCStatusApproved
+	kyc.Tier = authModels.TierIdentity
 	approvedAt := k.PastTime(30)
 	kyc.ApprovedAt = &approvedAt
 	return kyc
 }
 
 // PremiumKYC creates premium KYC data (Tier 3) for testing
-func (k *KYCFixtures) PremiumKYC(userID uuid.UUID, country string) *models.KYC {
+func (k *KYCFixtures) PremiumKYC(userID uuid.UUID, country string) *authModels.KYC {
 	kyc := k.VerifiedKYC(userID, country)
 	kyc.ID = k.UUID("premium-kyc-" + userID.String())
-	kyc.Tier = models.TierEnhanced
+	kyc.Tier = authModels.TierEnhanced
 	// Enhanced KYC with additional verification
 	kyc.PlaceOfBirth = "Bangkok"
 	kyc.Gender = "unspecified"
@@ -268,10 +268,10 @@ func (k *KYCFixtures) PremiumKYC(userID uuid.UUID, country string) *models.KYC {
 }
 
 // RejectedKYC creates rejected KYC data for testing
-func (k *KYCFixtures) RejectedKYC(userID uuid.UUID, country string) *models.KYC {
+func (k *KYCFixtures) RejectedKYC(userID uuid.UUID, country string) *authModels.KYC {
 	kyc := k.BasicKYC(userID, country)
 	kyc.ID = k.UUID("rejected-kyc-" + userID.String())
-	kyc.Status = models.KYCStatusRejected
+	kyc.Status = authModels.KYCStatusRejected
 	kyc.RejectionReason = "Document quality insufficient, please resubmit"
 	return kyc
 }

@@ -26,31 +26,7 @@ type Journey01RegistrationAPISuite struct {
 	ctx        context.Context
 }
 
-type TestUser struct {
-	Email     string `json:"email"`
-	PhoneNumber string `json:"phoneNumber"`
-	FirstName string `json:"firstName"`
-	LastName  string `json:"lastName"`
-	Country   string `json:"country"`
-	Language  string `json:"language"`
-	Timezone  string `json:"timezone"`
-}
-
-type RegistrationRequest struct {
-	Email     string `json:"email"`
-	Password  string `json:"password"`
-	FirstName string `json:"firstName"`
-	LastName  string `json:"lastName"`
-	Country   string `json:"country"`
-	Language  string `json:"language"`
-}
-
-type RegistrationResponse struct {
-	UserID     string `json:"userId"`
-	Status     string `json:"status"`
-	Message    string `json:"message"`
-	VerifyCode string `json:"verifyCode,omitempty"`
-}
+// Note: TestUser, RegistrationRequest, and RegistrationResponse are now defined in types.go
 
 type PhoneRegistrationRequest struct {
 	PhoneNumber string `json:"phoneNumber"`

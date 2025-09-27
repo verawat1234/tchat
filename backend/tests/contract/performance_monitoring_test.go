@@ -1010,7 +1010,7 @@ func (suite *PerformanceMonitoringTestSuite) createAlert(metricName, severity st
 		},
 		Annotations: map[string]string{
 			"description": message,
-			"runbook":     "https://wiki.tchat-backend/contract-testing-alerts",
+			"runbook":     "https://wiki.tchat.dev/contract-testing-alerts",
 		},
 		Duration:   0, // Will be calculated when resolved
 		Escalated:  false,

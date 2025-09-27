@@ -541,7 +541,7 @@ func (suite *CrossPlatformPerformanceTestSuite) loadPlatformContract(platformNam
 	// Mock contract data based on platform
 	contract := map[string]interface{}{
 		"consumer": map[string]interface{}{"name": fmt.Sprintf("%s-consumer", platformName)},
-		"provider": map[string]interface{}{"name": "tchat-backend"},
+		"provider": map[string]interface{}{"name": "tchat.dev"},
 		"interactions": []map[string]interface{}{
 			{
 				"description": "login request",

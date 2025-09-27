@@ -12,14 +12,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/suite"
-	"tchat-backend/shared/config"
-	"tchat-backend/shared/database"
+	"tchat.dev/shared/config"
+	"tchat.dev/shared/database"
 
 	// Import all contract test suites
-	authContracts "tchat-backend/auth/contracts"
-	commerceContracts "tchat-backend/commerce/contracts"
-	contentContracts "tchat-backend/content/contracts"
-	notificationContracts "tchat-backend/notification/contracts"
+	authContracts "tchat.dev/auth/contracts"
+	commerceContracts "tchat.dev/commerce/contracts"
+	contentContracts "tchat.dev/content/contracts"
+	notificationContracts "tchat.dev/notification/contracts"
 )
 
 // ContractIntegrationTestSuite runs all provider verification tests

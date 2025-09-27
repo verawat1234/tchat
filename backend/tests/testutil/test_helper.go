@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"tchat-backend/shared/config"
-	"tchat-backend/shared/database"
+	"tchat.dev/shared/config"
+	"tchat.dev/shared/database"
 )
 
 // TestHelper provides utilities for testing

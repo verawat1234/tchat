@@ -223,14 +223,12 @@ func (m *MasterFixtures) DevUserData() map[string]interface{} {
 	user := devFixtures.Users.BasicUser("TH")
 	user.ID = devUserID
 	user.Name = "Dev Test User"
-	email := "dev@tchat-test.com"
-	user.Email = &email
+	user.Email = "dev@tchat-test.com"
 
 	recipient := devFixtures.Users.BasicUser("TH")
 	recipient.ID = devRecipientID
 	recipient.Name = "Dev Recipient"
-	recipientEmail := "recipient@tchat-test.com"
-	recipient.Email = &recipientEmail
+	recipient.Email = "recipient@tchat-test.com"
 
 	// Create associated data
 	session := devFixtures.Sessions.ActiveSession(devUserID, "web")
@@ -267,8 +265,8 @@ func (m *MasterFixtures) ValidationTestData() map[string]interface{} {
 
 	// Invalid data cases for testing validation
 	invalidUser := m.Users.BasicUser("TH")
-	invalidUser.Phone = nil // Invalid: no phone
-	invalidUser.Email = nil // Invalid: no email
+	invalidUser.Phone = "" // Invalid: no phone
+	invalidUser.Email = "" // Invalid: no email
 	validationCases["invalid_user_no_contact"] = invalidUser
 
 	// Edge cases

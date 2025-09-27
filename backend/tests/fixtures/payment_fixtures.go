@@ -1,11 +1,10 @@
 package fixtures
 
 import (
-	"tchat-backend/auth/models"
 	"time"
 
 	"github.com/google/uuid"
-	"tchat-backend/payment/models"
+	paymentModels "tchat.dev/payment/models"
 )
 
 // PaymentFixtures provides test data for Payment models
@@ -33,15 +32,15 @@ func NewWalletFixtures(seed ...int64) *WalletFixtures {
 }
 
 // BasicWallet creates a basic wallet for testing
-func (w *WalletFixtures) BasicWallet(userID uuid.UUID, country string) *models.Wallet {
+func (w *WalletFixtures) BasicWallet(userID uuid.UUID, country string) *paymentModels.Wallet {
 	currency := w.Currency(country)
 	balance := w.Amount(currency)
 
-	return &models.Wallet{
+	return &paymentModels.Wallet{
 		ID:             w.UUID("wallet-" + userID.String() + "-" + currency),
 		UserID:         userID,
 		Balance:        balance,
-		Currency:       models.Currency(currency),
+		Currency:       paymentModels.Currency(currency),
 		FrozenBalance:  0,
 		DailyLimit:     balance * 10,   // 10x balance as daily limit
 		MonthlyLimit:   balance * 100,  // 100x balance as monthly limit
@@ -49,7 +48,7 @@ func (w *WalletFixtures) BasicWallet(userID uuid.UUID, country string) *models.W
 		UsedThisMonth:  0,
 		LastResetDay:   w.PastTime(1440), // Reset yesterday
 		LastResetMonth: time.Date(time.Now().Year(), time.Now().Month(), 1, 0, 0, 0, 0, time.UTC),
-		Status:         models.WalletStatusActive,
+		Status:         paymentModels.WalletStatusActive,
 		IsPrimary:      true,
 		CreatedAt:      w.PastTime(2880), // Created 2 days ago
 		UpdatedAt:      w.PastTime(60),   // Updated 1 hour ago
@@ -57,16 +56,16 @@ func (w *WalletFixtures) BasicWallet(userID uuid.UUID, country string) *models.W
 }
 
 // FrozenWallet creates a wallet with frozen funds for testing
-func (w *WalletFixtures) FrozenWallet(userID uuid.UUID, country string) *models.Wallet {
+func (w *WalletFixtures) FrozenWallet(userID uuid.UUID, country string) *paymentModels.Wallet {
 	wallet := w.BasicWallet(userID, country)
 	wallet.ID = w.UUID("frozen-wallet-" + userID.String())
 	wallet.FrozenBalance = wallet.Balance / 2 // Freeze half the balance
-	wallet.Status = models.WalletStatusFrozen
+	wallet.Status = paymentModels.WalletStatusFrozen
 	return wallet
 }
 
 // LimitedWallet creates a wallet with usage near limits for testing
-func (w *WalletFixtures) LimitedWallet(userID uuid.UUID, country string) *models.Wallet {
+func (w *WalletFixtures) LimitedWallet(userID uuid.UUID, country string) *paymentModels.Wallet {
 	wallet := w.BasicWallet(userID, country)
 	wallet.ID = w.UUID("limited-wallet-" + userID.String())
 	wallet.UsedThisDay = wallet.DailyLimit * 8 / 10    // 80% of daily limit used
@@ -75,9 +74,9 @@ func (w *WalletFixtures) LimitedWallet(userID uuid.UUID, country string) *models
 }
 
 // MultiCurrencyWallets creates wallets for multiple currencies
-func (w *WalletFixtures) MultiCurrencyWallets(userID uuid.UUID) []*models.Wallet {
+func (w *WalletFixtures) MultiCurrencyWallets(userID uuid.UUID) []*paymentModels.Wallet {
 	countries := []string{"TH", "SG", "ID", "MY", "VN", "PH"}
-	wallets := make([]*models.Wallet, 0, len(countries))
+	wallets := make([]*paymentModels.Wallet, 0, len(countries))
 
 	for i, country := range countries {
 		wallet := w.BasicWallet(userID, country)
@@ -102,17 +101,17 @@ func NewTransactionFixtures(seed ...int64) *TransactionFixtures {
 }
 
 // BasicTransaction creates a basic transaction for testing
-func (t *TransactionFixtures) BasicTransaction(fromUserID, toUserID uuid.UUID, currency string) *models.Transaction {
+func (t *TransactionFixtures) BasicTransaction(fromUserID, toUserID uuid.UUID, currency string) *paymentModels.Transaction {
 	amount := t.Amount(currency)
 
-	return &models.Transaction{
+	return &paymentModels.Transaction{
 		ID:              t.UUID("transaction-" + fromUserID.String() + "-" + toUserID.String()),
 		WalletID:        fromUserID, // Assuming fromUserID is the wallet ID
 		CounterpartyID:  &toUserID,
 		Amount:          amount,
-		Currency:        models.Currency(currency),
-		Type:            models.TransactionTypeTransfer,
-		Status:          models.TransactionStatusCompleted,
+		Currency:        paymentModels.Currency(currency),
+		Type:            paymentModels.TransactionTypeTransfer,
+		Status:          paymentModels.TransactionStatusCompleted,
 		Description:     &[]string{"Test transfer transaction"}[0],
 		Reference:       t.Token(16),
 		ExternalID:      nil,
@@ -130,20 +129,20 @@ func (t *TransactionFixtures) BasicTransaction(fromUserID, toUserID uuid.UUID, c
 }
 
 // PendingTransaction creates a pending transaction for testing
-func (t *TransactionFixtures) PendingTransaction(fromUserID, toUserID uuid.UUID, currency string) *models.Transaction {
+func (t *TransactionFixtures) PendingTransaction(fromUserID, toUserID uuid.UUID, currency string) *paymentModels.Transaction {
 	transaction := t.BasicTransaction(fromUserID, toUserID, currency)
 	transaction.ID = t.UUID("pending-transaction-" + fromUserID.String())
-	transaction.Status = models.TransactionStatusPending
+	transaction.Status = paymentModels.TransactionStatusPending
 	transaction.ProcessedAt = nil
 	transaction.UpdatedAt = transaction.CreatedAt
 	return transaction
 }
 
 // FailedTransaction creates a failed transaction for testing
-func (t *TransactionFixtures) FailedTransaction(fromUserID, toUserID uuid.UUID, currency string) *models.Transaction {
+func (t *TransactionFixtures) FailedTransaction(fromUserID, toUserID uuid.UUID, currency string) *paymentModels.Transaction {
 	transaction := t.BasicTransaction(fromUserID, toUserID, currency)
 	transaction.ID = t.UUID("failed-transaction-" + fromUserID.String())
-	transaction.Status = models.TransactionStatusFailed
+	transaction.Status = paymentModels.TransactionStatusFailed
 	description := "Test failed transaction - insufficient funds"
 	transaction.Description = &description
 	transaction.Metadata["failure_reason"] = "insufficient_funds"
@@ -152,17 +151,17 @@ func (t *TransactionFixtures) FailedTransaction(fromUserID, toUserID uuid.UUID, 
 }
 
 // TopUpTransaction creates a top-up transaction for testing
-func (t *TransactionFixtures) TopUpTransaction(userID uuid.UUID, currency string) *models.Transaction {
+func (t *TransactionFixtures) TopUpTransaction(userID uuid.UUID, currency string) *paymentModels.Transaction {
 	amount := t.Amount(currency)
 
-	return &models.Transaction{
+	return &paymentModels.Transaction{
 		ID:          t.UUID("topup-transaction-" + userID.String()),
 		WalletID:    userID, // User's wallet receiving the top-up
 		CounterpartyID: nil, // No counterparty for top-ups
 		Amount:      amount,
-		Currency:    models.Currency(currency),
-		Type:        models.TransactionTypeDeposit,
-		Status:      models.TransactionStatusCompleted,
+		Currency:    paymentModels.Currency(currency),
+		Type:        paymentModels.TransactionTypeDeposit,
+		Status:      paymentModels.TransactionStatusCompleted,
 		Description: &[]string{"Test wallet top-up"}[0],
 		Reference:   t.Token(16),
 		ExternalID:  &[]string{"ext-topup-" + t.Token(8)}[0],
@@ -180,17 +179,17 @@ func (t *TransactionFixtures) TopUpTransaction(userID uuid.UUID, currency string
 }
 
 // WithdrawalTransaction creates a withdrawal transaction for testing
-func (t *TransactionFixtures) WithdrawalTransaction(userID uuid.UUID, currency string) *models.Transaction {
+func (t *TransactionFixtures) WithdrawalTransaction(userID uuid.UUID, currency string) *paymentModels.Transaction {
 	amount := t.Amount(currency)
 
-	return &models.Transaction{
+	return &paymentModels.Transaction{
 		ID:          t.UUID("withdrawal-transaction-" + userID.String()),
 		WalletID:    userID, // User's wallet for withdrawal
 		CounterpartyID: nil, // No counterparty for withdrawals
 		Amount:      amount,
-		Currency:    models.Currency(currency),
-		Type:        models.TransactionTypeWithdrawal,
-		Status:      models.TransactionStatusCompleted,
+		Currency:    paymentModels.Currency(currency),
+		Type:        paymentModels.TransactionTypeWithdrawal,
+		Status:      paymentModels.TransactionStatusCompleted,
 		Description: &[]string{"Test wallet withdrawal"}[0],
 		Reference:   t.Token(16),
 		ExternalID:  &[]string{"ext-withdrawal-" + t.Token(8)}[0],
@@ -221,23 +220,23 @@ func NewPaymentMethodFixtures(seed ...int64) *PaymentMethodFixtures {
 }
 
 // BankAccountPaymentMethod creates a bank account payment method for testing
-func (p *PaymentMethodFixtures) BankAccountPaymentMethod(userID uuid.UUID, country string) *models.PaymentMethod {
-	return &models.PaymentMethod{
+func (p *PaymentMethodFixtures) BankAccountPaymentMethod(userID uuid.UUID, country string) *paymentModels.PaymentMethod {
+	return &paymentModels.PaymentMethod{
 		ID:       p.UUID("bank-payment-" + userID.String()),
 		UserID:   userID,
-		Type:     models.PaymentMethodTypeBankAccount,
-		Provider: models.PaymentProviderDBS, // Use DBS as test bank provider
-		Status:   models.PaymentMethodStatusActive,
+		Type:     paymentModels.PaymentMethodTypeBankAccount,
+		Provider: paymentModels.PaymentProviderDBS, // Use DBS as test bank provider
+		Status:   paymentModels.PaymentMethodStatusActive,
 		DisplayName:    "Test Bank Account",
 		Country:        country,
-		Currency:       models.Currency(p.Currency(country)),
-		Metadata: models.PaymentMethodMetadata{
+		Currency:       paymentModels.Currency(p.Currency(country)),
+		Metadata: paymentModels.PaymentMethodMetadata{
 			HolderName:  p.Name(country),
 			BankName:    "Test Bank " + country,
 			BankCode:    "TESTBANK" + country,
 			AccountType: "checking",
 		},
-		SecurityInfo: models.SecurityInfo{
+		SecurityInfo: paymentModels.SecurityInfo{
 			CVVVerified:       true,
 			AddressVerified:   true,
 			PhoneVerified:     true,
@@ -256,26 +255,26 @@ func (p *PaymentMethodFixtures) BankAccountPaymentMethod(userID uuid.UUID, count
 }
 
 // CreditCardPaymentMethod creates a credit card payment method for testing
-func (p *PaymentMethodFixtures) CreditCardPaymentMethod(userID uuid.UUID) *models.PaymentMethod {
+func (p *PaymentMethodFixtures) CreditCardPaymentMethod(userID uuid.UUID) *paymentModels.PaymentMethod {
 	expiresAt := p.FutureTime(525600) // Expires in 1 year
 
-	return &models.PaymentMethod{
+	return &paymentModels.PaymentMethod{
 		ID:       p.UUID("card-payment-" + userID.String()),
 		UserID:   userID,
-		Type:     models.PaymentMethodTypeCreditCard,
-		Provider: models.PaymentProviderVisa,
-		Status:   models.PaymentMethodStatusActive,
+		Type:     paymentModels.PaymentMethodTypeCreditCard,
+		Provider: paymentModels.PaymentProviderVisa,
+		Status:   paymentModels.PaymentMethodStatusActive,
 		DisplayName:    "Visa ****1234",
 		LastFourDigits: &[]string{"1234"}[0],
 		ExpiryMonth:    &[]int{12}[0],
 		ExpiryYear:     &[]int{2025}[0],
 		BrandName:      &[]string{"Visa"}[0],
 		Country:        "TH",
-		Currency:       models.CurrencyTHB,
-		Metadata: models.PaymentMethodMetadata{
+		Currency:       paymentModels.CurrencyTHB,
+		Metadata: paymentModels.PaymentMethodMetadata{
 			HolderName: "Test Cardholder",
 		},
-		SecurityInfo: models.SecurityInfo{
+		SecurityInfo: paymentModels.SecurityInfo{
 			CVVVerified:       true,
 			AddressVerified:   true,
 			PhoneVerified:     true,
@@ -294,7 +293,7 @@ func (p *PaymentMethodFixtures) CreditCardPaymentMethod(userID uuid.UUID) *model
 }
 
 // EWalletPaymentMethod creates an e-wallet payment method for testing
-func (p *PaymentMethodFixtures) EWalletPaymentMethod(userID uuid.UUID, country string) *models.PaymentMethod {
+func (p *PaymentMethodFixtures) EWalletPaymentMethod(userID uuid.UUID, country string) *paymentModels.PaymentMethod {
 	provider := "test_ewallet"
 	switch country {
 	case "TH":
@@ -311,19 +310,19 @@ func (p *PaymentMethodFixtures) EWalletPaymentMethod(userID uuid.UUID, country s
 		provider = "gcash"
 	}
 
-	return &models.PaymentMethod{
+	return &paymentModels.PaymentMethod{
 		ID:       p.UUID("ewallet-payment-" + userID.String()),
 		UserID:   userID,
-		Type:     models.PaymentMethodTypeEWallet,
-		Provider: models.PaymentProvider(provider),
-		Status:   models.PaymentMethodStatusActive,
+		Type:     paymentModels.PaymentMethodTypeEWallet,
+		Provider: paymentModels.PaymentProvider(provider),
+		Status:   paymentModels.PaymentMethodStatusActive,
 		DisplayName:    provider + " Wallet",
 		Country:        country,
-		Currency:       models.Currency(p.Currency(country)),
-		Metadata: models.PaymentMethodMetadata{
+		Currency:       paymentModels.Currency(p.Currency(country)),
+		Metadata: paymentModels.PaymentMethodMetadata{
 			HolderName: p.Name(country),
 		},
-		SecurityInfo: models.SecurityInfo{
+		SecurityInfo: paymentModels.SecurityInfo{
 			CVVVerified:       true,
 			AddressVerified:   true,
 			PhoneVerified:     true,
@@ -348,7 +347,7 @@ func (p *PaymentFixtures) TestPaymentData(userID uuid.UUID, country string) map[
 	paymentMethodFixtures := NewPaymentMethodFixtures()
 
 	// Create wallets
-	wallets := []*models.Wallet{
+	wallets := []*paymentModels.Wallet{
 		walletFixtures.BasicWallet(userID, country),
 		walletFixtures.FrozenWallet(userID, country),
 		walletFixtures.LimitedWallet(userID, country),
@@ -362,7 +361,7 @@ func (p *PaymentFixtures) TestPaymentData(userID uuid.UUID, country string) map[
 	toUserID := p.UUID("recipient-user")
 	currency := p.Currency(country)
 
-	transactions := []*models.Transaction{
+	transactions := []*paymentModels.Transaction{
 		transactionFixtures.BasicTransaction(userID, toUserID, currency),
 		transactionFixtures.PendingTransaction(userID, toUserID, currency),
 		transactionFixtures.FailedTransaction(userID, toUserID, currency),
@@ -371,7 +370,7 @@ func (p *PaymentFixtures) TestPaymentData(userID uuid.UUID, country string) map[
 	}
 
 	// Create payment methods
-	paymentMethods := []*models.PaymentMethod{
+	paymentMethods := []*paymentModels.PaymentMethod{
 		paymentMethodFixtures.BankAccountPaymentMethod(userID, country),
 		paymentMethodFixtures.CreditCardPaymentMethod(userID),
 		paymentMethodFixtures.EWalletPaymentMethod(userID, country),

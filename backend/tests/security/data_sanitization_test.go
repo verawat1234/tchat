@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"tchat-backend/tests/fixtures"
+	"tchat.dev/tests/fixtures"
 )
 
 // DataSanitizationTestSuite provides comprehensive data sanitization testing

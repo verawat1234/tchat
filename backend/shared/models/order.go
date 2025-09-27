@@ -250,9 +250,10 @@ type Order struct {
 	UpdatedAt time.Time      `json:"updated_at" gorm:"column:updated_at;not null"`
 	DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"column:deleted_at;index"`
 
-	// Relationships
+	// Relationships - temporarily disabled due to data type mismatch
+	// Business foreign key works (both use uuid), Customer disabled due to users.id being text instead of uuid
 	Business *Business `json:"business,omitempty" gorm:"foreignKey:BusinessID;references:ID"`
-	Customer *User     `json:"customer,omitempty" gorm:"foreignKey:CustomerID;references:ID"`
+	// Customer *User     `json:"customer,omitempty" gorm:"foreignKey:CustomerID;references:ID"`
 }
 
 // TableName returns the table name for the Order model

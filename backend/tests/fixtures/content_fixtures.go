@@ -1,9 +1,8 @@
 package fixtures
 
 import (
-	"tchat-backend/auth/models"
 	"github.com/google/uuid"
-	"tchat-backend/content/models"
+	contentModels "tchat.dev/content/models"
 )
 
 // ContentFixtures provides test data for Content models
@@ -19,20 +18,20 @@ func NewContentFixtures(seed ...int64) *ContentFixtures {
 }
 
 // BasicContent creates basic content item for testing
-func (c *ContentFixtures) BasicContent(category string, country ...string) *models.ContentItem {
+func (c *ContentFixtures) BasicContent(category string, country ...string) *contentModels.ContentItem {
 	countryCode := "TH"
 	if len(country) > 0 {
 		countryCode = c.CountryCode(country[0])
 	}
 
 	// Create content value based on type
-	contentValue := models.ContentValue{
+	contentValue := contentModels.ContentValue{
 		"text": c.SEAContent(countryCode, "product"),
 		"html": "<p>" + c.SEAContent(countryCode, "product") + "</p>",
 	}
 
 	// Create metadata
-	metadata := models.ContentMetadata{
+	metadata := contentModels.ContentMetadata{
 		"author":      "Test Author",
 		"version":     "1.0",
 		"language":    c.Locale(countryCode),
@@ -41,13 +40,13 @@ func (c *ContentFixtures) BasicContent(category string, country ...string) *mode
 		"seo_tags":    []string{"test", "content", countryCode},
 	}
 
-	return &models.ContentItem{
+	return &contentModels.ContentItem{
 		ID:        c.UUID("content-" + category + "-" + countryCode),
 		Category:  category,
-		Type:      models.ContentTypeText,
+		Type:      contentModels.ContentTypeText,
 		Value:     contentValue,
 		Metadata:  metadata,
-		Status:    models.ContentStatusDraft,
+		Status:    contentModels.ContentStatusDraft,
 		Tags:      []string{"test", "fixture", countryCode},
 		Notes:     nil,
 		CreatedAt: c.PastTime(120), // Created 2 hours ago
@@ -56,34 +55,34 @@ func (c *ContentFixtures) BasicContent(category string, country ...string) *mode
 }
 
 // PublishedContent creates published content for testing
-func (c *ContentFixtures) PublishedContent(category string, country ...string) *models.ContentItem {
+func (c *ContentFixtures) PublishedContent(category string, country ...string) *contentModels.ContentItem {
 	content := c.BasicContent(category, country...)
 	content.ID = c.UUID("published-content-" + category)
-	content.Status = models.ContentStatusPublished
+	content.Status = contentModels.ContentStatusPublished
 	content.UpdatedAt = c.PastTime(30) // Published 30 minutes ago
 	return content
 }
 
 // ArchivedContent creates archived content for testing
-func (c *ContentFixtures) ArchivedContent(category string, country ...string) *models.ContentItem {
+func (c *ContentFixtures) ArchivedContent(category string, country ...string) *contentModels.ContentItem {
 	content := c.PublishedContent(category, country...)
 	content.ID = c.UUID("archived-content-" + category)
-	content.Status = models.ContentStatusArchived
+	content.Status = contentModels.ContentStatusArchived
 	content.UpdatedAt = c.PastTime(15) // Archived 15 minutes ago
 	return content
 }
 
 // MultilingualContent creates content for multiple languages
-func (c *ContentFixtures) MultilingualContent(category string) []*models.ContentItem {
+func (c *ContentFixtures) MultilingualContent(category string) []*contentModels.ContentItem {
 	countries := []string{"TH", "SG", "ID", "MY", "VN", "PH"}
-	contents := make([]*models.ContentItem, 0, len(countries))
+	contents := make([]*contentModels.ContentItem, 0, len(countries))
 
 	for _, country := range countries {
 		content := c.BasicContent(category, country)
 		content.ID = c.UUID("multilingual-" + category + "-" + country)
 		content.Metadata["language"] = c.Locale(country)
 		content.Metadata["region"] = country
-		content.Value = models.ContentValue{
+		content.Value = contentModels.ContentValue{
 			"text": c.SEAContent(country, "greeting"),
 			"html": "<p>" + c.SEAContent(country, "greeting") + "</p>",
 		}
@@ -94,13 +93,13 @@ func (c *ContentFixtures) MultilingualContent(category string) []*models.Content
 }
 
 // RichContent creates content with rich media for testing
-func (c *ContentFixtures) RichContent(category string) *models.ContentItem {
+func (c *ContentFixtures) RichContent(category string) *contentModels.ContentItem {
 	content := c.BasicContent(category)
 	content.ID = c.UUID("rich-content-" + category)
-	content.Type = models.ContentTypeHTML
+	content.Type = contentModels.ContentTypeHTML
 
 	// Rich content with media
-	content.Value = models.ContentValue{
+	content.Value = contentModels.ContentValue{
 		"text":  c.LoremText(50),
 		"html":  "<p>" + c.LoremText(50) + "</p>",
 		"image": "https://example.com/images/test-image.jpg",
@@ -117,12 +116,12 @@ func (c *ContentFixtures) RichContent(category string) *models.ContentItem {
 }
 
 // ImageContent creates image content for testing
-func (c *ContentFixtures) ImageContent(category string) *models.ContentItem {
+func (c *ContentFixtures) ImageContent(category string) *contentModels.ContentItem {
 	content := c.BasicContent(category)
 	content.ID = c.UUID("image-content-" + category)
-	content.Type = models.ContentTypeJSON
+	content.Type = contentModels.ContentTypeJSON
 
-	content.Value = models.ContentValue{
+	content.Value = contentModels.ContentValue{
 		"url":        "https://example.com/images/test-image.jpg",
 		"alt_text":   "Test image for " + category,
 		"width":      1920,
@@ -138,12 +137,12 @@ func (c *ContentFixtures) ImageContent(category string) *models.ContentItem {
 }
 
 // VideoContent creates video content for testing
-func (c *ContentFixtures) VideoContent(category string) *models.ContentItem {
+func (c *ContentFixtures) VideoContent(category string) *contentModels.ContentItem {
 	content := c.BasicContent(category)
 	content.ID = c.UUID("video-content-" + category)
-	content.Type = models.ContentTypeJSON
+	content.Type = contentModels.ContentTypeJSON
 
-	content.Value = models.ContentValue{
+	content.Value = contentModels.ContentValue{
 		"url":       "https://example.com/videos/test-video.mp4",
 		"title":     "Test Video for " + category,
 		"duration":  120, // 2 minutes
@@ -162,10 +161,10 @@ func (c *ContentFixtures) VideoContent(category string) *models.ContentItem {
 }
 
 // JSONContent creates JSON content for testing
-func (c *ContentFixtures) JSONContent(category string) *models.ContentItem {
+func (c *ContentFixtures) JSONContent(category string) *contentModels.ContentItem {
 	content := c.BasicContent(category)
 	content.ID = c.UUID("json-content-" + category)
-	content.Type = models.ContentTypeJSON
+	content.Type = contentModels.ContentTypeJSON
 
 	jsonData := map[string]interface{}{
 		"api_version": "v1",
@@ -185,7 +184,7 @@ func (c *ContentFixtures) JSONContent(category string) *models.ContentItem {
 		},
 	}
 
-	content.Value = models.ContentValue(jsonData)
+	content.Value = contentModels.ContentValue(jsonData)
 	content.Metadata["schema_version"] = "1.0"
 	content.Metadata["data_type"] = "configuration"
 
@@ -205,15 +204,15 @@ func NewContentCategoryFixtures(seed ...int64) *ContentCategoryFixtures {
 }
 
 // RootCategory creates a root category for testing
-func (c *ContentCategoryFixtures) RootCategory(name string) *models.ContentCategory {
+func (c *ContentCategoryFixtures) RootCategory(name string) *contentModels.ContentCategory {
 	desc := "Root category for " + name
-	return &models.ContentCategory{
+	return &contentModels.ContentCategory{
 		ID:          c.UUID("category-" + name),
 		Name:        name,
 		Description: &desc,
 		ParentID:    nil,
 		Parent:      nil,
-		Children:    []models.ContentCategory{},
+		Children:    []contentModels.ContentCategory{},
 		IsActive:    true,
 		CreatedAt:   c.PastTime(180), // Created 3 hours ago
 		UpdatedAt:   c.PastTime(90),  // Updated 1.5 hours ago
@@ -221,15 +220,15 @@ func (c *ContentCategoryFixtures) RootCategory(name string) *models.ContentCateg
 }
 
 // SubCategory creates a subcategory for testing
-func (c *ContentCategoryFixtures) SubCategory(name string, parentID uuid.UUID) *models.ContentCategory {
+func (c *ContentCategoryFixtures) SubCategory(name string, parentID uuid.UUID) *contentModels.ContentCategory {
 	desc := "Subcategory for " + name
-	return &models.ContentCategory{
+	return &contentModels.ContentCategory{
 		ID:          c.UUID("subcategory-" + name),
 		Name:        name,
 		Description: &desc,
 		ParentID:    &parentID,
 		Parent:      nil, // Will be loaded by ORM
-		Children:    []models.ContentCategory{},
+		Children:    []contentModels.ContentCategory{},
 		IsActive:    true,
 		CreatedAt:   c.PastTime(120), // Created 2 hours ago
 		UpdatedAt:   c.PastTime(60),  // Updated 1 hour ago
@@ -237,9 +236,9 @@ func (c *ContentCategoryFixtures) SubCategory(name string, parentID uuid.UUID) *
 }
 
 // CategoryHierarchy creates a complete category hierarchy for testing
-func (c *ContentCategoryFixtures) CategoryHierarchy() []*models.ContentCategory {
+func (c *ContentCategoryFixtures) CategoryHierarchy() []*contentModels.ContentCategory {
 	// Root categories
-	categories := []*models.ContentCategory{
+	categories := []*contentModels.ContentCategory{
 		c.RootCategory("announcements"),
 		c.RootCategory("promotions"),
 		c.RootCategory("help"),
@@ -248,7 +247,7 @@ func (c *ContentCategoryFixtures) CategoryHierarchy() []*models.ContentCategory 
 
 	// Subcategories for announcements
 	announcements := categories[0]
-	subcats := []*models.ContentCategory{
+	subcats := []*contentModels.ContentCategory{
 		c.SubCategory("system-updates", announcements.ID),
 		c.SubCategory("maintenance", announcements.ID),
 		c.SubCategory("new-features", announcements.ID),
@@ -257,7 +256,7 @@ func (c *ContentCategoryFixtures) CategoryHierarchy() []*models.ContentCategory 
 
 	// Subcategories for promotions
 	promotions := categories[1]
-	subcats = []*models.ContentCategory{
+	subcats = []*contentModels.ContentCategory{
 		c.SubCategory("seasonal", promotions.ID),
 		c.SubCategory("special-offers", promotions.ID),
 		c.SubCategory("partnerships", promotions.ID),
@@ -280,17 +279,17 @@ func NewContentVersionFixtures(seed ...int64) *ContentVersionFixtures {
 }
 
 // ContentVersion creates a content version for testing
-func (c *ContentVersionFixtures) ContentVersion(contentID uuid.UUID, version int) *models.ContentVersion {
+func (c *ContentVersionFixtures) ContentVersion(contentID uuid.UUID, version int) *contentModels.ContentVersion {
 	editorUUID := c.UUID("editor-" + string(rune(version)))
-	return &models.ContentVersion{
+	return &contentModels.ContentVersion{
 		ID:        c.UUID("version-" + contentID.String() + "-v" + string(rune(version))),
 		ContentID: contentID,
 		Version:   version,
-		Value: models.ContentValue{
+		Value: contentModels.ContentValue{
 			"text": c.LoremText(20) + " (v" + string(rune(version)) + ")",
 			"html": "<p>" + c.LoremText(20) + " (v" + string(rune(version)) + ")</p>",
 		},
-		Metadata: models.ContentMetadata{
+		Metadata: contentModels.ContentMetadata{
 			"version": string(rune(version)),
 			"editor":  "Test Editor",
 		},
@@ -300,8 +299,8 @@ func (c *ContentVersionFixtures) ContentVersion(contentID uuid.UUID, version int
 }
 
 // ContentVersions creates multiple versions for a content item
-func (c *ContentVersionFixtures) ContentVersions(contentID uuid.UUID, count int) []*models.ContentVersion {
-	versions := make([]*models.ContentVersion, 0, count)
+func (c *ContentVersionFixtures) ContentVersions(contentID uuid.UUID, count int) []*contentModels.ContentVersion {
+	versions := make([]*contentModels.ContentVersion, 0, count)
 	for i := 1; i <= count; i++ {
 		version := c.ContentVersion(contentID, i)
 		versions = append(versions, version)
@@ -316,7 +315,7 @@ func (c *ContentFixtures) TestContentData() map[string]interface{} {
 	categories := categoryFixtures.CategoryHierarchy()
 
 	// Create various content types
-	contents := []*models.ContentItem{
+	contents := []*contentModels.ContentItem{
 		c.BasicContent("announcements"),
 		c.PublishedContent("promotions"),
 		c.ArchivedContent("help"),
@@ -332,7 +331,7 @@ func (c *ContentFixtures) TestContentData() map[string]interface{} {
 
 	// Create versions for some content
 	versionFixtures := NewContentVersionFixtures()
-	versions := make([]*models.ContentVersion, 0)
+	versions := make([]*contentModels.ContentVersion, 0)
 	for _, content := range contents[:3] { // Add versions to first 3 content items
 		contentVersions := versionFixtures.ContentVersions(content.ID, 3)
 		versions = append(versions, contentVersions...)
