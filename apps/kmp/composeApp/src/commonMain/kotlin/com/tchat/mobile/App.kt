@@ -36,12 +36,22 @@ fun App() {
         is Screen.CreateVideo -> MainTab.VIDEO
     }
 
-    // Check if we should show bottom navigation (hide on detailed screens)
+    // Check if we should show bottom navigation (hide only on specific screens)
     val showBottomNav = when (navigationState.currentScreen) {
+        // Always show on main tab screens
         is Screen.Chat, is Screen.Store, is Screen.Social, is Screen.Video, is Screen.More -> true
-        is Screen.Web -> false // Web screen has its own navigation
-        is Screen.CreateChat, is Screen.CreateProduct, is Screen.CreatePost, is Screen.CreateVideo -> false // Hide nav for creation screens
-        else -> false
+
+        // Hide on content creation screens (they have their own navigation)
+        is Screen.CreateChat, is Screen.CreateProduct, is Screen.CreatePost, is Screen.CreateVideo -> false
+
+        // Hide on web screen (has its own navigation)
+        is Screen.Web -> false
+
+        // Hide on detailed/modal screens that should be full-screen
+        is Screen.ChatDetail, is Screen.VideoDetail -> false
+
+        // Show on all other screens (Settings, Search, QR, Notifications, etc.)
+        else -> true
     }
 
     MaterialTheme(
