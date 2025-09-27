@@ -24,10 +24,18 @@ import com.tchat.mobile.components.TchatInputType
 import com.tchat.mobile.components.TchatTopBar
 import com.tchat.mobile.designsystem.TchatColors
 import com.tchat.mobile.designsystem.TchatSpacing
+import com.tchat.mobile.repositories.ChatRepository
+import com.tchat.mobile.models.ChatSession
+import com.tchat.mobile.models.ChatType
+import com.tchat.mobile.models.getDisplayName
+import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
+    chatRepository: ChatRepository,
     onChatClick: (chatId: String, chatName: String) -> Unit = { _, _ -> },
     onSearchClick: () -> Unit = {},
     onQRScannerClick: () -> Unit = {},
@@ -38,6 +46,46 @@ fun ChatScreen(
     var selectedTab by remember { mutableStateOf(0) }
     var personalSearchQuery by remember { mutableStateOf("") }
     var businessSearchQuery by remember { mutableStateOf("") }
+
+    // Get chat sessions from repository
+    val chatSessions by remember {
+        chatRepository.observeChatSessions()
+    }.collectAsState(initial = emptyList())
+
+    // Map ChatSession to display models
+    val personalChats = remember(chatSessions, personalSearchQuery) {
+        chatSessions
+            .filter { session ->
+                // Filter for personal chats (DIRECT, GROUP, or non-business types)
+                session.type in listOf(ChatType.DIRECT, ChatType.GROUP, ChatType.CHANNEL) ||
+                (session.type == ChatType.SYSTEM && !session.name.orEmpty().contains("Support", ignoreCase = true))
+            }
+            .filter { session ->
+                // Apply search filter
+                if (personalSearchQuery.isBlank()) true
+                else session.getDisplayName("current_user").contains(personalSearchQuery, ignoreCase = true) ||
+                     session.lastMessage?.content?.contains(personalSearchQuery, ignoreCase = true) == true
+            }
+            .map { session -> session.toPersonalChat("current_user") }
+    }
+
+    val businessChats = remember(chatSessions, businessSearchQuery) {
+        chatSessions
+            .filter { session ->
+                // Filter for business chats (SUPPORT type or business-related)
+                session.type == ChatType.SUPPORT ||
+                session.name.orEmpty().contains("Support", ignoreCase = true) ||
+                session.name.orEmpty().contains("Bot", ignoreCase = true) ||
+                session.participants.any { it.isBot }
+            }
+            .filter { session ->
+                // Apply search filter
+                if (businessSearchQuery.isBlank()) true
+                else session.getDisplayName("current_user").contains(businessSearchQuery, ignoreCase = true) ||
+                     session.lastMessage?.content?.contains(businessSearchQuery, ignoreCase = true) == true
+            }
+            .map { session -> session.toBusinessChat("current_user") }
+    }
 
     Column(
         modifier = modifier
@@ -202,7 +250,7 @@ fun ChatScreen(
                         contentPadding = PaddingValues(horizontal = TchatSpacing.md),
                         verticalArrangement = Arrangement.spacedBy(TchatSpacing.xs)
                     ) {
-                        items(getPersonalChats()) { chat ->
+                        items(personalChats) { chat ->
                             PersonalChatItem(
                                 chat = chat,
                                 onClick = { onChatClick(chat.id, chat.name) }
@@ -229,7 +277,7 @@ fun ChatScreen(
                         contentPadding = PaddingValues(horizontal = TchatSpacing.md),
                         verticalArrangement = Arrangement.spacedBy(TchatSpacing.xs)
                     ) {
-                        items(getBusinessChats()) { chat ->
+                        items(businessChats) { chat ->
                             BusinessChatItem(
                                 chat = chat,
                                 onClick = { onChatClick(chat.id, chat.name) }
@@ -343,29 +391,29 @@ private fun PersonalChatItem(
                 }
 
                 // Chat Type Badge
-                if (chat.type != ChatType.PERSONAL) {
+                if (chat.type != LocalChatType.PERSONAL) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Row {
                         Badge(
                             containerColor = when (chat.type) {
-                                ChatType.GROUP -> TchatColors.primary.copy(alpha = 0.1f)
-                                ChatType.BUSINESS_CUSTOMER -> TchatColors.warning.copy(alpha = 0.1f)
-                                ChatType.CHANNEL -> TchatColors.success.copy(alpha = 0.1f)
+                                LocalChatType.GROUP -> TchatColors.primary.copy(alpha = 0.1f)
+                                LocalChatType.BUSINESS_CUSTOMER -> TchatColors.warning.copy(alpha = 0.1f)
+                                LocalChatType.CHANNEL -> TchatColors.success.copy(alpha = 0.1f)
                                 else -> TchatColors.surfaceVariant
                             }
                         ) {
                             Text(
                                 text = when (chat.type) {
-                                    ChatType.GROUP -> "Group"
-                                    ChatType.BUSINESS_CUSTOMER -> "Shop"
-                                    ChatType.CHANNEL -> "Channel"
+                                    LocalChatType.GROUP -> "Group"
+                                    LocalChatType.BUSINESS_CUSTOMER -> "Shop"
+                                    LocalChatType.CHANNEL -> "Channel"
                                     else -> ""
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = when (chat.type) {
-                                    ChatType.GROUP -> TchatColors.primary
-                                    ChatType.BUSINESS_CUSTOMER -> TchatColors.warning
-                                    ChatType.CHANNEL -> TchatColors.success
+                                    LocalChatType.GROUP -> TchatColors.primary
+                                    LocalChatType.BUSINESS_CUSTOMER -> TchatColors.warning
+                                    LocalChatType.CHANNEL -> TchatColors.success
                                     else -> TchatColors.onSurfaceVariant
                                 }
                             )
@@ -555,6 +603,67 @@ private fun BusinessChatItem(
     }
 }
 
+// Mapping functions from ChatSession to display models
+private fun ChatSession.toPersonalChat(currentUserId: String): PersonalChat {
+    val displayName = getDisplayName(currentUserId)
+    val lastMessageContent = lastMessage?.content ?: "No messages yet"
+    val timestamp = lastMessage?.timestamp ?: updatedAt
+    val isOnline = participants.any { it.status.name == "ONLINE" }
+
+    return PersonalChat(
+        id = id,
+        name = displayName,
+        lastMessage = lastMessageContent,
+        time = formatTimestamp(timestamp),
+        unreadCount = unreadCount,
+        isOnline = isOnline,
+        type = when (type) {
+            com.tchat.mobile.models.ChatType.DIRECT -> LocalChatType.PERSONAL
+            com.tchat.mobile.models.ChatType.GROUP -> LocalChatType.GROUP
+            com.tchat.mobile.models.ChatType.CHANNEL -> LocalChatType.CHANNEL
+            com.tchat.mobile.models.ChatType.SUPPORT -> LocalChatType.BUSINESS_CUSTOMER
+            com.tchat.mobile.models.ChatType.SYSTEM -> LocalChatType.PERSONAL
+        }
+    )
+}
+
+private fun ChatSession.toBusinessChat(currentUserId: String): BusinessChat {
+    val displayName = getDisplayName(currentUserId)
+    val lastMessageContent = lastMessage?.content ?: "No messages yet"
+    val timestamp = lastMessage?.timestamp ?: updatedAt
+    val hasBot = participants.any { it.isBot }
+
+    // Mock business metrics (in real app, these would come from business data)
+    val leadScore = if (hasBot) (80..95).random() else (60..95).random()
+    val revenue = if (unreadCount > 0) (5..50).random() else null
+
+    return BusinessChat(
+        id = id,
+        name = displayName,
+        lastMessage = lastMessageContent,
+        time = formatTimestamp(timestamp),
+        unreadCount = unreadCount,
+        isBot = hasBot,
+        leadScore = leadScore,
+        revenue = revenue
+    )
+}
+
+private fun formatTimestamp(timestamp: String): String {
+    // Simple timestamp formatting - in real app would use proper date formatting
+    return try {
+        // Extract time portion if it's an ISO timestamp
+        if (timestamp.contains("T")) {
+            val timePart = timestamp.split("T")[1].split(":").take(2).joinToString(":")
+            timePart
+        } else {
+            "5m" // fallback
+        }
+    } catch (e: Exception) {
+        "5m" // fallback
+    }
+}
+
 // Data Models
 private data class PersonalChat(
     val id: String,
@@ -563,7 +672,7 @@ private data class PersonalChat(
     val time: String,
     val unreadCount: Int = 0,
     val isOnline: Boolean = false,
-    val type: ChatType = ChatType.PERSONAL
+    val type: LocalChatType = LocalChatType.PERSONAL
 )
 
 private data class BusinessChat(
@@ -577,18 +686,18 @@ private data class BusinessChat(
     val revenue: Int? = null // in thousands
 )
 
-private enum class ChatType {
+private enum class LocalChatType {
     PERSONAL, GROUP, BUSINESS_CUSTOMER, CHANNEL
 }
 
-// Sample Data - Personal Chats (like web)
+// Sample Data - Personal Chats (like web) - DEPRECATED: Now using repository data
 private fun getPersonalChats(): List<PersonalChat> = listOf(
-    PersonalChat("family", "Family Group", "Mom: Dinner at 7pm! 🍽️", "5m", 3, true, ChatType.GROUP),
-    PersonalChat("sarah", "Sarah", "See you at the coffee shop! ☕", "15m", 1, true, ChatType.PERSONAL),
-    PersonalChat("pad-thai-shop", "Pad Thai Corner", "Your order #247 is ready for pickup! 🍜", "30m", 1, true, ChatType.BUSINESS_CUSTOMER),
-    PersonalChat("mike", "Mike Chen", "Thanks for the pad thai recommendation!", "1h", 0, false, ChatType.PERSONAL),
-    PersonalChat("grocery-mart", "FreshMart Grocery", "Hi! Your weekly groceries are 20% off today 🛒", "2h", 0, false, ChatType.BUSINESS_CUSTOMER),
-    PersonalChat("thai-news", "Thailand News", "Breaking: New digital payment regulations announced", "6h", 0, false, ChatType.CHANNEL)
+    PersonalChat("family", "Family Group", "Mom: Dinner at 7pm! 🍽️", "5m", 3, true, LocalChatType.GROUP),
+    PersonalChat("sarah", "Sarah", "See you at the coffee shop! ☕", "15m", 1, true, LocalChatType.PERSONAL),
+    PersonalChat("pad-thai-shop", "Pad Thai Corner", "Your order #247 is ready for pickup! 🍜", "30m", 1, true, LocalChatType.BUSINESS_CUSTOMER),
+    PersonalChat("mike", "Mike Chen", "Thanks for the pad thai recommendation!", "1h", 0, false, LocalChatType.PERSONAL),
+    PersonalChat("grocery-mart", "FreshMart Grocery", "Hi! Your weekly groceries are 20% off today 🛒", "2h", 0, false, LocalChatType.BUSINESS_CUSTOMER),
+    PersonalChat("thai-news", "Thailand News", "Breaking: New digital payment regulations announced", "6h", 0, false, LocalChatType.CHANNEL)
 )
 
 // Sample Data - Business Chats (like web)

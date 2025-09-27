@@ -1,0 +1,97 @@
+-- Message table for SQLDelight
+CREATE TABLE message (
+    id TEXT NOT NULL PRIMARY KEY,
+    chatId TEXT NOT NULL,
+    senderId TEXT NOT NULL,
+    senderName TEXT NOT NULL,
+    type TEXT NOT NULL,
+    content TEXT NOT NULL,
+    isEdited INTEGER NOT NULL DEFAULT 0,
+    isPinned INTEGER NOT NULL DEFAULT 0,
+    isDeleted INTEGER NOT NULL DEFAULT 0,
+    replyToId TEXT,
+    reactions TEXT NOT NULL DEFAULT '[]', -- JSON array of reactions
+    attachmentCount INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT NOT NULL,
+    editedAt TEXT,
+    deletedAt TEXT,
+    FOREIGN KEY (chatId) REFERENCES chatSession(id) ON DELETE CASCADE,
+    FOREIGN KEY (replyToId) REFERENCES message(id) ON DELETE SET NULL
+);
+
+-- Message attachments table
+CREATE TABLE messageAttachment (
+    id TEXT NOT NULL PRIMARY KEY,
+    messageId TEXT NOT NULL,
+    type TEXT NOT NULL, -- 'image', 'video', 'audio', 'file', 'location'
+    url TEXT NOT NULL,
+    thumbnail TEXT,
+    filename TEXT,
+    fileSize INTEGER,
+    mimeType TEXT,
+    width INTEGER,
+    height INTEGER,
+    duration INTEGER, -- for audio/video in milliseconds
+    caption TEXT,
+    metadata TEXT, -- JSON for additional properties
+    FOREIGN KEY (messageId) REFERENCES message(id) ON DELETE CASCADE
+);
+
+-- Message reactions table
+CREATE TABLE messageReaction (
+    messageId TEXT NOT NULL,
+    userId TEXT NOT NULL,
+    emoji TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    PRIMARY KEY (messageId, userId, emoji),
+    FOREIGN KEY (messageId) REFERENCES message(id) ON DELETE CASCADE
+);
+
+-- Queries
+insertMessage:
+INSERT INTO message (id, chatId, senderId, senderName, type, content, isEdited, isPinned, isDeleted, replyToId, reactions, attachmentCount, createdAt, editedAt, deletedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertMessageAttachment:
+INSERT INTO messageAttachment (id, messageId, type, url, thumbnail, filename, fileSize, mimeType, width, height, duration, caption, metadata)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertMessageReaction:
+INSERT OR REPLACE INTO messageReaction (messageId, userId, emoji, timestamp)
+VALUES (?, ?, ?, ?);
+
+getMessagesByChatId:
+SELECT * FROM message WHERE chatId = ? AND isDeleted = 0 ORDER BY createdAt DESC LIMIT ?;
+
+getMessageById:
+SELECT * FROM message WHERE id = ?;
+
+getMessageAttachments:
+SELECT * FROM messageAttachment WHERE messageId = ?;
+
+getMessageReactions:
+SELECT * FROM messageReaction WHERE messageId = ?;
+
+updateMessageContent:
+UPDATE message SET content = ?, isEdited = 1, editedAt = ? WHERE id = ?;
+
+updateMessagePinStatus:
+UPDATE message SET isPinned = ? WHERE id = ?;
+
+deleteMessage:
+UPDATE message SET isDeleted = 1, deletedAt = ? WHERE id = ?;
+
+deleteMessageReaction:
+DELETE FROM messageReaction WHERE messageId = ? AND userId = ? AND emoji = ?;
+
+getLastMessageForChat:
+SELECT * FROM message WHERE chatId = ? AND isDeleted = 0 ORDER BY createdAt DESC LIMIT 1;
+
+searchMessages:
+SELECT * FROM message WHERE chatId = ? AND content LIKE '%' || ? || '%' AND isDeleted = 0 ORDER BY createdAt DESC;
+
+getUnreadMessagesCount:
+SELECT COUNT(*) FROM message WHERE chatId = ? AND createdAt > ? AND isDeleted = 0;
+
+markMessagesAsRead:
+UPDATE message SET reactions = ? WHERE chatId = ? AND createdAt <= ?;

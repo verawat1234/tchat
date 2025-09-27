@@ -11,11 +11,16 @@ import com.tchat.mobile.navigation.Screen
 import com.tchat.mobile.navigation.MainTab
 import com.tchat.mobile.navigation.TchatNavigation
 import com.tchat.mobile.navigation.rememberScreenNavigationState
+import com.tchat.mobile.repositories.ChatRepository
+import com.tchat.mobile.repositories.MockChatRepository
 import com.tchat.mobile.screens.*
 
 @Composable
 fun App() {
     val navigationState = rememberScreenNavigationState()
+
+    // Initialize ChatRepository - using MockChatRepository for now
+    val chatRepository: ChatRepository = remember { MockChatRepository() }
 
     // Video screen UI visibility state for controlling bottom nav opacity
     var isVideoUIVisible by remember { mutableStateOf(true) }
@@ -111,6 +116,7 @@ fun App() {
         ) { paddingValues ->
             when (val screen = navigationState.currentScreen) {
                 is Screen.Chat -> ChatScreen(
+                    chatRepository = chatRepository,
                     onChatClick = { chatId, chatName ->
                         navigationState.navigateTo(Screen.ChatDetail(chatId, chatName))
                     },

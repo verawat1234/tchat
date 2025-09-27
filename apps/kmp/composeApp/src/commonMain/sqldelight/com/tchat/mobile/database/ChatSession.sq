@@ -1,0 +1,92 @@
+-- ChatSession table for SQLDelight
+CREATE TABLE chatSession (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT,
+    type TEXT NOT NULL,
+    unreadCount INTEGER NOT NULL DEFAULT 0,
+    isPinned INTEGER NOT NULL DEFAULT 0,
+    isMuted INTEGER NOT NULL DEFAULT 0,
+    isArchived INTEGER NOT NULL DEFAULT 0,
+    isBlocked INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL,
+    lastActivityAt TEXT
+);
+
+-- Chat participants table
+CREATE TABLE chatParticipant (
+    id TEXT NOT NULL,
+    chatId TEXT NOT NULL,
+    name TEXT NOT NULL,
+    avatar TEXT,
+    role TEXT NOT NULL DEFAULT 'MEMBER',
+    status TEXT NOT NULL DEFAULT 'OFFLINE',
+    lastSeen TEXT,
+    joinedAt TEXT NOT NULL,
+    customTitle TEXT,
+    isBot INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (id, chatId),
+    FOREIGN KEY (chatId) REFERENCES chatSession(id) ON DELETE CASCADE
+);
+
+-- Chat metadata table
+CREATE TABLE chatMetadata (
+    chatId TEXT NOT NULL PRIMARY KEY,
+    description TEXT,
+    avatar TEXT,
+    backgroundColor TEXT,
+    theme TEXT,
+    language TEXT NOT NULL DEFAULT 'en',
+    timezone TEXT NOT NULL DEFAULT 'UTC',
+    isPublic INTEGER NOT NULL DEFAULT 0,
+    inviteLink TEXT,
+    maxParticipants INTEGER,
+    autoDeleteMessages INTEGER NOT NULL DEFAULT 0,
+    autoDeleteDays INTEGER,
+    encryptionEnabled INTEGER NOT NULL DEFAULT 0,
+    backupEnabled INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (chatId) REFERENCES chatSession(id) ON DELETE CASCADE
+);
+
+-- Queries
+insertChatSession:
+INSERT INTO chatSession (id, name, type, unreadCount, isPinned, isMuted, isArchived, isBlocked, createdAt, updatedAt, lastActivityAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertChatParticipant:
+INSERT INTO chatParticipant (id, chatId, name, avatar, role, status, lastSeen, joinedAt, customTitle, isBot)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertChatMetadata:
+INSERT INTO chatMetadata (chatId, description, avatar, backgroundColor, theme, language, timezone, isPublic, inviteLink, maxParticipants, autoDeleteMessages, autoDeleteDays, encryptionEnabled, backupEnabled)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+getAllChatSessions:
+SELECT * FROM chatSession ORDER BY isPinned DESC, lastActivityAt DESC;
+
+getChatSessionById:
+SELECT * FROM chatSession WHERE id = ?;
+
+getChatParticipants:
+SELECT * FROM chatParticipant WHERE chatId = ?;
+
+getChatMetadata:
+SELECT * FROM chatMetadata WHERE chatId = ?;
+
+updateChatSessionUnreadCount:
+UPDATE chatSession SET unreadCount = ?, updatedAt = ?, lastActivityAt = ? WHERE id = ?;
+
+updateChatSessionPinStatus:
+UPDATE chatSession SET isPinned = ?, updatedAt = ? WHERE id = ?;
+
+updateChatSessionMuteStatus:
+UPDATE chatSession SET isMuted = ?, updatedAt = ? WHERE id = ?;
+
+updateChatSessionArchiveStatus:
+UPDATE chatSession SET isArchived = ?, updatedAt = ? WHERE id = ?;
+
+deleteChatSession:
+DELETE FROM chatSession WHERE id = ?;
+
+updateParticipantStatus:
+UPDATE chatParticipant SET status = ?, lastSeen = ? WHERE id = ? AND chatId = ?;
