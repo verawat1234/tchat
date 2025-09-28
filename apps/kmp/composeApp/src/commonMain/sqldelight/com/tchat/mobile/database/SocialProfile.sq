@@ -1,0 +1,332 @@
+-- Social profiles table for offline storage and sync
+CREATE TABLE IF NOT EXISTS social_profiles (
+    id TEXT PRIMARY KEY NOT NULL,
+    username TEXT NOT NULL UNIQUE,
+    display_name TEXT,
+    bio TEXT,
+    avatar TEXT,
+    interests TEXT NOT NULL DEFAULT '[]', -- JSON array
+    social_links TEXT, -- JSON object
+    social_preferences TEXT, -- JSON object
+    followers_count INTEGER NOT NULL DEFAULT 0,
+    following_count INTEGER NOT NULL DEFAULT 0,
+    posts_count INTEGER NOT NULL DEFAULT 0,
+    is_social_verified INTEGER NOT NULL DEFAULT 0,
+    country TEXT NOT NULL DEFAULT 'TH',
+    region TEXT NOT NULL DEFAULT 'TH',
+    social_created_at TEXT NOT NULL,
+    social_updated_at TEXT NOT NULL,
+    last_sync_at TEXT,
+    sync_version TEXT NOT NULL DEFAULT '1.0',
+    is_offline_edit INTEGER NOT NULL DEFAULT 0,
+    sync_status TEXT NOT NULL DEFAULT 'synced' -- synced, pending, conflict
+);
+
+-- Social posts table for offline storage
+CREATE TABLE IF NOT EXISTS social_posts (
+    id TEXT PRIMARY KEY NOT NULL,
+    author_id TEXT NOT NULL,
+    author_username TEXT NOT NULL,
+    author_display_name TEXT,
+    author_avatar TEXT,
+    content TEXT NOT NULL,
+    content_type TEXT NOT NULL DEFAULT 'text',
+    media_urls TEXT NOT NULL DEFAULT '[]', -- JSON array
+    thumbnail_url TEXT,
+    tags TEXT NOT NULL DEFAULT '[]', -- JSON array
+    mentions TEXT NOT NULL DEFAULT '[]', -- JSON array
+    visibility TEXT NOT NULL DEFAULT 'public',
+    likes_count INTEGER NOT NULL DEFAULT 0,
+    comments_count INTEGER NOT NULL DEFAULT 0,
+    shares_count INTEGER NOT NULL DEFAULT 0,
+    views_count INTEGER NOT NULL DEFAULT 0,
+    is_liked_by_user INTEGER NOT NULL DEFAULT 0,
+    is_bookmarked_by_user INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    language TEXT NOT NULL DEFAULT 'en',
+    region TEXT NOT NULL DEFAULT 'TH',
+    is_regional_trending INTEGER NOT NULL DEFAULT 0,
+    last_sync_at TEXT,
+    is_offline_edit INTEGER NOT NULL DEFAULT 0,
+    sync_status TEXT NOT NULL DEFAULT 'synced',
+    FOREIGN KEY (author_id) REFERENCES social_profiles(id)
+);
+
+-- Social comments table for offline storage
+CREATE TABLE IF NOT EXISTS social_comments (
+    id TEXT PRIMARY KEY NOT NULL,
+    post_id TEXT NOT NULL,
+    author_id TEXT NOT NULL,
+    author_username TEXT NOT NULL,
+    author_display_name TEXT,
+    author_avatar TEXT,
+    content TEXT NOT NULL,
+    parent_comment_id TEXT,
+    likes_count INTEGER NOT NULL DEFAULT 0,
+    replies_count INTEGER NOT NULL DEFAULT 0,
+    is_liked_by_user INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    last_sync_at TEXT,
+    is_offline_edit INTEGER NOT NULL DEFAULT 0,
+    sync_status TEXT NOT NULL DEFAULT 'synced',
+    FOREIGN KEY (post_id) REFERENCES social_posts(id),
+    FOREIGN KEY (author_id) REFERENCES social_profiles(id),
+    FOREIGN KEY (parent_comment_id) REFERENCES social_comments(id) ON DELETE CASCADE
+);
+
+-- Enhanced social interactions table
+CREATE TABLE IF NOT EXISTS social_interactions (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    target_type TEXT NOT NULL, -- post, comment, user, story
+    interaction_type TEXT NOT NULL, -- like, bookmark, follow, share, view
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    last_sync_at TEXT,
+    is_offline_action INTEGER NOT NULL DEFAULT 0,
+    sync_status TEXT NOT NULL DEFAULT 'synced',
+    FOREIGN KEY (user_id) REFERENCES social_profiles(id),
+    UNIQUE(user_id, target_id, target_type, interaction_type)
+);
+
+-- Sync operations table for offline-first sync
+CREATE TABLE IF NOT EXISTS social_sync_operations (
+    id TEXT PRIMARY KEY NOT NULL,
+    operation TEXT NOT NULL, -- create, update, delete
+    resource_type TEXT NOT NULL, -- post, comment, interaction, profile
+    resource_id TEXT NOT NULL,
+    data TEXT, -- JSON data
+    timestamp TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending', -- pending, synced, failed, conflict
+    conflict_resolution TEXT,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    error_message TEXT,
+    created_at TEXT NOT NULL
+);
+
+-- Social feed cache table for performance
+CREATE TABLE IF NOT EXISTS social_feed_cache (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id TEXT NOT NULL,
+    feed_type TEXT NOT NULL, -- home, discover, trending, following
+    region TEXT NOT NULL,
+    post_ids TEXT NOT NULL, -- JSON array of post IDs
+    last_updated_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES social_profiles(id),
+    UNIQUE(user_id, feed_type, region)
+);
+
+-- Indexes for performance optimization
+CREATE INDEX IF NOT EXISTS social_profiles_username_idx ON social_profiles(username);
+CREATE INDEX IF NOT EXISTS social_profiles_region_idx ON social_profiles(region);
+CREATE INDEX IF NOT EXISTS social_profiles_sync_status_idx ON social_profiles(sync_status);
+
+CREATE INDEX IF NOT EXISTS social_posts_author_idx ON social_posts(author_id);
+CREATE INDEX IF NOT EXISTS social_posts_created_at_idx ON social_posts(created_at DESC);
+CREATE INDEX IF NOT EXISTS social_posts_region_idx ON social_posts(region);
+CREATE INDEX IF NOT EXISTS social_posts_trending_idx ON social_posts(is_regional_trending, region);
+CREATE INDEX IF NOT EXISTS social_posts_sync_status_idx ON social_posts(sync_status);
+
+CREATE INDEX IF NOT EXISTS social_comments_post_idx ON social_comments(post_id);
+CREATE INDEX IF NOT EXISTS social_comments_author_idx ON social_comments(author_id);
+CREATE INDEX IF NOT EXISTS social_comments_parent_idx ON social_comments(parent_comment_id);
+CREATE INDEX IF NOT EXISTS social_comments_created_at_idx ON social_comments(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS social_interactions_user_idx ON social_interactions(user_id);
+CREATE INDEX IF NOT EXISTS social_interactions_target_idx ON social_interactions(target_id, target_type);
+CREATE INDEX IF NOT EXISTS social_interactions_type_idx ON social_interactions(interaction_type);
+CREATE INDEX IF NOT EXISTS social_interactions_sync_status_idx ON social_interactions(sync_status);
+
+CREATE INDEX IF NOT EXISTS social_sync_operations_status_idx ON social_sync_operations(status);
+CREATE INDEX IF NOT EXISTS social_sync_operations_resource_idx ON social_sync_operations(resource_type, resource_id);
+CREATE INDEX IF NOT EXISTS social_sync_operations_timestamp_idx ON social_sync_operations(timestamp DESC);
+
+CREATE INDEX IF NOT EXISTS social_feed_cache_user_type_idx ON social_feed_cache(user_id, feed_type);
+CREATE INDEX IF NOT EXISTS social_feed_cache_expires_idx ON social_feed_cache(expires_at);
+
+-- Profile queries
+getSocialProfile:
+SELECT * FROM social_profiles WHERE id = ?;
+
+getSocialProfileByUsername:
+SELECT * FROM social_profiles WHERE username = ?;
+
+updateSocialProfile:
+UPDATE social_profiles
+SET display_name = ?, bio = ?, interests = ?, social_links = ?, social_preferences = ?,
+    social_updated_at = ?, last_sync_at = ?, is_offline_edit = ?, sync_status = ?
+WHERE id = ?;
+
+insertSocialProfile:
+INSERT OR REPLACE INTO social_profiles (
+    id, username, display_name, bio, avatar, interests, social_links, social_preferences,
+    followers_count, following_count, posts_count, is_social_verified, country, region,
+    social_created_at, social_updated_at, last_sync_at, sync_version, is_offline_edit, sync_status
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+getProfilesNeedingSync:
+SELECT * FROM social_profiles WHERE sync_status != 'synced' ORDER BY social_updated_at DESC;
+
+-- Post queries
+getSocialPost:
+SELECT * FROM social_posts WHERE id = ?;
+
+getUserPosts:
+SELECT * FROM social_posts WHERE author_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?;
+
+getPostsByRegion:
+SELECT * FROM social_posts WHERE region = ? ORDER BY created_at DESC LIMIT ? OFFSET ?;
+
+getTrendingPosts:
+SELECT * FROM social_posts
+WHERE is_regional_trending = 1 AND region = ?
+ORDER BY likes_count + comments_count + shares_count DESC
+LIMIT ? OFFSET ?;
+
+insertSocialPost:
+INSERT OR REPLACE INTO social_posts (
+    id, author_id, author_username, author_display_name, author_avatar, content, content_type,
+    media_urls, thumbnail_url, tags, mentions, visibility, likes_count, comments_count,
+    shares_count, views_count, is_liked_by_user, is_bookmarked_by_user, created_at, updated_at,
+    language, region, is_regional_trending, last_sync_at, is_offline_edit, sync_status
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateSocialPost:
+UPDATE social_posts
+SET content = ?, media_urls = ?, tags = ?, mentions = ?, visibility = ?,
+    updated_at = ?, last_sync_at = ?, is_offline_edit = ?, sync_status = ?
+WHERE id = ?;
+
+deleteSocialPost:
+DELETE FROM social_posts WHERE id = ?;
+
+getPostsNeedingSync:
+SELECT * FROM social_posts WHERE sync_status != 'synced' ORDER BY updated_at DESC;
+
+-- Comment queries
+getPostComments:
+SELECT * FROM social_comments
+WHERE post_id = ? AND parent_comment_id IS NULL
+ORDER BY created_at ASC
+LIMIT ? OFFSET ?;
+
+getCommentReplies:
+SELECT * FROM social_comments
+WHERE parent_comment_id = ?
+ORDER BY created_at ASC;
+
+insertSocialComment:
+INSERT OR REPLACE INTO social_comments (
+    id, post_id, author_id, author_username, author_display_name, author_avatar,
+    content, parent_comment_id, likes_count, replies_count, is_liked_by_user,
+    created_at, updated_at, last_sync_at, is_offline_edit, sync_status
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateSocialComment:
+UPDATE social_comments
+SET content = ?, updated_at = ?, last_sync_at = ?, is_offline_edit = ?, sync_status = ?
+WHERE id = ?;
+
+deleteSocialComment:
+DELETE FROM social_comments WHERE id = ?;
+
+getCommentsNeedingSync:
+SELECT * FROM social_comments WHERE sync_status != 'synced' ORDER BY updated_at DESC;
+
+-- Interaction queries
+getUserInteractions:
+SELECT * FROM social_interactions WHERE user_id = ? ORDER BY created_at DESC;
+
+getTargetInteractions:
+SELECT * FROM social_interactions
+WHERE target_id = ? AND target_type = ?
+ORDER BY created_at DESC;
+
+getUserInteractionState:
+SELECT * FROM social_interactions
+WHERE user_id = ? AND target_id = ? AND target_type = ? AND interaction_type = ?;
+
+insertSocialInteraction:
+INSERT OR REPLACE INTO social_interactions (
+    id, user_id, target_id, target_type, interaction_type, created_at, updated_at,
+    last_sync_at, is_offline_action, sync_status
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteSocialInteraction:
+DELETE FROM social_interactions
+WHERE user_id = ? AND target_id = ? AND target_type = ? AND interaction_type = ?;
+
+getInteractionsNeedingSync:
+SELECT * FROM social_interactions WHERE sync_status != 'synced' ORDER BY created_at DESC;
+
+getFollowing:
+SELECT sp.* FROM social_interactions si
+JOIN social_profiles sp ON si.target_id = sp.id
+WHERE si.user_id = ? AND si.interaction_type = 'follow'
+ORDER BY si.created_at DESC
+LIMIT ? OFFSET ?;
+
+getFollowers:
+SELECT sp.* FROM social_interactions si
+JOIN social_profiles sp ON si.user_id = sp.id
+WHERE si.target_id = ? AND si.interaction_type = 'follow'
+ORDER BY si.created_at DESC
+LIMIT ? OFFSET ?;
+
+-- Sync operation queries
+insertSyncOperation:
+INSERT INTO social_sync_operations (
+    id, operation, resource_type, resource_id, data, timestamp, status,
+    conflict_resolution, retry_count, error_message, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+getPendingSyncOperations:
+SELECT * FROM social_sync_operations
+WHERE status = 'pending'
+ORDER BY timestamp ASC;
+
+updateSyncOperationStatus:
+UPDATE social_sync_operations
+SET status = ?, error_message = ?, retry_count = retry_count + 1
+WHERE id = ?;
+
+deleteSyncOperation:
+DELETE FROM social_sync_operations WHERE id = ?;
+
+-- Feed cache queries
+getFeedCache:
+SELECT * FROM social_feed_cache
+WHERE user_id = ? AND feed_type = ? AND region = ? AND expires_at > ?;
+
+insertFeedCache:
+INSERT OR REPLACE INTO social_feed_cache (
+    id, user_id, feed_type, region, post_ids, last_updated_at, expires_at
+) VALUES (?, ?, ?, ?, ?, ?, ?);
+
+deleteExpiredFeedCache:
+DELETE FROM social_feed_cache WHERE expires_at <= ?;
+
+-- Analytics and discovery queries
+getPopularPostsInRegion:
+SELECT * FROM social_posts
+WHERE region = ? AND created_at > ?
+ORDER BY likes_count + comments_count + shares_count DESC
+LIMIT ?;
+
+getRecentActivityFeed:
+SELECT sp.* FROM social_posts sp
+JOIN social_interactions si ON sp.author_id = si.target_id
+WHERE si.user_id = ? AND si.interaction_type = 'follow' AND sp.created_at > ?
+ORDER BY sp.created_at DESC
+LIMIT ?;
+
+getUserStats:
+SELECT
+    (SELECT COUNT(*) FROM social_interactions WHERE target_id = ? AND interaction_type = 'follow') AS followers_count,
+    (SELECT COUNT(*) FROM social_interactions WHERE user_id = ? AND interaction_type = 'follow') AS following_count,
+    (SELECT COUNT(*) FROM social_posts WHERE author_id = ?) AS posts_count,
+    (SELECT COUNT(*) FROM social_interactions WHERE target_id = ? AND target_type = 'post' AND interaction_type = 'like') AS total_likes_received;

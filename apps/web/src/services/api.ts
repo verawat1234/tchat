@@ -220,7 +220,20 @@ export const api = createApi({
     'Playlist',
     'LiveStream',
     'Search',
-    'Analytics'
+    'Analytics',
+    // Social service tags
+    'SocialProfile',
+    'SocialPost',
+    'SocialComment',
+    'SocialReaction',
+    'SocialFeed',
+    'SocialTrending',
+    'SocialStories',
+    'SocialFriends',
+    'SocialFollowers',
+    'SocialFollowing',
+    'SocialAnalytics',
+    'UserRelationship'
   ],
   endpoints: () => ({}),
   refetchOnMountOrArgChange: false, // Disable automatic refetch

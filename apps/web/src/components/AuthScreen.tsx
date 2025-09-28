@@ -7,8 +7,10 @@ import { Badge } from './ui/badge';
 import { MessageCircle, Phone, Mail, Shield, Zap, Globe, Wallet } from 'lucide-react';
 import { toast } from "sonner";
 import { useGetContentItemQuery } from '../services/contentApi';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { selectFallbackContentById } from '../features/contentSelectors';
+import { useRequestOTPMutation, useVerifyOTPMutation } from '../services/auth';
+import { setTokens } from '../features/authSlice';
 
 interface AuthScreenProps {
   onAuth: (userData: any) => void;
@@ -16,56 +18,54 @@ interface AuthScreenProps {
 
 /**
  * Custom hook for getting authentication content with fallback support
+ * Skip API calls on initial load to improve performance
  */
 const useAuthContentWithFallback = (contentId: string, defaultText: string = '') => {
   const { data: contentData, isLoading, error } = useGetContentItemQuery(contentId, {
-    // Skip if contentId is not valid
-    skip: !contentId,
+    // Skip API calls completely for auth screen - use static content for better performance
+    skip: true,
   });
   const fallbackSelector = selectFallbackContentById(contentId);
   const fallbackContent = useSelector(fallbackSelector);
 
-  // Return content value with fallback hierarchy
-  const content = contentData?.value?.text || fallbackContent?.text || defaultText;
+  // Use static default text instead of making API calls
+  const content = defaultText;
 
   return {
     content,
-    isLoading,
-    hasError: !!error,
-    hasFallback: !!fallbackContent,
-    hasRemoteContent: !!contentData
+    isLoading: false,
+    hasError: false,
+    hasFallback: false,
+    hasRemoteContent: false
   };
 };
 
 export function AuthScreen({ onAuth }: AuthScreenProps) {
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('+66812345678');
   const [otpCode, setOtpCode] = useState('');
   const [step, setStep] = useState<'input' | 'verify'>('input');
-  const [authMethod, setAuthMethod] = useState<'phone' | 'email'>('phone');
   const [loading, setLoading] = useState(false);
+
+  // Redux hooks
+  const dispatch = useDispatch();
+  const [requestOTP, { isLoading: otpRequestLoading }] = useRequestOTPMutation();
+  const [verifyOTP, { isLoading: otpVerifyLoading }] = useVerifyOTPMutation();
 
   // Dynamic content with fallbacks
   const appTitle = useAuthContentWithFallback('auth.app.title', 'Telegram SEA Edition');
   const appDescription = useAuthContentWithFallback('auth.app.description', 'Cloud messaging, payments, and social commerce built for Southeast Asia');
-  const signInTitle = useAuthContentWithFallback('auth.signin.title', 'Sign In');
-  const signInDescription = useAuthContentWithFallback('auth.signin.description', 'Choose your preferred sign-in method');
-  const phoneTabLabel = useAuthContentWithFallback('auth.signin.phone.tab', 'Phone OTP');
-  const emailTabLabel = useAuthContentWithFallback('auth.signin.email.tab', 'Magic Link');
+  const signInTitle = useAuthContentWithFallback('auth.signin.title', 'Sign In with Phone');
+  const signInDescription = useAuthContentWithFallback('auth.signin.description', 'Enter your phone number to receive an OTP');
   const phonePlaceholder = useAuthContentWithFallback('auth.signin.phone.placeholder', '+66 XX XXX XXXX');
   const phoneHelperText = useAuthContentWithFallback('auth.signin.phone.helper', "We'll send you a 6-digit OTP via SMS");
-  const emailPlaceholder = useAuthContentWithFallback('auth.signin.email.placeholder', 'your.email@example.com');
-  const emailHelperText = useAuthContentWithFallback('auth.signin.email.helper', "We'll send you a secure magic link");
   const sendOtpButton = useAuthContentWithFallback('auth.signin.button.sendotp', 'Send OTP');
-  const sendMagicLinkButton = useAuthContentWithFallback('auth.signin.button.magiclink', 'Send Magic Link');
   const sendingButton = useAuthContentWithFallback('auth.signin.button.sending', 'Sending...');
-  const verifyTitle = useAuthContentWithFallback('auth.verify.title', 'Verify Your {method}');
+  const verifyTitle = useAuthContentWithFallback('auth.verify.title', 'Verify Your Phone');
   const verifyPhoneDescription = useAuthContentWithFallback('auth.verify.phone.description', 'We sent a code to {phoneNumber}');
-  const verifyEmailDescription = useAuthContentWithFallback('auth.verify.email.description', 'Check your email at {email}');
   const verifyPlaceholder = useAuthContentWithFallback('auth.verify.placeholder', 'Enter verification code');
   const verifyButton = useAuthContentWithFallback('auth.verify.button.verify', 'Verify & Continue');
   const verifyingButton = useAuthContentWithFallback('auth.verify.button.verifying', 'Verifying...');
-  const backButton = useAuthContentWithFallback('auth.verify.button.back', 'Back to {method}');
+  const backButton = useAuthContentWithFallback('auth.verify.button.back', 'Back to Phone');
   const privacyText = useAuthContentWithFallback('auth.privacy.text', 'By continuing, you agree to our Terms of Service and Privacy Policy. Built for PDPA (TH/MY), PDP (ID) compliance.');
 
   // Feature labels
@@ -76,36 +76,56 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
 
   // Error messages
   const errorPhoneRequired = useAuthContentWithFallback('auth.errors.phone.required', 'Please enter your phone number');
-  const errorEmailRequired = useAuthContentWithFallback('auth.errors.email.required', 'Please enter your email address');
   const errorCodeRequired = useAuthContentWithFallback('auth.errors.code.required', 'Please enter the verification code');
 
   // Success messages
   const successOtpSent = useAuthContentWithFallback('auth.success.otp.sent', 'OTP sent to {phoneNumber}');
-  const successMagicLinkSent = useAuthContentWithFallback('auth.success.magiclink.sent', 'Magic link sent to {email}');
   const successWelcome = useAuthContentWithFallback('auth.success.welcome', 'Welcome to Telegram SEA!');
 
-  const handleSendCode = async () => {
-    if (authMethod === 'phone' && !phoneNumber) {
+  const handleRequestOTP = async () => {
+    if (!phoneNumber) {
       toast.error(errorPhoneRequired.content);
       return;
     }
-    if (authMethod === 'email' && !email) {
-      toast.error(errorEmailRequired.content);
-      return;
-    }
 
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
+      // Parse phone number to separate country code and phone number
+      const phoneNumberMatch = phoneNumber.match(/^(\+\d{1,3})(\d+)$/);
+      if (!phoneNumberMatch) {
+        toast.error('Invalid phone number format');
+        return;
+      }
+
+      const [, countryCodePrefix, phone] = phoneNumberMatch;
+
+      // Convert country code prefix to country code
+      const countryCodeMap: { [key: string]: string } = {
+        '+66': 'TH',
+        '+62': 'ID',
+        '+63': 'PH',
+        '+84': 'VN',
+        '+60': 'MY',
+        '+65': 'SG'
+      };
+
+      const countryCode = countryCodeMap[countryCodePrefix] || 'TH';
+
+      // Call the real OTP request API with correct field names
+      const result = await requestOTP({
+        phone_number: phoneNumber,
+        country_code: countryCode
+      }).unwrap();
+
       setStep('verify');
-      toast.success(
-        authMethod === 'phone'
-          ? successOtpSent.content.replace('{phoneNumber}', phoneNumber)
-          : successMagicLinkSent.content.replace('{email}', email)
-      );
-    }, 1500);
+      toast.success(successOtpSent.content.replace('{phoneNumber}', phoneNumber));
+    } catch (error: any) {
+      console.error('OTP request failed:', error);
+      toast.error(error?.data?.message || 'Failed to send OTP. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleVerify = async () => {
@@ -114,24 +134,32 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
       return;
     }
 
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    // Simulate verification
-    setTimeout(() => {
-      setLoading(false);
-      const userData = {
-        id: 'user_' + Date.now(),
-        phone: phoneNumber,
-        email: email,
-        country: 'TH',
-        locale: 'th-TH',
-        kycTier: 1,
-        name: authMethod === 'phone' ? phoneNumber : email.split('@')[0],
-        avatar: null
-      };
-      onAuth(userData);
+      // Call the real OTP verification API
+      const result = await verifyOTP({
+        phoneNumber: phoneNumber,
+        code: otpCode
+      }).unwrap();
+
+      // Store tokens in Redux
+      dispatch(setTokens({
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        expiresIn: result.expiresIn || 3600
+      }));
+
+      // Call the parent callback with user data
+      onAuth(result.user);
+
       toast.success(successWelcome.content);
-    }, 1000);
+    } catch (error: any) {
+      console.error('OTP verification failed:', error);
+      toast.error(error?.data?.message || 'Invalid OTP code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Check if any critical content is still loading
@@ -149,16 +177,14 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
               {isContentLoading ? (
                 <div className="h-6 bg-gray-200 rounded animate-pulse" />
               ) : (
-                verifyTitle.content.replace('{method}', authMethod === 'phone' ? 'Phone' : 'Email')
+                verifyTitle.content
               )}
             </CardTitle>
             <CardDescription>
               {isContentLoading ? (
                 <span className="block h-4 bg-gray-200 rounded animate-pulse mt-2" />
-              ) : authMethod === 'phone' ? (
-                verifyPhoneDescription.content.replace('{phoneNumber}', phoneNumber)
               ) : (
-                verifyEmailDescription.content.replace('{email}', email)
+                verifyPhoneDescription.content.replace('{phoneNumber}', phoneNumber)
               )}
             </CardDescription>
           </CardHeader>
@@ -178,15 +204,15 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
             <Button
               onClick={handleVerify}
               className="w-full"
-              disabled={loading || otpCode.length < 4 || isContentLoading}
-              aria-label={loading ? verifyingButton.content : verifyButton.content}
+              disabled={loading || otpVerifyLoading || otpCode.length < 4 || isContentLoading}
+              aria-label={loading || otpVerifyLoading ? verifyingButton.content : verifyButton.content}
             >
               {isContentLoading ? (
                 <div className="flex items-center space-x-2">
                   <div className="w-4 h-4 bg-gray-200 rounded animate-pulse" />
                   <div className="w-16 h-4 bg-gray-200 rounded animate-pulse" />
                 </div>
-              ) : loading ? (
+              ) : (loading || otpVerifyLoading) ? (
                 verifyingButton.content
               ) : (
                 verifyButton.content
@@ -198,12 +224,12 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
               onClick={() => setStep('input')}
               className="w-full"
               disabled={isContentLoading}
-              aria-label={backButton.content.replace('{method}', authMethod === 'phone' ? 'Phone' : 'Email')}
+              aria-label={backButton.content}
             >
               {isContentLoading ? (
                 <div className="w-20 h-4 bg-gray-200 rounded animate-pulse" />
               ) : (
-                backButton.content.replace('{method}', authMethod === 'phone' ? 'Phone' : 'Email')
+                backButton.content
               )}
             </Button>
           </CardContent>
@@ -304,120 +330,70 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={authMethod} onValueChange={(v) => setAuthMethod(v as 'phone' | 'email')}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger
-                  value="phone"
-                  className="flex items-center gap-2"
-                  disabled={isMainContentLoading}
-                  aria-label={phoneTabLabel.content}
-                >
-                  <Phone className="w-4 h-4" />
-                  {phoneTabLabel.isLoading ? (
-                    <div className="h-4 w-16 bg-gray-200 rounded animate-pulse" />
-                  ) : (
-                    phoneTabLabel.content
-                  )}
-                </TabsTrigger>
-                <TabsTrigger
-                  value="email"
-                  className="flex items-center gap-2"
-                  disabled={isMainContentLoading}
-                  aria-label={emailTabLabel.content}
-                >
-                  <Mail className="w-4 h-4" />
-                  {emailTabLabel.isLoading ? (
-                    <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
-                  ) : (
-                    emailTabLabel.content
-                  )}
-                </TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="phone" className="space-y-4 mt-4">
-                <div>
-                  <div className="flex gap-2 mb-2">
-                    <Badge
-                      variant="outline"
-                      className="cursor-pointer hover:bg-accent transition-colors touch-manipulation"
-                      onClick={() => !isMainContentLoading && setPhoneNumber('+66 ')}
-                      aria-label="Thailand +66"
-                    >
-                      🇹🇭 +66
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className="cursor-pointer hover:bg-accent transition-colors touch-manipulation"
-                      onClick={() => !isMainContentLoading && setPhoneNumber('+62 ')}
-                      aria-label="Indonesia +62"
-                    >
-                      🇮🇩 +62
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className="cursor-pointer hover:bg-accent transition-colors touch-manipulation"
-                      onClick={() => !isMainContentLoading && setPhoneNumber('+63 ')}
-                      aria-label="Philippines +63"
-                    >
-                      🇵🇭 +63
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className="cursor-pointer hover:bg-accent transition-colors touch-manipulation"
-                      onClick={() => !isMainContentLoading && setPhoneNumber('+84 ')}
-                      aria-label="Vietnam +84"
-                    >
-                      🇻🇳 +84
-                    </Badge>
-                  </div>
-                  <Input
-                    placeholder={phonePlaceholder.isLoading ? 'Loading...' : phonePlaceholder.content}
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    disabled={isMainContentLoading}
-                    aria-label={phonePlaceholder.content}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {phoneHelperText.isLoading ? (
-                      <div className="h-3 w-48 bg-gray-200 rounded animate-pulse" />
-                    ) : (
-                      phoneHelperText.content
-                    )}
-                  </p>
+            <div className="space-y-4">
+              <div>
+                <div className="flex gap-2 mb-2">
+                  <Badge
+                    variant="outline"
+                    className="cursor-pointer hover:bg-accent transition-colors touch-manipulation"
+                    onClick={() => !isMainContentLoading && setPhoneNumber('+66 ')}
+                    aria-label="Thailand +66"
+                  >
+                    🇹🇭 +66
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="cursor-pointer hover:bg-accent transition-colors touch-manipulation"
+                    onClick={() => !isMainContentLoading && setPhoneNumber('+62 ')}
+                    aria-label="Indonesia +62"
+                  >
+                    🇮🇩 +62
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="cursor-pointer hover:bg-accent transition-colors touch-manipulation"
+                    onClick={() => !isMainContentLoading && setPhoneNumber('+63 ')}
+                    aria-label="Philippines +63"
+                  >
+                    🇵🇭 +63
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="cursor-pointer hover:bg-accent transition-colors touch-manipulation"
+                    onClick={() => !isMainContentLoading && setPhoneNumber('+84 ')}
+                    aria-label="Vietnam +84"
+                  >
+                    🇻🇳 +84
+                  </Badge>
                 </div>
-              </TabsContent>
-              
-              <TabsContent value="email" className="space-y-4 mt-4">
-                <div>
-                  <Input
-                    type="email"
-                    placeholder={emailPlaceholder.isLoading ? 'Loading...' : emailPlaceholder.content}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={isMainContentLoading}
-                    aria-label={emailPlaceholder.content}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {emailHelperText.isLoading ? (
-                      <div className="h-3 w-44 bg-gray-200 rounded animate-pulse" />
-                    ) : (
-                      emailHelperText.content
-                    )}
-                  </p>
-                </div>
-              </TabsContent>
-            </Tabs>
+                <Input
+                  placeholder={phonePlaceholder.isLoading ? 'Loading...' : phonePlaceholder.content}
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  disabled={isMainContentLoading}
+                  aria-label={phonePlaceholder.content}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {phoneHelperText.isLoading ? (
+                    <div className="h-3 w-48 bg-gray-200 rounded animate-pulse" />
+                  ) : (
+                    phoneHelperText.content
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Demo phone: +66812345678 → OTP: 123456
+                </p>
+              </div>
+            </div>
 
             <Button
-              onClick={handleSendCode}
+              onClick={handleRequestOTP}
               className="w-full mt-4"
-              disabled={loading || isMainContentLoading}
+              disabled={loading || otpRequestLoading || isMainContentLoading}
               aria-label={
-                loading
+                loading || otpRequestLoading
                   ? sendingButton.content
-                  : authMethod === 'phone'
-                  ? sendOtpButton.content
-                  : sendMagicLinkButton.content
+                  : sendOtpButton.content
               }
             >
               {isMainContentLoading ? (
@@ -425,12 +401,10 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
                   <div className="w-4 h-4 bg-gray-200 rounded animate-pulse" />
                   <div className="w-20 h-4 bg-gray-200 rounded animate-pulse" />
                 </div>
-              ) : loading ? (
+              ) : (loading || otpRequestLoading) ? (
                 sendingButton.content
-              ) : authMethod === 'phone' ? (
-                sendOtpButton.content
               ) : (
-                sendMagicLinkButton.content
+                sendOtpButton.content
               )}
             </Button>
 

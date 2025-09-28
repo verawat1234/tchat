@@ -1,42 +1,7 @@
--- Social interactions table for likes, bookmarks, follows, etc.
-CREATE TABLE IF NOT EXISTS social_interactions (
-    id TEXT PRIMARY KEY NOT NULL,
-    user_id TEXT NOT NULL,
-    target_id TEXT NOT NULL,
-    target_type TEXT NOT NULL, -- post, story, event, user, comment
-    interaction_type TEXT NOT NULL, -- like, bookmark, follow, attend, view, share
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    UNIQUE(user_id, target_id, target_type, interaction_type)
-);
+-- Note: Table definitions are in SocialProfile.sq to avoid conflicts
+-- This file contains only queries for social interactions and comments
 
--- Comments table for social content
-CREATE TABLE IF NOT EXISTS social_comments (
-    id TEXT PRIMARY KEY NOT NULL,
-    target_id TEXT NOT NULL,
-    target_type TEXT NOT NULL, -- post, story, event
-    user_id TEXT NOT NULL,
-    content TEXT NOT NULL,
-    parent_comment_id TEXT, -- for replies
-    likes_count INTEGER NOT NULL DEFAULT 0,
-    replies_count INTEGER NOT NULL DEFAULT 0,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (parent_comment_id) REFERENCES social_comments(id) ON DELETE CASCADE
-);
-
--- Indexes for performance
-CREATE INDEX IF NOT EXISTS social_interactions_user_id_idx ON social_interactions(user_id);
-CREATE INDEX IF NOT EXISTS social_interactions_target_idx ON social_interactions(target_id, target_type);
-CREATE INDEX IF NOT EXISTS social_interactions_type_idx ON social_interactions(interaction_type);
-CREATE INDEX IF NOT EXISTS social_interactions_created_at_idx ON social_interactions(created_at DESC);
-
-CREATE INDEX IF NOT EXISTS social_comments_target_idx ON social_comments(target_id, target_type);
-CREATE INDEX IF NOT EXISTS social_comments_user_id_idx ON social_comments(user_id);
-CREATE INDEX IF NOT EXISTS social_comments_parent_idx ON social_comments(parent_comment_id);
-CREATE INDEX IF NOT EXISTS social_comments_created_at_idx ON social_comments(created_at DESC);
+-- Note: Indexes are already defined in SocialProfile.sq to avoid duplicates
 
 -- Queries for interactions
 getInteractionsByUser:
@@ -47,11 +12,11 @@ ORDER BY created_at DESC;
 getInteractionsByTarget:
 SELECT
     si.*,
-    up.display_name,
-    up.username,
-    up.avatar_url
+    sp.display_name,
+    sp.username,
+    sp.avatar
 FROM social_interactions si
-JOIN user_profiles up ON si.user_id = up.user_id
+JOIN social_profiles sp ON si.user_id = sp.id
 WHERE si.target_id = ? AND si.target_type = ?
 ORDER BY si.created_at DESC;
 
@@ -84,30 +49,26 @@ WHERE user_id = ? AND target_id = ? AND target_type = ? AND interaction_type = ?
 getFollowedUsers:
 SELECT
     si.target_id AS followed_user_id,
-    up.display_name,
-    up.username,
-    up.avatar_url,
-    up.is_verified,
-    up.is_online,
-    up.last_seen,
+    sp.display_name,
+    sp.username,
+    sp.avatar,
+    sp.is_social_verified AS is_verified,
     si.created_at AS followed_at
 FROM social_interactions si
-JOIN user_profiles up ON si.target_id = up.user_id
+JOIN social_profiles sp ON si.target_id = sp.id
 WHERE si.user_id = ? AND si.interaction_type = 'follow'
 ORDER BY si.created_at DESC;
 
 getFollowers:
 SELECT
     si.user_id AS follower_user_id,
-    up.display_name,
-    up.username,
-    up.avatar_url,
-    up.is_verified,
-    up.is_online,
-    up.last_seen,
+    sp.display_name,
+    sp.username,
+    sp.avatar,
+    sp.is_social_verified AS is_verified,
     si.created_at AS followed_at
 FROM social_interactions si
-JOIN user_profiles up ON si.user_id = up.user_id
+JOIN social_profiles sp ON si.user_id = sp.id
 WHERE si.target_id = ? AND si.interaction_type = 'follow'
 ORDER BY si.created_at DESC;
 
@@ -121,30 +82,30 @@ SELECT
 getCommentsByTarget:
 SELECT
     sc.*,
-    up.display_name,
-    up.username,
-    up.avatar_url,
-    up.is_verified,
+    sp.display_name,
+    sp.username,
+    sp.avatar,
+    sp.is_social_verified AS is_verified,
     CASE WHEN si.user_id IS NOT NULL THEN 1 ELSE 0 END AS is_liked_by_user
 FROM social_comments sc
-JOIN user_profiles up ON sc.user_id = up.user_id
+JOIN social_profiles sp ON sc.author_id = sp.id
 LEFT JOIN social_interactions si ON sc.id = si.target_id
     AND si.target_type = 'comment'
     AND si.interaction_type = 'like'
     AND si.user_id = ?
-WHERE sc.target_id = ? AND sc.target_type = ? AND sc.parent_comment_id IS NULL
+WHERE sc.post_id = ? AND sc.parent_comment_id IS NULL
 ORDER BY sc.created_at ASC;
 
 getCommentReplies:
 SELECT
     sc.*,
-    up.display_name,
-    up.username,
-    up.avatar_url,
-    up.is_verified,
+    sp.display_name,
+    sp.username,
+    sp.avatar,
+    sp.is_social_verified AS is_verified,
     CASE WHEN si.user_id IS NOT NULL THEN 1 ELSE 0 END AS is_liked_by_user
 FROM social_comments sc
-JOIN user_profiles up ON sc.user_id = up.user_id
+JOIN social_profiles sp ON sc.author_id = sp.id
 LEFT JOIN social_interactions si ON sc.id = si.target_id
     AND si.target_type = 'comment'
     AND si.interaction_type = 'like'
@@ -154,17 +115,17 @@ ORDER BY sc.created_at ASC;
 
 insertComment:
 INSERT INTO social_comments
-(id, target_id, target_type, user_id, content, parent_comment_id, likes_count, replies_count, created_at, updated_at)
+(id, post_id, author_id, author_username, content, parent_comment_id, likes_count, replies_count, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?);
 
 updateComment:
 UPDATE social_comments
 SET content = ?, updated_at = ?
-WHERE id = ? AND user_id = ?;
+WHERE id = ? AND author_id = ?;
 
 deleteComment:
 DELETE FROM social_comments
-WHERE id = ? AND user_id = ?;
+WHERE id = ? AND author_id = ?;
 
 updateCommentLikesCount:
 UPDATE social_comments SET likes_count = (
@@ -192,11 +153,11 @@ ORDER BY interaction_count DESC;
 getRecentActivity:
 SELECT
     si.*,
-    up.display_name,
-    up.username,
-    up.avatar_url
+    sp.display_name,
+    sp.username,
+    sp.avatar
 FROM social_interactions si
-JOIN user_profiles up ON si.user_id = up.user_id
+JOIN social_profiles sp ON si.user_id = sp.id
 WHERE si.user_id IN (
     SELECT target_id FROM social_interactions
     WHERE user_id = ? AND interaction_type = 'follow'

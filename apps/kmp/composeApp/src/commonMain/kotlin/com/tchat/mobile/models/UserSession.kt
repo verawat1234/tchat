@@ -1,5 +1,6 @@
 package com.tchat.mobile.models
 
+import com.tchat.mobile.api.models.DeviceInfo
 import kotlinx.serialization.Serializable
 import kotlinx.datetime.*
 
@@ -44,18 +45,6 @@ data class UserProfile(
     val updatedAt: String
 )
 
-@Serializable
-data class DeviceInfo(
-    val deviceId: String,
-    val deviceName: String,
-    val platform: String, // "android" | "ios" | "web" | "desktop"
-    val osVersion: String? = null,
-    val appVersion: String,
-    val pushToken: String? = null,
-    val lastSeen: String? = null, // ISO 8601 timestamp
-    val isActive: Boolean = true,
-    val metadata: Map<String, String> = emptyMap()
-)
 
 @Serializable
 data class UserPreferences(

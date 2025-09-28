@@ -622,11 +622,59 @@ export const designTokenUtils = {
 
   /**
    * Calculates color contrast ratio (for accessibility validation)
+   * Follows WCAG 2.1 guidelines for contrast ratio calculation
    */
   calculateContrastRatio: (foreground: string, background: string): number => {
-    // Simplified contrast calculation - would use proper color library in production
-    // This is a placeholder for the actual contrast calculation
-    return 4.5; // Mock value meeting WCAG AA standard
+    // Helper function to convert hex to RGB
+    const hexToRgb = (hex: string): { r: number; g: number; b: number } | null => {
+      // Remove # if present and handle 3-digit hex
+      const cleanHex = hex.replace('#', '');
+      const expandedHex = cleanHex.length === 3
+        ? cleanHex.split('').map(c => c + c).join('')
+        : cleanHex;
+
+      const result = /^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(expandedHex);
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      } : null;
+    };
+
+    // Helper function to calculate relative luminance
+    const getLuminance = (rgb: { r: number; g: number; b: number }): number => {
+      const { r, g, b } = rgb;
+
+      // Convert RGB to sRGB and apply gamma correction
+      const sRgb = [r, g, b].map(value => {
+        const normalized = value / 255;
+        return normalized <= 0.03928
+          ? normalized / 12.92
+          : Math.pow((normalized + 0.055) / 1.055, 2.4);
+      });
+
+      // Calculate relative luminance using WCAG formula
+      return 0.2126 * sRgb[0] + 0.7152 * sRgb[1] + 0.0722 * sRgb[2];
+    };
+
+    // Parse colors
+    const fgRgb = hexToRgb(foreground);
+    const bgRgb = hexToRgb(background);
+
+    if (!fgRgb || !bgRgb) {
+      console.warn('Invalid color format provided to calculateContrastRatio:', { foreground, background });
+      return 1; // Return minimum contrast if parsing fails
+    }
+
+    // Calculate luminance values
+    const fgLuminance = getLuminance(fgRgb);
+    const bgLuminance = getLuminance(bgRgb);
+
+    // Calculate contrast ratio (WCAG formula)
+    const lighter = Math.max(fgLuminance, bgLuminance);
+    const darker = Math.min(fgLuminance, bgLuminance);
+
+    return (lighter + 0.05) / (darker + 0.05);
   },
 
   /**

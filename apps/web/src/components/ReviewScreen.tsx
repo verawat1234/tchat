@@ -150,7 +150,11 @@ const getMockReviews = (): Review[] => [
     bookmarkCount: 89,
     isLiked: true,
     isBookmarked: false,
-    images: ["https://via.placeholder.com/300x300?text=Before", "https://via.placeholder.com/300x300?text=After", "https://via.placeholder.com/300x300?text=Result"],
+    images: [
+      "https://images.unsplash.com/photo-1596755389378-c31d21fd1273?w=300&h=300&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1570194065650-d99fb4bedf0a?w=300&h=300&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1509909756405-be0199881695?w=300&h=300&fit=crop&auto=format"
+    ],
     hashtags: ["#obsessed", "#gamechanger", "#musthave", "#beauty", "#skincare", "#glowup"],
     mood: "obsessed",
     skinType: "combination",
@@ -173,7 +177,13 @@ const getMockReviews = (): Review[] => [
     bookmarkCount: 45,
     isLiked: false,
     isBookmarked: true,
-    images: ["https://via.placeholder.com/300x300?text=Product1", "https://via.placeholder.com/300x300?text=Product2", "https://via.placeholder.com/300x300?text=Product3", "https://via.placeholder.com/300x300?text=Product4", "https://via.placeholder.com/300x300?text=Product5"],
+    images: [
+      "https://images.unsplash.com/photo-1556229162-6345b1d96b45?w=300&h=300&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1614160999969-bc16e5c5e1b9?w=300&h=300&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1590736969955-71cc94901144?w=300&h=300&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=300&h=300&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1615397349754-cfa2066a298e?w=300&h=300&fit=crop&auto=format"
+    ],
     hashtags: ["#honest", "#review", "#skincare", "#selfcare", "#nightroutine"],
     mood: "love it",
     skinType: "sensitive",
@@ -200,7 +210,7 @@ const getMockReviews = (): Review[] => [
     bookmarkCount: 15,
     isLiked: false,
     isBookmarked: false,
-    images: ["https://via.placeholder.com/300x300?text=Package"],
+    images: ["https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=300&h=300&fit=crop&auto=format"],
     hashtags: ["#honest", "#meh", "#overhyped", "#minimalist"],
     mood: "meh",
     skinType: "normal",
@@ -221,7 +231,12 @@ const getMockReviews = (): Review[] => [
     bookmarkCount: 234,
     isLiked: true,
     isBookmarked: true,
-    images: ["https://via.placeholder.com/300x300?text=Before", "https://via.placeholder.com/300x300?text=After", "https://via.placeholder.com/300x300?text=Process", "https://via.placeholder.com/300x300?text=Final"],
+    images: [
+      "https://images.unsplash.com/photo-1505944270255-72b8c68c6a70?w=300&h=300&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=300&h=300&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1498843562627-3c53e39c9533?w=300&h=300&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1616041973499-e9538a82a718?w=300&h=300&fit=crop&auto=format"
+    ],
     hashtags: ["#holygrail", "#transformation", "#skincare", "#glowup", "#beforeafter", "#3monthsupdate"],
     mood: "obsessed",
     skinType: "acne-prone",

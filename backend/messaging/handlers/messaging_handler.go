@@ -460,6 +460,13 @@ type CreateDialogRequest struct {
 	Settings       *models.DialogSettings `json:"settings,omitempty"`
 }
 
+type UpdateDialogRequest struct {
+	Title       *string                 `json:"title,omitempty"`
+	Description *string                 `json:"description,omitempty"`
+	Settings    *models.DialogSettings  `json:"settings,omitempty"`
+	Metadata    map[string]interface{}  `json:"metadata,omitempty"`
+}
+
 type SendMessageRequest struct {
 	Type      models.MessageType    `json:"type"`
 	Content   models.MessageContent `json:"content"`
@@ -470,6 +477,18 @@ type SendMessageRequest struct {
 
 type AddReactionRequest struct {
 	Reaction string `json:"reaction"`
+}
+
+type RemoveReactionRequest struct {
+	Reaction string `json:"reaction"`
+}
+
+type UpdateMessageRequest struct {
+	Content string `json:"content"`
+}
+
+type DeleteMessageRequest struct {
+	DeleteForEveryone bool `json:"delete_for_everyone"`
 }
 
 // Standard API response
@@ -716,13 +735,61 @@ func (h *MessagingHandler) validateSendMessageRequest(req *SendMessageRequest) e
 		if textContent, exists := req.Content["text"]; !exists || textContent == "" {
 			h.validator.AddError("content.text", "text content is required for text messages")
 		}
-	case models.MessageTypeFile, models.MessageTypeImage, models.MessageTypeVideo:
-		if _, exists := req.Content["file"]; !exists {
-			h.validator.AddError("content.file", "file content is required for file messages")
-		}
 	case models.MessageTypeVoice:
-		if _, exists := req.Content["voice"]; !exists {
-			h.validator.AddError("content.voice", "voice content is required for voice messages")
+		requiredFields := []string{"url", "duration", "file_size", "mime_type"}
+		for _, field := range requiredFields {
+			if _, exists := req.Content[field]; !exists {
+				h.validator.AddError(fmt.Sprintf("content.%s", field), fmt.Sprintf("%s is required for voice messages", field))
+			}
+		}
+	case models.MessageTypeFile:
+		requiredFields := []string{"url", "filename", "file_size", "mime_type"}
+		for _, field := range requiredFields {
+			if _, exists := req.Content[field]; !exists {
+				h.validator.AddError(fmt.Sprintf("content.%s", field), fmt.Sprintf("%s is required for file messages", field))
+			}
+		}
+	case models.MessageTypeImage:
+		requiredFields := []string{"url", "width", "height", "file_size"}
+		for _, field := range requiredFields {
+			if _, exists := req.Content[field]; !exists {
+				h.validator.AddError(fmt.Sprintf("content.%s", field), fmt.Sprintf("%s is required for image messages", field))
+			}
+		}
+	case models.MessageTypeVideo:
+		requiredFields := []string{"url", "duration", "width", "height", "file_size"}
+		for _, field := range requiredFields {
+			if _, exists := req.Content[field]; !exists {
+				h.validator.AddError(fmt.Sprintf("content.%s", field), fmt.Sprintf("%s is required for video messages", field))
+			}
+		}
+	case models.MessageTypePayment:
+		requiredFields := []string{"amount", "currency", "description", "status"}
+		for _, field := range requiredFields {
+			if _, exists := req.Content[field]; !exists {
+				h.validator.AddError(fmt.Sprintf("content.%s", field), fmt.Sprintf("%s is required for payment messages", field))
+			}
+		}
+	case models.MessageTypeLocation:
+		requiredFields := []string{"latitude", "longitude"}
+		for _, field := range requiredFields {
+			if _, exists := req.Content[field]; !exists {
+				h.validator.AddError(fmt.Sprintf("content.%s", field), fmt.Sprintf("%s is required for location messages", field))
+			}
+		}
+	case models.MessageTypeSticker:
+		requiredFields := []string{"sticker_id", "pack_id", "url"}
+		for _, field := range requiredFields {
+			if _, exists := req.Content[field]; !exists {
+				h.validator.AddError(fmt.Sprintf("content.%s", field), fmt.Sprintf("%s is required for sticker messages", field))
+			}
+		}
+	case models.MessageTypeSystem:
+		requiredFields := []string{"type", "message"}
+		for _, field := range requiredFields {
+			if _, exists := req.Content[field]; !exists {
+				h.validator.AddError(fmt.Sprintf("content.%s", field), fmt.Sprintf("%s is required for system messages", field))
+			}
 		}
 	}
 
@@ -854,53 +921,412 @@ func (h *MessagingHandler) convertContentToString(content models.MessageContent)
 	return ""
 }
 
-// Additional placeholder methods that would be implemented
+// GetDialog handles getting a specific dialog by ID
 func (h *MessagingHandler) GetDialog(w http.ResponseWriter, r *http.Request) {
-	// Implementation would go here
-	h.respondError(w, http.StatusNotImplemented, "Not implemented", nil)
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	// Get dialog ID from URL
+	vars := mux.Vars(r)
+	dialogIDStr := vars["id"]
+	dialogID, err := uuid.Parse(dialogIDStr)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid dialog ID", err)
+		return
+	}
+
+	// Get dialog
+	dialog, err := h.messagingService.GetDialogByID(ctx, dialogID, user.ID)
+	if err != nil {
+		h.respondError(w, http.StatusNotFound, "Dialog not found", err)
+		return
+	}
+
+	// Success response
+	h.respondSuccess(w, http.StatusOK, "Dialog retrieved successfully", map[string]interface{}{
+		"dialog": h.sanitizeDialog(dialog),
+	})
 }
 
 func (h *MessagingHandler) UpdateDialog(w http.ResponseWriter, r *http.Request) {
-	// Implementation would go here
-	h.respondError(w, http.StatusNotImplemented, "Not implemented", nil)
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	// Get dialog ID from URL
+	vars := mux.Vars(r)
+	dialogIDStr := vars["id"]
+	dialogID, err := uuid.Parse(dialogIDStr)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid dialog ID", err)
+		return
+	}
+
+	// Parse request body
+	var req UpdateDialogRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	// Create service request
+	serviceReq := &services.UpdateDialogRequest{
+		Title:       req.Title,
+		Description: req.Description,
+		Settings:    req.Settings,
+		Metadata:    req.Metadata,
+	}
+
+	// Update dialog
+	dialog, err := h.messagingService.UpdateDialog(ctx, dialogID, user.ID, serviceReq)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Failed to update dialog", err)
+		return
+	}
+
+	// Get participant IDs from dialog for broadcasting
+	participants, err := h.messagingService.GetDialogParticipants(ctx, dialog.ID)
+	if err == nil {
+		var participantIDs []uuid.UUID
+		for _, participant := range participants {
+			participantIDs = append(participantIDs, participant.UserID)
+		}
+		// Broadcast dialog update to participants
+		h.broadcastDialogEvent("dialog_updated", dialog.ID, participantIDs, dialog)
+	}
+
+	// Success response
+	h.respondSuccess(w, http.StatusOK, "Dialog updated successfully", map[string]interface{}{
+		"dialog": h.sanitizeDialog(dialog),
+	})
 }
 
 func (h *MessagingHandler) DeleteDialog(w http.ResponseWriter, r *http.Request) {
-	// Implementation would go here
-	h.respondError(w, http.StatusNotImplemented, "Not implemented", nil)
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	// Get dialog ID from URL
+	vars := mux.Vars(r)
+	dialogIDStr := vars["id"]
+	dialogID, err := uuid.Parse(dialogIDStr)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid dialog ID", err)
+		return
+	}
+
+	// Get participants for broadcasting before deletion
+	participants, err := h.messagingService.GetDialogParticipants(ctx, dialogID)
+	if err != nil {
+		h.respondError(w, http.StatusNotFound, "Dialog not found", err)
+		return
+	}
+
+	// Delete dialog
+	if err := h.messagingService.DeleteDialog(ctx, dialogID, user.ID); err != nil {
+		h.respondError(w, http.StatusForbidden, "Failed to delete dialog", err)
+		return
+	}
+
+	// Broadcast dialog deletion to participants
+	var participantIDs []uuid.UUID
+	for _, participant := range participants {
+		participantIDs = append(participantIDs, participant.UserID)
+	}
+	h.broadcastDialogEvent("dialog_deleted", dialogID, participantIDs, nil)
+
+	// Success response
+	h.respondSuccess(w, http.StatusOK, "Dialog deleted successfully", map[string]interface{}{
+		"dialog_id": dialogID,
+		"deleted_by": user.ID,
+	})
 }
 
 func (h *MessagingHandler) GetParticipants(w http.ResponseWriter, r *http.Request) {
-	// Implementation would go here
-	h.respondError(w, http.StatusNotImplemented, "Not implemented", nil)
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	// Get dialog ID from URL
+	vars := mux.Vars(r)
+	dialogIDStr := vars["id"]
+	dialogID, err := uuid.Parse(dialogIDStr)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid dialog ID", err)
+		return
+	}
+
+	// Get participants
+	participants, err := h.messagingService.GetDialogParticipants(ctx, dialogID)
+	if err != nil {
+		h.respondError(w, http.StatusNotFound, "Dialog not found or access denied", err)
+		return
+	}
+
+	// Success response
+	h.respondSuccess(w, http.StatusOK, "Participants retrieved successfully", map[string]interface{}{
+		"participants": participants,
+		"count":        len(participants),
+	})
 }
 
 func (h *MessagingHandler) AddParticipant(w http.ResponseWriter, r *http.Request) {
-	// Implementation would go here
-	h.respondError(w, http.StatusNotImplemented, "Not implemented", nil)
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	// Get dialog ID from URL
+	vars := mux.Vars(r)
+	dialogIDStr := vars["id"]
+	dialogID, err := uuid.Parse(dialogIDStr)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid dialog ID", err)
+		return
+	}
+
+	// Parse request body
+	var req services.AddParticipantRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	// Add participant
+	if err := h.messagingService.AddParticipant(ctx, dialogID, user.ID, &req); err != nil {
+		h.respondError(w, http.StatusForbidden, "Failed to add participant", err)
+		return
+	}
+
+	// Get updated participants for broadcasting
+	participants, err := h.messagingService.GetDialogParticipants(ctx, dialogID)
+	if err == nil {
+		var participantIDs []uuid.UUID
+		for _, participant := range participants {
+			participantIDs = append(participantIDs, participant.UserID)
+		}
+		// Broadcast participant added event
+		h.broadcastDialogEvent("participant_added", dialogID, participantIDs, nil)
+	}
+
+	// Success response
+	h.respondSuccess(w, http.StatusOK, "Participant added successfully", map[string]interface{}{
+		"dialog_id":      dialogID,
+		"user_id":        req.UserID,
+		"role":           req.Role,
+		"added_by":       user.ID,
+	})
 }
 
 func (h *MessagingHandler) RemoveParticipant(w http.ResponseWriter, r *http.Request) {
-	// Implementation would go here
-	h.respondError(w, http.StatusNotImplemented, "Not implemented", nil)
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	vars := mux.Vars(r)
+	dialogIDStr := vars["id"]
+	userIDStr := vars["user_id"]
+
+	dialogID, err := uuid.Parse(dialogIDStr)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid dialog ID", err)
+		return
+	}
+
+	userIDToRemove, err := uuid.Parse(userIDStr)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid user ID", err)
+		return
+	}
+
+	if err := h.messagingService.RemoveParticipant(ctx, dialogID, user.ID, userIDToRemove); err != nil {
+		h.respondError(w, http.StatusForbidden, "Failed to remove participant", err)
+		return
+	}
+
+	// Get updated participants list for broadcasting
+	participants, err := h.messagingService.GetDialogParticipants(ctx, dialogID)
+	if err == nil {
+		var participantIDs []uuid.UUID
+		for _, participant := range participants {
+			participantIDs = append(participantIDs, participant.UserID)
+		}
+		// Broadcast participant removed event
+		h.broadcastDialogEvent("participant_removed", dialogID, participantIDs, nil)
+	}
+
+	h.respondSuccess(w, http.StatusOK, "Participant removed successfully", map[string]interface{}{
+		"dialog_id":  dialogID,
+		"user_id":    userIDToRemove,
+		"removed_by": user.ID,
+	})
 }
 
 func (h *MessagingHandler) GetMessage(w http.ResponseWriter, r *http.Request) {
-	// Implementation would go here
-	h.respondError(w, http.StatusNotImplemented, "Not implemented", nil)
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	vars := mux.Vars(r)
+	messageIDStr := vars["id"]
+
+	messageID, err := uuid.Parse(messageIDStr)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid message ID", err)
+		return
+	}
+
+	message, err := h.messagingService.GetMessageByID(ctx, messageID, user.ID)
+	if err != nil {
+		h.respondError(w, http.StatusNotFound, "Message not found", err)
+		return
+	}
+
+	h.respondSuccess(w, http.StatusOK, "Message retrieved successfully", map[string]interface{}{
+		"message": h.sanitizeMessage(message),
+	})
 }
 
 func (h *MessagingHandler) UpdateMessage(w http.ResponseWriter, r *http.Request) {
-	// Implementation would go here
-	h.respondError(w, http.StatusNotImplemented, "Not implemented", nil)
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	vars := mux.Vars(r)
+	messageIDStr := vars["id"]
+
+	messageID, err := uuid.Parse(messageIDStr)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid message ID", err)
+		return
+	}
+
+	var req UpdateMessageRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	if req.Content == "" {
+		h.respondError(w, http.StatusBadRequest, "Content cannot be empty", nil)
+		return
+	}
+
+	updatedMessage, err := h.messagingService.EditMessage(ctx, messageID, user.ID, req.Content)
+	if err != nil {
+		h.respondError(w, http.StatusForbidden, "Failed to update message", err)
+		return
+	}
+
+	h.respondSuccess(w, http.StatusOK, "Message updated successfully", map[string]interface{}{
+		"message": h.sanitizeMessage(updatedMessage),
+	})
 }
 
 func (h *MessagingHandler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
-	// Implementation would go here
-	h.respondError(w, http.StatusNotImplemented, "Not implemented", nil)
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	// Get message ID from URL
+	vars := mux.Vars(r)
+	messageIDStr := vars["id"]
+	messageID, err := uuid.Parse(messageIDStr)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid message ID", err)
+		return
+	}
+
+	// Parse request body
+	var req DeleteMessageRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	// Delete message
+	err = h.messagingService.DeleteMessage(ctx, messageID, user.ID, req.DeleteForEveryone)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Failed to delete message", err)
+		return
+	}
+
+	// Success response
+	h.respondSuccess(w, http.StatusOK, "Message deleted successfully", map[string]interface{}{
+		"message_id":         messageID,
+		"deleted":           true,
+		"delete_for_everyone": req.DeleteForEveryone,
+	})
 }
 
 func (h *MessagingHandler) RemoveReaction(w http.ResponseWriter, r *http.Request) {
-	// Implementation would go here
-	h.respondError(w, http.StatusNotImplemented, "Not implemented", nil)
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	// Get message ID from URL
+	vars := mux.Vars(r)
+	messageIDStr := vars["id"]
+	messageID, err := uuid.Parse(messageIDStr)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid message ID", err)
+		return
+	}
+
+	// Parse request body
+	var req RemoveReactionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	// Validate reaction
+	if req.Reaction == "" {
+		h.respondError(w, http.StatusBadRequest, "Reaction is required", nil)
+		return
+	}
+
+	// Remove reaction
+	err = h.messagingService.RemoveReaction(ctx, messageID, user.ID, req.Reaction)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Failed to remove reaction", err)
+		return
+	}
+
+	// Success response
+	h.respondSuccess(w, http.StatusOK, "Reaction removed successfully", map[string]interface{}{
+		"message_id": messageID,
+		"reaction":   req.Reaction,
+		"removed":    true,
+	})
 }

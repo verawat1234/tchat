@@ -1,0 +1,918 @@
+package handlers
+
+import (
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+	"tchat.dev/payment/models"
+	"tchat.dev/payment/services"
+	"tchat.dev/shared/utils"
+)
+
+// PaymentHandler handles payment HTTP requests
+type PaymentHandler struct {
+	paymentService services.PaymentService
+	validator      *utils.Validator
+	webhookSecret  string
+}
+
+// NewPaymentHandler creates a new payment handler
+func NewPaymentHandler(paymentService services.PaymentService, webhookSecret string) *PaymentHandler {
+	return &PaymentHandler{
+		paymentService: paymentService,
+		validator:      utils.NewValidator(),
+		webhookSecret:  webhookSecret,
+	}
+}
+
+// RegisterRoutes registers payment routes
+func (h *PaymentHandler) RegisterRoutes(router *mux.Router) {
+	// Payment routes
+	payment := router.PathPrefix("/payment").Subrouter()
+
+	// Wallet endpoints
+	payment.HandleFunc("/wallets", h.CreateWallet).Methods("POST")
+	payment.HandleFunc("/wallets", h.GetUserWallets).Methods("GET")
+	payment.HandleFunc("/wallets/{id}", h.GetWallet).Methods("GET")
+	payment.HandleFunc("/wallets/{id}/transactions", h.GetWalletTransactions).Methods("GET")
+
+	// Transaction endpoints
+	payment.HandleFunc("/transactions", h.GetUserTransactions).Methods("GET")
+	payment.HandleFunc("/transactions/{id}", h.GetTransaction).Methods("GET")
+	payment.HandleFunc("/transactions/deposit", h.Deposit).Methods("POST")
+	payment.HandleFunc("/transactions/withdraw", h.Withdraw).Methods("POST")
+	payment.HandleFunc("/transactions/transfer", h.Transfer).Methods("POST")
+
+	// Webhook endpoints (no auth required)
+	webhooks := router.PathPrefix("/webhooks/payment").Subrouter()
+	webhooks.HandleFunc("/stripe", h.HandleStripeWebhook).Methods("POST")
+	webhooks.HandleFunc("/paypal", h.HandlePayPalWebhook).Methods("POST")
+
+	// Admin endpoints (would require admin auth in real implementation)
+	admin := payment.PathPrefix("/admin").Subrouter()
+	admin.HandleFunc("/transactions/pending", h.GetPendingTransactions).Methods("GET")
+	admin.HandleFunc("/transactions/process", h.ProcessPendingTransactions).Methods("POST")
+}
+
+// CreateWallet handles wallet creation
+func (h *PaymentHandler) CreateWallet(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	var req CreateWalletRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	// Validate request
+	if err := h.validateCreateWalletRequest(&req); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Validation failed", err)
+		return
+	}
+
+	// Create service request
+	serviceReq := &services.CreateWalletRequest{
+		UserID:   user.ID,
+		Currency: req.Currency,
+		Name:     req.Name,
+	}
+
+	// Create wallet
+	wallet, err := h.paymentService.CreateWallet(ctx, serviceReq)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Failed to create wallet", err)
+		return
+	}
+
+	// Success response
+	h.respondSuccess(w, http.StatusCreated, "Wallet created successfully", h.sanitizeWallet(wallet))
+}
+
+// GetUserWallets handles getting user wallets
+func (h *PaymentHandler) GetUserWallets(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	// Get wallets
+	wallets, err := h.paymentService.GetUserWallets(ctx, user.ID)
+	if err != nil {
+		h.respondError(w, http.StatusInternalServerError, "Failed to get wallets", err)
+		return
+	}
+
+	// Sanitize wallets
+	var sanitizedWallets []map[string]interface{}
+	for _, wallet := range wallets {
+		sanitizedWallets = append(sanitizedWallets, h.sanitizeWallet(wallet))
+	}
+
+	// Success response
+	h.respondSuccess(w, http.StatusOK, "Wallets retrieved successfully", map[string]interface{}{
+		"wallets": sanitizedWallets,
+		"count":   len(sanitizedWallets),
+	})
+}
+
+// GetWallet handles getting a specific wallet
+func (h *PaymentHandler) GetWallet(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	// Get wallet ID from URL
+	vars := mux.Vars(r)
+	walletIDStr := vars["id"]
+	walletID, err := uuid.Parse(walletIDStr)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid wallet ID", err)
+		return
+	}
+
+	// Get wallet
+	wallet, err := h.paymentService.GetWallet(ctx, walletID)
+	if err != nil {
+		h.respondError(w, http.StatusNotFound, "Wallet not found", err)
+		return
+	}
+
+	// Verify ownership
+	if wallet.UserID != user.ID {
+		h.respondError(w, http.StatusForbidden, "Access denied", nil)
+		return
+	}
+
+	// Success response
+	h.respondSuccess(w, http.StatusOK, "Wallet retrieved successfully", h.sanitizeWallet(wallet))
+}
+
+// Deposit handles deposit transactions
+func (h *PaymentHandler) Deposit(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	var req DepositRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	// Validate request
+	if err := h.validateDepositRequest(&req); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Validation failed", err)
+		return
+	}
+
+	// Verify wallet ownership
+	wallet, err := h.paymentService.GetWallet(ctx, req.WalletID)
+	if err != nil {
+		h.respondError(w, http.StatusNotFound, "Wallet not found", err)
+		return
+	}
+
+	if wallet.UserID != user.ID {
+		h.respondError(w, http.StatusForbidden, "Access denied", nil)
+		return
+	}
+
+	// Create service request
+	serviceReq := &services.DepositRequest{
+		WalletID:      req.WalletID,
+		Amount:        req.Amount,
+		Currency:      req.Currency,
+		PaymentMethod: req.PaymentMethod,
+		ExternalID:    req.ExternalID,
+		Description:   req.Description,
+	}
+
+	// Process deposit
+	transaction, err := h.paymentService.Deposit(ctx, serviceReq)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Deposit failed", err)
+		return
+	}
+
+	// Success response
+	h.respondSuccess(w, http.StatusCreated, "Deposit initiated successfully", h.sanitizeTransaction(transaction))
+}
+
+// Withdraw handles withdrawal transactions
+func (h *PaymentHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	var req WithdrawRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	// Validate request
+	if err := h.validateWithdrawRequest(&req); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Validation failed", err)
+		return
+	}
+
+	// Verify wallet ownership
+	wallet, err := h.paymentService.GetWallet(ctx, req.WalletID)
+	if err != nil {
+		h.respondError(w, http.StatusNotFound, "Wallet not found", err)
+		return
+	}
+
+	if wallet.UserID != user.ID {
+		h.respondError(w, http.StatusForbidden, "Access denied", nil)
+		return
+	}
+
+	// Create service request
+	serviceReq := &services.WithdrawalRequest{
+		WalletID:    req.WalletID,
+		Amount:      req.Amount,
+		Currency:    req.Currency,
+		Destination: req.Destination,
+		ExternalID:  req.ExternalID,
+		Description: req.Description,
+	}
+
+	// Process withdrawal
+	transaction, err := h.paymentService.Withdraw(ctx, serviceReq)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Withdrawal failed", err)
+		return
+	}
+
+	// Success response
+	h.respondSuccess(w, http.StatusCreated, "Withdrawal initiated successfully", h.sanitizeTransaction(transaction))
+}
+
+// Transfer handles transfer transactions
+func (h *PaymentHandler) Transfer(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	var req TransferRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	// Validate request
+	if err := h.validateTransferRequest(&req); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Validation failed", err)
+		return
+	}
+
+	// Verify source wallet ownership
+	wallet, err := h.paymentService.GetWallet(ctx, req.FromWalletID)
+	if err != nil {
+		h.respondError(w, http.StatusNotFound, "Source wallet not found", err)
+		return
+	}
+
+	if wallet.UserID != user.ID {
+		h.respondError(w, http.StatusForbidden, "Access denied", nil)
+		return
+	}
+
+	// Create service request
+	serviceReq := &services.TransferRequest{
+		FromWalletID: req.FromWalletID,
+		ToWalletID:   req.ToWalletID,
+		Amount:       req.Amount,
+		Currency:     req.Currency,
+		Description:  req.Description,
+	}
+
+	// Process transfer
+	transaction, err := h.paymentService.Transfer(ctx, serviceReq)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Transfer failed", err)
+		return
+	}
+
+	// Success response
+	h.respondSuccess(w, http.StatusCreated, "Transfer completed successfully", h.sanitizeTransaction(transaction))
+}
+
+// GetWalletTransactions handles getting wallet transactions
+func (h *PaymentHandler) GetWalletTransactions(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	// Get wallet ID from URL
+	vars := mux.Vars(r)
+	walletIDStr := vars["id"]
+	walletID, err := uuid.Parse(walletIDStr)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid wallet ID", err)
+		return
+	}
+
+	// Verify wallet ownership
+	wallet, err := h.paymentService.GetWallet(ctx, walletID)
+	if err != nil {
+		h.respondError(w, http.StatusNotFound, "Wallet not found", err)
+		return
+	}
+
+	if wallet.UserID != user.ID {
+		h.respondError(w, http.StatusForbidden, "Access denied", nil)
+		return
+	}
+
+	// Get pagination parameters
+	limit, offset := h.getPaginationParams(r)
+
+	// Get transactions
+	transactions, err := h.paymentService.GetWalletTransactions(ctx, walletID, limit, offset)
+	if err != nil {
+		h.respondError(w, http.StatusInternalServerError, "Failed to get transactions", err)
+		return
+	}
+
+	// Sanitize transactions
+	var sanitizedTransactions []map[string]interface{}
+	for _, transaction := range transactions {
+		sanitizedTransactions = append(sanitizedTransactions, h.sanitizeTransaction(transaction))
+	}
+
+	// Success response
+	h.respondSuccess(w, http.StatusOK, "Transactions retrieved successfully", map[string]interface{}{
+		"transactions": sanitizedTransactions,
+		"count":        len(sanitizedTransactions),
+		"limit":        limit,
+		"offset":       offset,
+	})
+}
+
+// GetUserTransactions handles getting user transactions across all wallets
+func (h *PaymentHandler) GetUserTransactions(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	// Get pagination parameters
+	limit, offset := h.getPaginationParams(r)
+
+	// Get transactions (this would need to be implemented in the service)
+	// For now, we'll return an empty list
+	transactions := []*models.Transaction{}
+
+	// Sanitize transactions
+	var sanitizedTransactions []map[string]interface{}
+	for _, transaction := range transactions {
+		sanitizedTransactions = append(sanitizedTransactions, h.sanitizeTransaction(transaction))
+	}
+
+	// Success response
+	h.respondSuccess(w, http.StatusOK, "Transactions retrieved successfully", map[string]interface{}{
+		"transactions": sanitizedTransactions,
+		"count":        len(sanitizedTransactions),
+		"limit":        limit,
+		"offset":       offset,
+	})
+}
+
+// GetTransaction handles getting a specific transaction
+func (h *PaymentHandler) GetTransaction(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := h.getUserFromContext(ctx)
+	if user == nil {
+		h.respondError(w, http.StatusUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	// Get transaction ID from URL
+	vars := mux.Vars(r)
+	transactionIDStr := vars["id"]
+	transactionID, err := uuid.Parse(transactionIDStr)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid transaction ID", err)
+		return
+	}
+
+	// Get transaction
+	transaction, err := h.paymentService.GetTransaction(ctx, transactionID)
+	if err != nil {
+		h.respondError(w, http.StatusNotFound, "Transaction not found", err)
+		return
+	}
+
+	// Verify ownership by checking wallet ownership
+	wallet, err := h.paymentService.GetWallet(ctx, transaction.WalletID)
+	if err != nil {
+		h.respondError(w, http.StatusNotFound, "Wallet not found", err)
+		return
+	}
+
+	if wallet.UserID != user.ID {
+		h.respondError(w, http.StatusForbidden, "Access denied", nil)
+		return
+	}
+
+	// Success response
+	h.respondSuccess(w, http.StatusOK, "Transaction retrieved successfully", h.sanitizeTransaction(transaction))
+}
+
+// Webhook handlers
+
+// HandleStripeWebhook handles Stripe webhook events
+func (h *PaymentHandler) HandleStripeWebhook(w http.ResponseWriter, r *http.Request) {
+	payload, err := io.ReadAll(r.Body)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Failed to read request body", err)
+		return
+	}
+
+	// Verify webhook signature
+	signature := r.Header.Get("Stripe-Signature")
+	if !h.verifyStripeSignature(payload, signature) {
+		h.respondError(w, http.StatusUnauthorized, "Invalid webhook signature", nil)
+		return
+	}
+
+	// Parse webhook event
+	var event StripeWebhookEvent
+	if err := json.Unmarshal(payload, &event); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid webhook payload", err)
+		return
+	}
+
+	// Process webhook event
+	if err := h.processStripeWebhook(&event); err != nil {
+		h.respondError(w, http.StatusInternalServerError, "Failed to process webhook", err)
+		return
+	}
+
+	// Success response
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
+}
+
+// HandlePayPalWebhook handles PayPal webhook events
+func (h *PaymentHandler) HandlePayPalWebhook(w http.ResponseWriter, r *http.Request) {
+	payload, err := io.ReadAll(r.Body)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Failed to read request body", err)
+		return
+	}
+
+	// Parse webhook event
+	var event PayPalWebhookEvent
+	if err := json.Unmarshal(payload, &event); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid webhook payload", err)
+		return
+	}
+
+	// Process webhook event
+	if err := h.processPayPalWebhook(&event); err != nil {
+		h.respondError(w, http.StatusInternalServerError, "Failed to process webhook", err)
+		return
+	}
+
+	// Success response
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
+}
+
+// Admin endpoints
+
+// GetPendingTransactions handles getting pending transactions (admin only)
+func (h *PaymentHandler) GetPendingTransactions(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// In real implementation, verify admin permissions here
+
+	// Get pagination parameters
+	limit, offset := h.getPaginationParams(r)
+
+	// Process pending transactions
+	if err := h.paymentService.ProcessPendingTransactions(ctx); err != nil {
+		h.respondError(w, http.StatusInternalServerError, "Failed to process pending transactions", err)
+		return
+	}
+
+	// Success response
+	h.respondSuccess(w, http.StatusOK, "Pending transactions processed", map[string]interface{}{
+		"processed": true,
+		"limit":     limit,
+		"offset":    offset,
+	})
+}
+
+// ProcessPendingTransactions handles processing pending transactions (admin only)
+func (h *PaymentHandler) ProcessPendingTransactions(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// In real implementation, verify admin permissions here
+
+	// Process pending transactions
+	if err := h.paymentService.ProcessPendingTransactions(ctx); err != nil {
+		h.respondError(w, http.StatusInternalServerError, "Failed to process pending transactions", err)
+		return
+	}
+
+	// Success response
+	h.respondSuccess(w, http.StatusOK, "Pending transactions processed successfully", nil)
+}
+
+// Request/Response types
+type CreateWalletRequest struct {
+	Currency models.Currency `json:"currency"`
+	Name     *string         `json:"name,omitempty"`
+}
+
+type DepositRequest struct {
+	WalletID      uuid.UUID       `json:"wallet_id"`
+	Amount        int64           `json:"amount"`
+	Currency      models.Currency `json:"currency"`
+	PaymentMethod string          `json:"payment_method"`
+	ExternalID    *string         `json:"external_id,omitempty"`
+	Description   *string         `json:"description,omitempty"`
+}
+
+type WithdrawRequest struct {
+	WalletID    uuid.UUID       `json:"wallet_id"`
+	Amount      int64           `json:"amount"`
+	Currency    models.Currency `json:"currency"`
+	Destination string          `json:"destination"`
+	ExternalID  *string         `json:"external_id,omitempty"`
+	Description *string         `json:"description,omitempty"`
+}
+
+type TransferRequest struct {
+	FromWalletID uuid.UUID       `json:"from_wallet_id"`
+	ToWalletID   uuid.UUID       `json:"to_wallet_id"`
+	Amount       int64           `json:"amount"`
+	Currency     models.Currency `json:"currency"`
+	Description  *string         `json:"description,omitempty"`
+}
+
+// Webhook event types
+type StripeWebhookEvent struct {
+	ID      string                 `json:"id"`
+	Type    string                 `json:"type"`
+	Created int64                  `json:"created"`
+	Data    map[string]interface{} `json:"data"`
+}
+
+type PayPalWebhookEvent struct {
+	ID           string                 `json:"id"`
+	EventType    string                 `json:"event_type"`
+	CreateTime   string                 `json:"create_time"`
+	ResourceType string                 `json:"resource_type"`
+	Resource     map[string]interface{} `json:"resource"`
+}
+
+// Standard API response
+type APIResponse struct {
+	Success bool        `json:"success"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data,omitempty"`
+	Error   interface{} `json:"error,omitempty"`
+}
+
+// Validation methods
+func (h *PaymentHandler) validateCreateWalletRequest(req *CreateWalletRequest) error {
+	h.validator.Reset()
+
+	if !req.Currency.IsValid() {
+		h.validator.AddError("currency", "invalid currency")
+	}
+
+	if req.Name != nil {
+		h.validator.MinLength("name", *req.Name, 1).MaxLength("name", *req.Name, 100)
+	}
+
+	return h.validator.GetError()
+}
+
+func (h *PaymentHandler) validateDepositRequest(req *DepositRequest) error {
+	h.validator.Reset()
+
+	if req.WalletID == uuid.Nil {
+		h.validator.AddError("wallet_id", "wallet ID is required")
+	}
+
+	h.validator.Positive("amount", req.Amount)
+
+	if !req.Currency.IsValid() {
+		h.validator.AddError("currency", "invalid currency")
+	}
+
+	h.validator.Required("payment_method", req.PaymentMethod)
+
+	if req.Description != nil {
+		h.validator.MaxLength("description", *req.Description, 500)
+	}
+
+	return h.validator.GetError()
+}
+
+func (h *PaymentHandler) validateWithdrawRequest(req *WithdrawRequest) error {
+	h.validator.Reset()
+
+	if req.WalletID == uuid.Nil {
+		h.validator.AddError("wallet_id", "wallet ID is required")
+	}
+
+	h.validator.Positive("amount", req.Amount)
+
+	if !req.Currency.IsValid() {
+		h.validator.AddError("currency", "invalid currency")
+	}
+
+	h.validator.Required("destination", req.Destination)
+
+	if req.Description != nil {
+		h.validator.MaxLength("description", *req.Description, 500)
+	}
+
+	return h.validator.GetError()
+}
+
+func (h *PaymentHandler) validateTransferRequest(req *TransferRequest) error {
+	h.validator.Reset()
+
+	if req.FromWalletID == uuid.Nil {
+		h.validator.AddError("from_wallet_id", "source wallet ID is required")
+	}
+
+	if req.ToWalletID == uuid.Nil {
+		h.validator.AddError("to_wallet_id", "destination wallet ID is required")
+	}
+
+	if req.FromWalletID == req.ToWalletID {
+		h.validator.AddError("wallets", "source and destination wallets must be different")
+	}
+
+	h.validator.Positive("amount", req.Amount)
+
+	if !req.Currency.IsValid() {
+		h.validator.AddError("currency", "invalid currency")
+	}
+
+	if req.Description != nil {
+		h.validator.MaxLength("description", *req.Description, 500)
+	}
+
+	return h.validator.GetError()
+}
+
+// Webhook processing methods
+func (h *PaymentHandler) verifyStripeSignature(payload []byte, signature string) bool {
+	if h.webhookSecret == "" {
+		return false
+	}
+
+	// Parse signature header
+	elements := strings.Split(signature, ",")
+	var timestamp string
+	var signatures []string
+
+	for _, element := range elements {
+		parts := strings.Split(element, "=")
+		if len(parts) != 2 {
+			continue
+		}
+
+		switch parts[0] {
+		case "t":
+			timestamp = parts[1]
+		case "v1":
+			signatures = append(signatures, parts[1])
+		}
+	}
+
+	if timestamp == "" || len(signatures) == 0 {
+		return false
+	}
+
+	// Create expected signature
+	signedPayload := timestamp + "." + string(payload)
+	mac := hmac.New(sha256.New, []byte(h.webhookSecret))
+	mac.Write([]byte(signedPayload))
+	expectedSignature := hex.EncodeToString(mac.Sum(nil))
+
+	// Compare signatures
+	for _, signature := range signatures {
+		if hmac.Equal([]byte(signature), []byte(expectedSignature)) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (h *PaymentHandler) processStripeWebhook(event *StripeWebhookEvent) error {
+	switch event.Type {
+	case "payment_intent.succeeded":
+		return h.handleStripePaymentSuccess(event)
+	case "payment_intent.payment_failed":
+		return h.handleStripePaymentFailed(event)
+	case "charge.dispute.created":
+		return h.handleStripeDispute(event)
+	default:
+		// Log unhandled event type
+		fmt.Printf("Unhandled Stripe webhook event type: %s\n", event.Type)
+	}
+
+	return nil
+}
+
+func (h *PaymentHandler) processPayPalWebhook(event *PayPalWebhookEvent) error {
+	switch event.EventType {
+	case "PAYMENT.CAPTURE.COMPLETED":
+		return h.handlePayPalPaymentCompleted(event)
+	case "PAYMENT.CAPTURE.DENIED":
+		return h.handlePayPalPaymentDenied(event)
+	default:
+		// Log unhandled event type
+		fmt.Printf("Unhandled PayPal webhook event type: %s\n", event.EventType)
+	}
+
+	return nil
+}
+
+func (h *PaymentHandler) handleStripePaymentSuccess(event *StripeWebhookEvent) error {
+	// Extract payment intent ID and update transaction status
+	// This would involve looking up the transaction by external ID
+	// and calling the payment service to complete it
+	fmt.Printf("Processing Stripe payment success for event: %s\n", event.ID)
+	return nil
+}
+
+func (h *PaymentHandler) handleStripePaymentFailed(event *StripeWebhookEvent) error {
+	// Extract payment intent ID and update transaction status
+	fmt.Printf("Processing Stripe payment failure for event: %s\n", event.ID)
+	return nil
+}
+
+func (h *PaymentHandler) handleStripeDispute(event *StripeWebhookEvent) error {
+	// Handle dispute creation
+	fmt.Printf("Processing Stripe dispute for event: %s\n", event.ID)
+	return nil
+}
+
+func (h *PaymentHandler) handlePayPalPaymentCompleted(event *PayPalWebhookEvent) error {
+	// Handle PayPal payment completion
+	fmt.Printf("Processing PayPal payment completion for event: %s\n", event.ID)
+	return nil
+}
+
+func (h *PaymentHandler) handlePayPalPaymentDenied(event *PayPalWebhookEvent) error {
+	// Handle PayPal payment denial
+	fmt.Printf("Processing PayPal payment denial for event: %s\n", event.ID)
+	return nil
+}
+
+// Utility methods
+func (h *PaymentHandler) respondSuccess(w http.ResponseWriter, statusCode int, message string, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	response := APIResponse{
+		Success: true,
+		Message: message,
+		Data:    data,
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
+func (h *PaymentHandler) respondError(w http.ResponseWriter, statusCode int, message string, err error) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	var errorData interface{}
+	if err != nil {
+		errorData = err.Error()
+	}
+
+	response := APIResponse{
+		Success: false,
+		Message: message,
+		Error:   errorData,
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
+func (h *PaymentHandler) getUserFromContext(ctx context.Context) *models.User {
+	if user, ok := ctx.Value("user").(*models.User); ok {
+		return user
+	}
+	return nil
+}
+
+func (h *PaymentHandler) sanitizeWallet(wallet *models.Wallet) map[string]interface{} {
+	if wallet == nil {
+		return nil
+	}
+
+	return map[string]interface{}{
+		"id":              wallet.ID,
+		"user_id":         wallet.UserID,
+		"currency":        wallet.Currency,
+		"name":            wallet.Name,
+		"balance":         wallet.Balance,
+		"formatted_balance": wallet.GetFormattedBalance(),
+		"frozen_balance":  wallet.FrozenBalance,
+		"daily_limit":     wallet.DailyLimit,
+		"monthly_limit":   wallet.MonthlyLimit,
+		"is_active":       wallet.IsActive,
+		"created_at":      wallet.CreatedAt,
+		"updated_at":      wallet.UpdatedAt,
+	}
+}
+
+func (h *PaymentHandler) sanitizeTransaction(transaction *models.Transaction) map[string]interface{} {
+	if transaction == nil {
+		return nil
+	}
+
+	return map[string]interface{}{
+		"id":               transaction.ID,
+		"wallet_id":        transaction.WalletID,
+		"counterparty_id":  transaction.CounterpartyID,
+		"type":             transaction.Type,
+		"status":           transaction.Status,
+		"currency":         transaction.Currency,
+		"amount":           transaction.Amount,
+		"formatted_amount": transaction.GetFormattedAmount(),
+		"fee_amount":       transaction.FeeAmount,
+		"formatted_fee":    transaction.GetFormattedFee(),
+		"net_amount":       transaction.NetAmount,
+		"formatted_net":    transaction.GetFormattedNetAmount(),
+		"reference":        transaction.Reference,
+		"description":      transaction.Description,
+		"external_id":      transaction.ExternalID,
+		"processed_at":     transaction.ProcessedAt,
+		"completed_at":     transaction.CompletedAt,
+		"expires_at":       transaction.ExpiresAt,
+		"created_at":       transaction.CreatedAt,
+		"updated_at":       transaction.UpdatedAt,
+	}
+}
+
+func (h *PaymentHandler) getPaginationParams(r *http.Request) (limit, offset int) {
+	limitStr := r.URL.Query().Get("limit")
+	offsetStr := r.URL.Query().Get("offset")
+
+	limit = 20 // default
+	if limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
+		}
+	}
+
+	offset = 0 // default
+	if offsetStr != "" {
+		if parsed, err := strconv.Atoi(offsetStr); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	return limit, offset
+}

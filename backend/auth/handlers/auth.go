@@ -353,7 +353,7 @@ func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 			DisplayName: user.DisplayName,
 			Avatar:      user.Avatar,
 			KYCStatus:   getKYCStatusString(user),
-			KYCTier:     string(user.KYCTier),
+			KYCTier:     fmt.Sprintf("%d", user.KYCTier),
 			IsActive:    user.IsActive(),
 			CreatedAt:   user.CreatedAt,
 			UpdatedAt:   user.UpdatedAt,

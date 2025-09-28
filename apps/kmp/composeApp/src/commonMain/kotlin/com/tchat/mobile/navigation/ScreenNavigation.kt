@@ -34,6 +34,8 @@ sealed class Screen(val route: String) {
     data class LiveStream(val streamId: String) : Screen("live_stream/$streamId")
     data class UserProfile(val userId: String) : Screen("user_profile/$userId")
     data class VideoDetail(val videoId: String) : Screen("video_detail/$videoId")
+    data class EventDetail(val eventId: String) : Screen("event_detail/$eventId")
+    data class CategoryEvents(val categoryId: String, val categoryName: String) : Screen("category_events/$categoryId")
     data class Reviews(val targetId: String, val targetType: String, val targetName: String) : Screen("reviews/$targetId/$targetType")
     data object Settings : Screen("settings")
     data object EditProfile : Screen("edit_profile")
@@ -139,6 +141,14 @@ class ScreenNavigationState {
                     true
                 }
                 is Screen.UserProfile -> {
+                    currentScreen = Screen.Social
+                    true
+                }
+                is Screen.EventDetail -> {
+                    currentScreen = Screen.Social
+                    true
+                }
+                is Screen.CategoryEvents -> {
                     currentScreen = Screen.Social
                     true
                 }

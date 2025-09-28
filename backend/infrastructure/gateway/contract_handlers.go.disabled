@@ -1,0 +1,803 @@
+package main
+
+import (
+	"tchat-backend/auth/models"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+
+	"tchat-backend/shared/models"
+)
+
+// ContractHandlers provides HTTP handlers for contract validation API
+type ContractHandlers struct {
+	contractService *ContractService
+}
+
+// NewContractHandlers creates a new instance of contract handlers
+func NewContractHandlers(contractService *ContractService) *ContractHandlers {
+	return &ContractHandlers{
+		contractService: contractService,
+	}
+}
+
+
+// ListContractsRequest represents filtering parameters for listing contracts
+type ListContractsRequest struct {
+	Consumer string `form:"consumer" binding:"omitempty,oneof=web ios android"`
+	Provider string `form:"provider" binding:"omitempty,oneof=auth content commerce messaging payment notification gateway"`
+	Status   string `form:"status" binding:"omitempty,oneof=draft published verified deprecated"`
+	Page     int    `form:"page" binding:"min=1"`
+	Limit    int    `form:"limit" binding:"min=1,max=100"`
+}
+
+// ListContractsResponse represents the response for listing contracts
+type ListContractsResponse struct {
+	Contracts []*models.ContractSpecification `json:"contracts"`
+	Total     int                             `json:"total"`
+	Page      int                             `json:"page"`
+	Limit     int                             `json:"limit"`
+}
+
+// CreateContractRequest represents request body for creating a contract
+type CreateContractRequest struct {
+	ConsumerName string                     `json:"consumer_name" binding:"required,oneof=web ios android"`
+	ProviderName string                     `json:"provider_name" binding:"required,oneof=auth content commerce messaging payment notification gateway"`
+	Version      string                     `json:"version" binding:"required,semver"`
+	Interactions []*models.ContractInteraction `json:"interactions" binding:"required,min=1"`
+	Metadata     *models.ContractMetadata   `json:"metadata"`
+}
+
+// UpdateContractRequest represents request body for updating a contract
+type UpdateContractRequest struct {
+	Version      *string                       `json:"version,omitempty" binding:"omitempty,semver"`
+	Interactions []*models.ContractInteraction `json:"interactions,omitempty" binding:"omitempty,min=1"`
+	Metadata     *models.ContractMetadata      `json:"metadata,omitempty"`
+	Status       *string                       `json:"status,omitempty" binding:"omitempty,oneof=draft published verified deprecated"`
+}
+
+// ValidateContractRequest represents request body for validating a contract
+type ValidateContractRequest struct {
+	ProviderVersion  string `json:"provider_version" binding:"required"`
+	ConsumerVersion  string `json:"consumer_version,omitempty"`
+	Environment      string `json:"environment" binding:"required,oneof=development staging production"`
+	ProviderBaseURL  string `json:"provider_base_url" binding:"required,url"`
+}
+
+// ListValidationsRequest represents filtering parameters for listing validations
+type ListValidationsRequest struct {
+	ContractID *string    `form:"contract_id" binding:"omitempty,uuid"`
+	Success    *bool      `form:"success"`
+	FromDate   *time.Time `form:"from_date" time_format:"2006-01-02T15:04:05Z07:00"`
+	ToDate     *time.Time `form:"to_date" time_format:"2006-01-02T15:04:05Z07:00"`
+	Page       int        `form:"page" binding:"min=1"`
+	Limit      int        `form:"limit" binding:"min=1,max=100"`
+}
+
+// ListValidationsResponse represents the response for listing validations
+type ListValidationsResponse struct {
+	Validations []*models.ValidationResult `json:"validations"`
+	Total       int                        `json:"total"`
+}
+
+// PlatformCompatibilityResponse represents platform compatibility status
+type PlatformCompatibilityResponse struct {
+	Platform       string                        `json:"platform"`
+	Services       []*ServiceCompatibility       `json:"services"`
+	OverallStatus  string                        `json:"overall_status"`
+	LastValidated  *time.Time                    `json:"last_validated,omitempty"`
+}
+
+// ServiceCompatibility represents compatibility status for a service
+type ServiceCompatibility struct {
+	ServiceName            string     `json:"service_name"`
+	ContractVersion        string     `json:"contract_version"`
+	ImplementationVersion  string     `json:"implementation_version"`
+	Status                 string     `json:"status"`
+	LastValidation         *time.Time `json:"last_validation,omitempty"`
+	IssuesCount           int        `json:"issues_count"`
+}
+
+// ListViolationsRequest represents filtering parameters for listing violations
+type ListViolationsRequest struct {
+	Severity string `form:"severity" binding:"omitempty,oneof=critical high medium low"`
+	Status   string `form:"status" binding:"omitempty,oneof=open resolved escalated"`
+	Platform string `form:"platform" binding:"omitempty,oneof=web ios android"`
+	Page     int    `form:"page" binding:"min=1"`
+	Limit    int    `form:"limit" binding:"min=1,max=100"`
+}
+
+// ListViolationsResponse represents the response for listing violations
+type ListViolationsResponse struct {
+	Violations []*models.ContractViolation `json:"violations"`
+	Summary    *ViolationSummary           `json:"summary"`
+}
+
+// ViolationSummary represents summary statistics for violations
+type ViolationSummary struct {
+	TotalViolations int                    `json:"total_violations"`
+	BySeverity      map[string]int         `json:"by_severity"`
+	ByPlatform      map[string]int         `json:"by_platform"`
+	ResolutionRate  float64                `json:"resolution_rate"`
+}
+
+// ErrorResponse represents an API error response
+type ErrorResponse struct {
+	Error     string   `json:"error"`
+	Details   []string `json:"details,omitempty"`
+	TraceID   string   `json:"trace_id,omitempty"`
+	Timestamp string   `json:"timestamp"`
+}
+
+// NotFoundResponse represents a resource not found response
+type NotFoundResponse struct {
+	Error      string `json:"error"`
+	ResourceID string `json:"resource_id,omitempty"`
+}
+
+// ConflictResponse represents a resource conflict response
+type ConflictResponse struct {
+	Error           string `json:"error"`
+	ExistingVersion string `json:"existing_version,omitempty"`
+}
+
+// ListContracts handles GET /api/v1/contracts
+func (h *ContractHandlers) ListContracts(c *gin.Context) {
+	var req ListContractsRequest
+
+	// Set defaults
+	req.Page = 1
+	req.Limit = 20
+
+	if err := c.ShouldBindQuery(&req); err != nil {
+		h.handleValidationError(c, err)
+		return
+	}
+
+	// Build filters
+	filters := make(map[string]interface{})
+	if req.Consumer != "" {
+		filters["consumer_name"] = req.Consumer
+	}
+	if req.Provider != "" {
+		filters["provider_name"] = req.Provider
+	}
+	if req.Status != "" {
+		filters["status"] = req.Status
+	}
+
+	contracts, total, err := h.contractService.ListContracts(filters, req.Page, req.Limit)
+	if err != nil {
+		h.handleInternalError(c, "Failed to list contracts", err)
+		return
+	}
+
+	response := &ListContractsResponse{
+		Contracts: contracts,
+		Total:     total,
+		Page:      req.Page,
+		Limit:     req.Limit,
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// CreateContract handles POST /api/v1/contracts
+func (h *ContractHandlers) CreateContract(c *gin.Context) {
+	var req CreateContractRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleValidationError(c, err)
+		return
+	}
+
+	// Parse semantic version
+	semver, err := parseSemanticVersion(req.Version)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &ErrorResponse{
+			Error:     "Invalid version format",
+			Details:   []string{"Version must be in semantic version format (e.g., 1.0.0)"},
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+		})
+		return
+	}
+
+	// Convert string values to proper types
+	consumerPlatform := models.ConsumerPlatform(req.ConsumerName)
+	if !consumerPlatform.IsValid() {
+		c.JSON(http.StatusBadRequest, &ErrorResponse{
+			Error:     "Invalid consumer platform",
+			Details:   []string{"Consumer must be one of: web, ios, android"},
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+		})
+		return
+	}
+
+	providerService := models.ProviderService(req.ProviderName)
+	if !providerService.IsValid() {
+		c.JSON(http.StatusBadRequest, &ErrorResponse{
+			Error:     "Invalid provider service",
+			Details:   []string{"Provider must be one of: auth, content, commerce, messaging, payment, notification, gateway"},
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+		})
+		return
+	}
+
+	// Check if contract version already exists
+	existing, err := h.contractService.GetContractByConsumerProviderVersion(
+		consumerPlatform, providerService, semver,
+	)
+	if err == nil && existing != nil {
+		c.JSON(http.StatusConflict, &ConflictResponse{
+			Error:           "Contract version already exists",
+			ExistingVersion: existing.Version.String(),
+		})
+		return
+	}
+
+	contractID := uuid.New()
+
+	// Convert interactions to proper format
+	var interactions []models.ContractInteractionRef
+	for _, reqInteraction := range req.Interactions {
+		interactionID := uuid.New()
+		if reqInteraction.ID != uuid.Nil {
+			interactionID = reqInteraction.ID
+		}
+
+		interactions = append(interactions, models.ContractInteractionRef{
+			ID:          interactionID,
+			Description: reqInteraction.Description,
+			Method:      string(reqInteraction.Request.Method),
+			Path:        reqInteraction.Request.Path,
+			StatusCode:  reqInteraction.Response.Status,
+		})
+	}
+
+	// Create contract specification
+	contract := &models.ContractSpecification{
+		ID:           contractID,
+		ConsumerName: consumerPlatform,
+		ProviderName: providerService,
+		Version:      semver,
+		Interactions: interactions,
+		Status:       models.ContractStatusDraft,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+
+	// Set metadata if provided
+	if req.Metadata != nil {
+		contract.Metadata = *req.Metadata
+	}
+
+	// Create contract
+	createdContract, err := h.contractService.CreateContract(contract)
+	if err != nil {
+		h.handleInternalError(c, "Failed to create contract", err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, createdContract)
+}
+
+// GetContract handles GET /api/v1/contracts/{contractId}
+func (h *ContractHandlers) GetContract(c *gin.Context) {
+	contractID := c.Param("contractId")
+	if _, err := uuid.Parse(contractID); err != nil {
+		c.JSON(http.StatusBadRequest, &ErrorResponse{
+			Error:     "Invalid contract ID format",
+			Details:   []string{"Contract ID must be a valid UUID"},
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+		})
+		return
+	}
+
+	contract, err := h.contractService.GetContract(contractID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, &NotFoundResponse{
+				Error:      "Contract not found",
+				ResourceID: contractID,
+			})
+			return
+		}
+		h.handleInternalError(c, "Failed to get contract", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract)
+}
+
+// UpdateContract handles PUT /api/v1/contracts/{contractId}
+func (h *ContractHandlers) UpdateContract(c *gin.Context) {
+	contractID := c.Param("contractId")
+	if _, err := uuid.Parse(contractID); err != nil {
+		c.JSON(http.StatusBadRequest, &ErrorResponse{
+			Error:     "Invalid contract ID format",
+			Details:   []string{"Contract ID must be a valid UUID"},
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+		})
+		return
+	}
+
+	var req UpdateContractRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleValidationError(c, err)
+		return
+	}
+
+	// Get existing contract
+	existing, err := h.contractService.GetContract(contractID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, &NotFoundResponse{
+				Error:      "Contract not found",
+				ResourceID: contractID,
+			})
+			return
+		}
+		h.handleInternalError(c, "Failed to get contract", err)
+		return
+	}
+
+	// Validate status transition if provided
+	if req.Status != nil {
+		newStatus := models.ContractStatus(*req.Status)
+		if !existing.Status.CanTransitionTo(newStatus) {
+			c.JSON(http.StatusBadRequest, &ErrorResponse{
+				Error: fmt.Sprintf("Invalid status transition from %s to %s", existing.Status, newStatus),
+				Details: []string{
+					"Valid transitions depend on current status",
+					fmt.Sprintf("Current status: %s", existing.Status),
+				},
+				Timestamp: time.Now().UTC().Format(time.RFC3339),
+			})
+			return
+		}
+		existing.Status = newStatus
+	}
+
+	// Update fields if provided
+	if req.Version != nil {
+		semver, err := parseSemanticVersion(*req.Version)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, &ErrorResponse{
+				Error:     "Invalid version format",
+				Details:   []string{"Version must be in semantic version format (e.g., 1.0.0)"},
+				Timestamp: time.Now().UTC().Format(time.RFC3339),
+			})
+			return
+		}
+		existing.Version = semver
+	}
+	if req.Interactions != nil {
+		// Convert interactions to proper format
+		var interactions []models.ContractInteractionRef
+		for _, reqInteraction := range req.Interactions {
+			interactionID := uuid.New()
+			if reqInteraction.ID != uuid.Nil {
+				interactionID = reqInteraction.ID
+			}
+
+			interactions = append(interactions, models.ContractInteractionRef{
+				ID:          interactionID,
+				Description: reqInteraction.Description,
+				Method:      string(reqInteraction.Request.Method),
+				Path:        reqInteraction.Request.Path,
+				StatusCode:  reqInteraction.Response.Status,
+			})
+		}
+		existing.Interactions = interactions
+	}
+	if req.Metadata != nil {
+		existing.Metadata = *req.Metadata
+	}
+
+	existing.UpdatedAt = time.Now()
+
+	// Update contract
+	updatedContract, err := h.contractService.UpdateContract(existing)
+	if err != nil {
+		h.handleInternalError(c, "Failed to update contract", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, updatedContract)
+}
+
+// ValidateContract handles POST /api/v1/contracts/{contractId}/validate
+func (h *ContractHandlers) ValidateContract(c *gin.Context) {
+	contractID := c.Param("contractId")
+	if _, err := uuid.Parse(contractID); err != nil {
+		c.JSON(http.StatusBadRequest, &ErrorResponse{
+			Error:     "Invalid contract ID format",
+			Details:   []string{"Contract ID must be a valid UUID"},
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+		})
+		return
+	}
+
+	var req ValidateContractRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleValidationError(c, err)
+		return
+	}
+
+	// Check if contract exists
+	contract, err := h.contractService.GetContract(contractID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, &NotFoundResponse{
+				Error:      "Contract not found",
+				ResourceID: contractID,
+			})
+			return
+		}
+		h.handleInternalError(c, "Failed to get contract", err)
+		return
+	}
+
+	// Create validation request
+	validationReq := &ValidationRequest{
+		ContractID:       contractID,
+		ProviderVersion:  req.ProviderVersion,
+		ConsumerVersion:  req.ConsumerVersion,
+		Environment:      req.Environment,
+		ProviderBaseURL:  req.ProviderBaseURL,
+	}
+
+	// Execute validation
+	result, err := h.contractService.ValidateContract(contract, validationReq)
+	if err != nil {
+		h.handleInternalError(c, "Failed to validate contract", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// ListValidations handles GET /api/v1/validations
+func (h *ContractHandlers) ListValidations(c *gin.Context) {
+	var req ListValidationsRequest
+
+	// Set defaults
+	req.Page = 1
+	req.Limit = 20
+
+	if err := c.ShouldBindQuery(&req); err != nil {
+		h.handleValidationError(c, err)
+		return
+	}
+
+	// Build filters
+	filters := make(map[string]interface{})
+	if req.ContractID != nil {
+		filters["contract_id"] = *req.ContractID
+	}
+	if req.Success != nil {
+		filters["success"] = *req.Success
+	}
+	if req.FromDate != nil {
+		filters["from_date"] = *req.FromDate
+	}
+	if req.ToDate != nil {
+		filters["to_date"] = *req.ToDate
+	}
+
+	validations, total, err := h.contractService.ListValidations(filters, req.Page, req.Limit)
+	if err != nil {
+		h.handleInternalError(c, "Failed to list validations", err)
+		return
+	}
+
+	response := &ListValidationsResponse{
+		Validations: validations,
+		Total:       total,
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// GetPlatformCompatibility handles GET /api/v1/platforms/{platform}/compatibility
+func (h *ContractHandlers) GetPlatformCompatibility(c *gin.Context) {
+	platform := c.Param("platform")
+
+	// Validate platform
+	validPlatforms := []string{"web", "ios", "android"}
+	isValid := false
+	for _, validPlatform := range validPlatforms {
+		if platform == validPlatform {
+			isValid = true
+			break
+		}
+	}
+
+	if !isValid {
+		c.JSON(http.StatusBadRequest, &ErrorResponse{
+			Error:     "Invalid platform",
+			Details:   []string{"Platform must be one of: web, ios, android"},
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+		})
+		return
+	}
+
+	compatibility, err := h.contractService.GetPlatformCompatibility(platform)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, &NotFoundResponse{
+				Error:      "Platform compatibility data not found",
+				ResourceID: platform,
+			})
+			return
+		}
+		h.handleInternalError(c, "Failed to get platform compatibility", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, compatibility)
+}
+
+// ListViolations handles GET /api/v1/violations
+func (h *ContractHandlers) ListViolations(c *gin.Context) {
+	var req ListViolationsRequest
+
+	// Set defaults
+	req.Page = 1
+	req.Limit = 20
+
+	if err := c.ShouldBindQuery(&req); err != nil {
+		h.handleValidationError(c, err)
+		return
+	}
+
+	// Build filters
+	filters := make(map[string]interface{})
+	if req.Severity != "" {
+		filters["severity"] = req.Severity
+	}
+	if req.Status != "" {
+		filters["resolution_status"] = req.Status
+	}
+	if req.Platform != "" {
+		filters["platform"] = req.Platform
+	}
+
+	violations, summary, err := h.contractService.ListViolations(filters, req.Page, req.Limit)
+	if err != nil {
+		h.handleInternalError(c, "Failed to list violations", err)
+		return
+	}
+
+	response := &ListViolationsResponse{
+		Violations: violations,
+		Summary:    summary,
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// Enhanced T022 Handlers
+
+// OrchestateProviderVerificationRequest represents request body for provider orchestration
+type OrchestateProviderVerificationRequest struct {
+	Environment string   `json:"environment" binding:"required,oneof=development staging production"`
+	Services    []string `json:"services,omitempty"`
+	ConsumerPlatform string `json:"consumer_platform,omitempty" binding:"omitempty,oneof=web ios android"`
+}
+
+// OrchestateProviderVerification handles POST /api/v1/orchestration/verify-providers
+func (h *ContractHandlers) OrchestateProviderVerification(c *gin.Context) {
+	var req OrchestateProviderVerificationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleValidationError(c, err)
+		return
+	}
+
+	// Get contracts to verify
+	var contracts []*models.ContractSpecification
+	query := h.contractService.db.Model(&models.ContractSpecification{})
+
+	if req.ConsumerPlatform != "" {
+		query = query.Where("consumer_name = ?", req.ConsumerPlatform)
+	}
+
+	if len(req.Services) > 0 {
+		query = query.Where("provider_name IN ?", req.Services)
+	}
+
+	if err := query.Find(&contracts).Error; err != nil {
+		h.handleInternalError(c, "Failed to get contracts for orchestration", err)
+		return
+	}
+
+	if len(contracts) == 0 {
+		c.JSON(http.StatusBadRequest, &ErrorResponse{
+			Error:     "No contracts found for orchestration",
+			Details:   []string{"Check that contracts exist for the specified criteria"},
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+		})
+		return
+	}
+
+	// Execute orchestration
+	orchestration, err := h.contractService.OrchestateProviderVerification(contracts, req.Environment)
+	if err != nil {
+		h.handleInternalError(c, "Failed to orchestrate provider verification", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, orchestration)
+}
+
+// ValidateCrossPlatformCompatibility handles GET /api/v1/orchestration/cross-platform/{service}
+func (h *ContractHandlers) ValidateCrossPlatformCompatibility(c *gin.Context) {
+	service := c.Param("service")
+
+	// Validate service
+	validServices := []string{"auth", "content", "commerce", "messaging", "payment", "notification", "gateway"}
+	isValid := false
+	for _, validService := range validServices {
+		if service == validService {
+			isValid = true
+			break
+		}
+	}
+
+	if !isValid {
+		c.JSON(http.StatusBadRequest, &ErrorResponse{
+			Error:     "Invalid service",
+			Details:   []string{"Service must be one of: auth, content, commerce, messaging, payment, notification, gateway"},
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+		})
+		return
+	}
+
+	environment := c.DefaultQuery("environment", "development")
+	validEnvironments := []string{"development", "staging", "production"}
+	isValidEnv := false
+	for _, validEnv := range validEnvironments {
+		if environment == validEnv {
+			isValidEnv = true
+			break
+		}
+	}
+
+	if !isValidEnv {
+		c.JSON(http.StatusBadRequest, &ErrorResponse{
+			Error:     "Invalid environment",
+			Details:   []string{"Environment must be one of: development, staging, production"},
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+		})
+		return
+	}
+
+	validation, err := h.contractService.ValidateCrossPlatformCompatibility(service, environment)
+	if err != nil {
+		h.handleInternalError(c, "Failed to validate cross-platform compatibility", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, validation)
+}
+
+// GetPerformanceMetrics handles GET /api/v1/metrics/performance
+func (h *ContractHandlers) GetPerformanceMetrics(c *gin.Context) {
+	metrics := h.contractService.GetPerformanceMetrics()
+
+	// Add calculated fields
+	response := map[string]interface{}{
+		"total_validations":      metrics.TotalValidations,
+		"successful_validations": metrics.SuccessfulValidations,
+		"failed_validations":     metrics.FailedValidations,
+		"success_rate":           0.0,
+		"average_response_time_ms": metrics.AverageResponseTime.Milliseconds(),
+		"publication_count":      metrics.PublicationCount,
+		"error_count":           metrics.ErrorCount,
+		"timestamp":             time.Now().UTC().Format(time.RFC3339),
+	}
+
+	if metrics.TotalValidations > 0 {
+		response["success_rate"] = float64(metrics.SuccessfulValidations) / float64(metrics.TotalValidations)
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// Helper methods for error handling
+
+func (h *ContractHandlers) handleValidationError(c *gin.Context, err error) {
+	details := []string{err.Error()}
+
+	c.JSON(http.StatusBadRequest, &ErrorResponse{
+		Error:     "Validation failed",
+		Details:   details,
+		TraceID:   c.GetString("request_id"),
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+func (h *ContractHandlers) handleInternalError(c *gin.Context, message string, err error) {
+	details := []string{err.Error()}
+
+	c.JSON(http.StatusInternalServerError, &ErrorResponse{
+		Error:     message,
+		Details:   details,
+		TraceID:   c.GetString("request_id"),
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+// RegisterRoutes registers all contract validation routes to the router
+func (h *ContractHandlers) RegisterRoutes(router *gin.RouterGroup) {
+	contracts := router.Group("/contracts")
+	{
+		contracts.GET("", h.ListContracts)
+		contracts.POST("", h.CreateContract)
+		contracts.GET("/:contractId", h.GetContract)
+		contracts.PUT("/:contractId", h.UpdateContract)
+		contracts.POST("/:contractId/validate", h.ValidateContract)
+	}
+
+	validations := router.Group("/validations")
+	{
+		validations.GET("", h.ListValidations)
+	}
+
+	platforms := router.Group("/platforms")
+	{
+		platforms.GET("/:platform/compatibility", h.GetPlatformCompatibility)
+	}
+
+	violations := router.Group("/violations")
+	{
+		violations.GET("", h.ListViolations)
+	}
+
+	// Enhanced T022 endpoints
+	orchestration := router.Group("/orchestration")
+	{
+		orchestration.POST("/verify-providers", h.OrchestateProviderVerification)
+		orchestration.GET("/cross-platform/:service", h.ValidateCrossPlatformCompatibility)
+	}
+
+	metrics := router.Group("/metrics")
+	{
+		metrics.GET("/performance", h.GetPerformanceMetrics)
+	}
+}
+
+// Helper functions
+
+// parseSemanticVersion parses a semantic version string into a SemanticVersion struct
+func parseSemanticVersion(versionStr string) (models.SemanticVersion, error) {
+	parts := strings.Split(versionStr, ".")
+	if len(parts) != 3 {
+		return models.SemanticVersion{}, fmt.Errorf("version must have 3 parts (major.minor.patch)")
+	}
+
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return models.SemanticVersion{}, fmt.Errorf("invalid major version: %s", parts[0])
+	}
+
+	minor, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return models.SemanticVersion{}, fmt.Errorf("invalid minor version: %s", parts[1])
+	}
+
+	patch, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return models.SemanticVersion{}, fmt.Errorf("invalid patch version: %s", parts[2])
+	}
+
+	return models.SemanticVersion{
+		Major: major,
+		Minor: minor,
+		Patch: patch,
+	}, nil
+}

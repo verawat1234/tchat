@@ -1,5 +1,5 @@
 # Multi-stage build for Video Service
-FROM golang:1.24.3-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
@@ -7,17 +7,21 @@ RUN apk add --no-cache git ca-certificates tzdata
 # Set working directory
 WORKDIR /app
 
-# Copy go mod files
-COPY go.mod go.sum ./
+# Copy module manifests for dependency caching
+COPY shared/go.mod shared/go.sum ./shared/
+COPY video/go.mod video/go.sum ./video/
 
-# Download dependencies
-RUN go mod download
+# Resolve module dependencies
+RUN cd shared && go mod download
+RUN cd video && go mod download
 
 # Copy source code
-COPY . .
+COPY shared/ ./shared/
+COPY video/ ./video/
 
 # Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o video-service ./main.go
+WORKDIR /app/video
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o video-service .
 
 # Production stage
 FROM alpine:3.18
@@ -33,7 +37,7 @@ RUN addgroup -g 1001 -S tchat && \
 WORKDIR /app
 
 # Copy binary from builder stage
-COPY --from=builder /app/video-service .
+COPY --from=builder /app/video/video-service .
 
 # Change ownership to non-root user
 RUN chown tchat:tchat /app/video-service

@@ -1,0 +1,445 @@
+{
+  "consumer": {
+    "name": "content-web-client"
+  },
+  "provider": {
+    "name": "content-service"
+  },
+  "interactions": [
+    {
+      "description": "a request for content items",
+      "providerState": "content items exist",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/content",
+        "query": {
+          "page": "1",
+          "per_page": "10"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "items": [
+            {
+              "id": "550e8400-e29b-41d4-a716-446655440000",
+              "title": "Sample Content",
+              "type": "text",
+              "status": "published",
+              "category_id": "cat-123",
+              "value": {
+                "content": "Sample content value"
+              },
+              "version": 1,
+              "created_at": "2023-01-01T00:00:00Z",
+              "updated_at": "2023-01-01T00:00:00Z"
+            }
+          ],
+          "total": 1,
+          "page": 1,
+          "per_page": 10,
+          "total_pages": 1
+        }
+      }
+    },
+    {
+      "description": "a request for a specific content item",
+      "providerState": "content item exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/content/550e8400-e29b-41d4-a716-446655440000",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "title": "Sample Content",
+          "type": "text",
+          "status": "published",
+          "category_id": "cat-123",
+          "value": {
+            "content": "Sample content value"
+          },
+          "version": 1,
+          "created_at": "2023-01-01T00:00:00Z",
+          "updated_at": "2023-01-01T00:00:00Z"
+        }
+      }
+    },
+    {
+      "description": "a request to create content",
+      "providerState": "valid content data",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/content",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "title": "New Content",
+          "type": "text",
+          "category_id": "cat-123",
+          "value": {
+            "content": "New content value"
+          }
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "550e8400-e29b-41d4-a716-446655440001",
+          "title": "New Content",
+          "type": "text",
+          "status": "draft",
+          "category_id": "cat-123",
+          "value": {
+            "content": "New content value"
+          },
+          "version": 1,
+          "created_at": "2023-01-01T00:00:00Z",
+          "updated_at": "2023-01-01T00:00:00Z"
+        }
+      }
+    },
+    {
+      "description": "a request to update content",
+      "providerState": "content item exists for update",
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/content/550e8400-e29b-41d4-a716-446655440000",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "title": "Updated Content",
+          "value": {
+            "content": "Updated content value"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "title": "Updated Content",
+          "type": "text",
+          "status": "draft",
+          "category_id": "cat-123",
+          "value": {
+            "content": "Updated content value"
+          },
+          "version": 2,
+          "created_at": "2023-01-01T00:00:00Z",
+          "updated_at": "2023-01-01T00:01:00Z"
+        }
+      }
+    },
+    {
+      "description": "a request to delete content",
+      "providerState": "content item exists for deletion",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/v1/content/550e8400-e29b-41d4-a716-446655440000",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "response": {
+        "status": 204,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      }
+    },
+    {
+      "description": "a request to publish content",
+      "providerState": "content item exists for publishing",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/content/550e8400-e29b-41d4-a716-446655440000/publish",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "title": "Sample Content",
+          "type": "text",
+          "status": "published",
+          "category_id": "cat-123",
+          "value": {
+            "content": "Sample content value"
+          },
+          "version": 1,
+          "published_at": "2023-01-01T00:02:00Z",
+          "created_at": "2023-01-01T00:00:00Z",
+          "updated_at": "2023-01-01T00:02:00Z"
+        }
+      }
+    },
+    {
+      "description": "a request to archive content",
+      "providerState": "content item exists for archiving",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/content/550e8400-e29b-41d4-a716-446655440000/archive",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "title": "Sample Content",
+          "type": "text",
+          "status": "archived",
+          "category_id": "cat-123",
+          "value": {
+            "content": "Sample content value"
+          },
+          "version": 1,
+          "created_at": "2023-01-01T00:00:00Z",
+          "updated_at": "2023-01-01T00:03:00Z"
+        }
+      }
+    },
+    {
+      "description": "a request for content categories",
+      "providerState": "content categories exist",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/content/categories",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "cat-123",
+            "name": "Sample Category",
+            "description": "Sample category description",
+            "created_at": "2023-01-01T00:00:00Z",
+            "updated_at": "2023-01-01T00:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request for content by category",
+      "providerState": "content exists in category",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/content/category/cat-123",
+        "query": {
+          "page": "1",
+          "per_page": "10"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "items": [
+            {
+              "id": "550e8400-e29b-41d4-a716-446655440000",
+              "title": "Category Content",
+              "type": "text",
+              "status": "published",
+              "category_id": "cat-123",
+              "value": {
+                "content": "Category specific content"
+              },
+              "version": 1,
+              "created_at": "2023-01-01T00:00:00Z",
+              "updated_at": "2023-01-01T00:00:00Z"
+            }
+          ],
+          "total": 1,
+          "page": 1,
+          "per_page": 10,
+          "total_pages": 1
+        }
+      }
+    },
+    {
+      "description": "a request for content versions",
+      "providerState": "content has versions",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/content/550e8400-e29b-41d4-a716-446655440000/versions",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "ver-123",
+            "content_id": "550e8400-e29b-41d4-a716-446655440000",
+            "version": 1,
+            "value": {
+              "content": "Version specific content"
+            },
+            "created_at": "2023-01-01T00:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request for bulk content update",
+      "providerState": "multiple content items exist for bulk update",
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/content/bulk",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "ids": [
+            "550e8400-e29b-41d4-a716-446655440000",
+            "550e8400-e29b-41d4-a716-446655440001"
+          ],
+          "updates": {
+            "status": "published"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "updated_count": 2,
+          "message": "Bulk update completed successfully"
+        }
+      }
+    },
+    {
+      "description": "a request for content synchronization",
+      "providerState": "content synchronization is available",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/content/sync",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "last_sync": 1672531200
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "synced_items": 5,
+          "last_sync": 1672534800,
+          "message": "Content synchronized successfully"
+        }
+      }
+    },
+    {
+      "description": "a request for non-existent content",
+      "providerState": "content item does not exist",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/content/non-existent-id",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "error": "Content not found",
+          "message": "Content item with the specified ID does not exist"
+        }
+      }
+    },
+    {
+      "description": "a request to create invalid content",
+      "providerState": "content validation rules are enforced",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/content",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "title": "",
+          "type": "invalid_type"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "error": "Validation failed",
+          "message": "Invalid content data provided",
+          "details": [
+            {
+              "field": "title",
+              "message": "Title is required"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "pact-specification": {
+      "version": "3.0.0"
+    },
+    "pact-jvm": {
+      "version": "4.0.10"
+    }
+  }
+}

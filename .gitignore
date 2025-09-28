@@ -55,14 +55,8 @@ Thumbs.db
 *.app
 
 # Go binaries
-**/main
-**/auth
-**/commerce
-**/content
-**/gateway
-**/messaging
-**/notification
-**/payment
+# When building locally, place binaries under ./bin if you need to keep them.
+bin/
 
 # Test artifacts
 .gocache/
@@ -92,8 +86,24 @@ specs/
 pacts/
 pact/
 contracts/
+!backend/tests/contract/
+!tests/contract/
 scripts/
+!backend/tests/errors/
+!backend/tests/fixtures/
+!backend/tests/integration/
+!backend/tests/performance/
+!backend/tests/security/
+!backend/tests/testutil/
+!tests/errors/
+!tests/fixtures/
+!tests/integration/
+!tests/performance/
+!tests/security/
+!tests/testutil/
 tools/
+!backend/tests/coverage/
+!tests/coverage/
 diagnose_line_export.sh
 find_line_exports.sh
 *.sh

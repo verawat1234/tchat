@@ -46,12 +46,12 @@ const authSlice = createSlice({
   extraReducers: (builder) => {
     builder
       .addMatcher(
-        authApi.endpoints.login.matchFulfilled,
+        authApi.endpoints.verifyOTP.matchFulfilled,
         (state, { payload }) => {
           state.user = payload.user;
-          state.accessToken = payload.tokens.accessToken;
-          state.refreshToken = payload.tokens.refreshToken;
-          state.expiresAt = Date.now() + (payload.tokens.expiresIn * 1000);
+          state.accessToken = payload.accessToken;
+          state.refreshToken = payload.refreshToken;
+          state.expiresAt = Date.now() + (payload.expiresIn * 1000);
           state.isAuthenticated = true;
         }
       )

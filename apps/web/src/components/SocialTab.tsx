@@ -23,8 +23,9 @@ import {
   useGetUserFriendsQuery,
   useLikeSocialPostMutation,
   useCreateSocialPostMutation,
-  useFollowUserMutation
-} from '../services/microservicesApi';
+  useFollowUserMutationMutation
+} from '../services/socialApi';
+import { Post, LegacyPost, PostType, convertLegacyToPost, convertPostToLegacy } from '../types/PostTypes';
 
 interface SocialTabProps {
   user: any;
@@ -56,36 +57,6 @@ interface Comment {
   isLiked: boolean;
 }
 
-interface Post {
-  id: string;
-  author: {
-    name: string;
-    avatar?: string;
-    verified?: boolean;
-    type: 'user' | 'merchant' | 'channel';
-  };
-  content: string;
-  images?: string[];
-  timestamp: string;
-  likes: number;
-  comments: number;
-  shares: number;
-  isLiked?: boolean;
-  location?: string;
-  tags?: string[];
-  type: 'text' | 'image' | 'live' | 'product';
-  product?: {
-    name: string;
-    price: number;
-    currency: string;
-  };
-  liveData?: {
-    viewers: number;
-    startTime: string;
-    isLive: boolean;
-  };
-  source?: 'following' | 'trending' | 'interest' | 'sponsored';
-}
 
 interface Moment {
   id: string;
@@ -628,40 +599,43 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
   };
 
   const renderPost = (post: Post) => (
-    <Card key={post.id} className="mb-4">
-      <CardContent className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 max-w-full">
+    <Card key={post.id} className="mb-4" data-testid={`social-post-${post.id}`} data-post-type={post.type} data-post-source={post.source}>
+      <CardContent className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 max-w-full" data-testid={`social-post-content-${post.id}`}>
         {/* Post Header - Mobile Optimized */}
-        <div className="flex items-start gap-3 relative">
-          <Avatar className="w-10 h-10 sm:w-11 sm:h-11 cursor-pointer hover:ring-2 hover:ring-ring hover:ring-offset-1 transition-all flex-shrink-0">
+        <div className="flex items-start gap-3 relative" data-testid={`social-post-header-${post.id}`}>
+          <Avatar className="w-10 h-10 sm:w-11 sm:h-11 cursor-pointer hover:ring-2 hover:ring-ring hover:ring-offset-1 transition-all flex-shrink-0" data-testid={`social-post-author-avatar-${post.id}`}>
             <AvatarImage src={post.author.avatar} />
             <AvatarFallback className="bg-gradient-to-br from-chart-1 to-chart-2 text-white">
               {post.author.name.charAt(0)}
             </AvatarFallback>
           </Avatar>
           
-          <div className="flex-1 min-w-0 space-y-1 sm:space-y-2">
+          <div className="flex-1 min-w-0 space-y-1 sm:space-y-2" data-testid={`social-post-author-info-${post.id}`}>
             {/* Author Info - Responsive Layout */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2" data-testid={`social-post-author-details-${post.id}`}>
               <div className="flex items-center gap-2 min-w-0">
-                <span className="font-medium cursor-pointer hover:underline text-sm sm:text-base truncate max-w-32 sm:max-w-none">
+                <span className="font-medium cursor-pointer hover:underline text-sm sm:text-base truncate max-w-32 sm:max-w-none" data-testid={`social-post-author-name-${post.id}`}>
                   {post.author.name}
                 </span>
                 {post.author.verified && (
-                  <Star className="w-4 h-4 text-yellow-500 fill-current flex-shrink-0" />
+                  <Star className="w-4 h-4 text-yellow-500 fill-current flex-shrink-0" data-testid={`social-post-verified-badge-${post.id}`} />
                 )}
                 {post.type === 'live' && post.liveData?.isLive && (
-                  <Badge className="bg-red-500 text-white text-xs px-2 py-0.5 flex-shrink-0">LIVE</Badge>
+                  <Badge className="bg-red-500 text-white text-xs px-2 py-0.5 flex-shrink-0" data-testid={`social-post-live-badge-${post.id}`}>LIVE</Badge>
                 )}
-                {getSourceBadge(post.source)}
+                <div data-testid={`social-post-source-badge-${post.id}`}>
+                  {getSourceBadge(post.source)}
+                </div>
               </div>
-              
+
               {/* Add Friend button - Mobile optimized */}
               {!followingUsers.includes(post.author.name) && post.author.type === 'user' && (
                 <Button
-                  size="sm" 
+                  size="sm"
                   variant="outline"
                   className="h-6 sm:h-7 text-xs px-2 sm:px-3 flex-shrink-0 touch-manipulation"
                   onClick={() => handleAddFriend(post.author.name, post.author.name)}
+                  data-testid={`social-post-add-friend-button-${post.id}`}
                 >
                   <UserPlus className="w-3 h-3 mr-1" />
                   <span className="hidden sm:inline">Add Friend</span>
@@ -671,11 +645,11 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
             </div>
             
             {/* Post Metadata - Responsive Stack */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-xs sm:text-sm text-muted-foreground">
-              <span className="flex-shrink-0">{post.timestamp}</span>
-              
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-xs sm:text-sm text-muted-foreground" data-testid={`social-post-metadata-${post.id}`}>
+              <span className="flex-shrink-0" data-testid={`social-post-timestamp-${post.id}`}>{post.timestamp}</span>
+
               {post.location && (
-                <div className="flex items-center gap-1 min-w-0">
+                <div className="flex items-center gap-1 min-w-0" data-testid={`social-post-location-${post.id}`}>
                   <MapPin className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate">{post.location}</span>
                 </div>
@@ -684,22 +658,22 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
           </div>
           
           {/* More Options Menu - Fixed Position */}
-          <DropdownMenu>
+          <DropdownMenu data-testid={`social-post-options-menu-${post.id}`}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0 touch-manipulation">
+              <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0 touch-manipulation" data-testid={`social-post-options-trigger-${post.id}`}>
                 <MoreVertical className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48 z-[1000]" sideOffset={8}>
-              <DropdownMenuItem onClick={() => handleBookmark(post.id)}>
+            <DropdownMenuContent align="end" className="w-48 z-[1000]" sideOffset={8} data-testid={`social-post-options-content-${post.id}`}>
+              <DropdownMenuItem onClick={() => handleBookmark(post.id)} data-testid={`social-post-bookmark-item-${post.id}`}>
                 <Bookmark className="w-4 h-4 mr-2" />
                 {bookmarkedPosts.includes(post.id) ? 'Remove Bookmark' : 'Bookmark'}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleShare(post.id)}>
+              <DropdownMenuItem onClick={() => handleShare(post.id)} data-testid={`social-post-share-item-${post.id}`}>
                 <Share className="w-4 h-4 mr-2" />
                 Share Post
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem data-testid={`social-post-copy-link-item-${post.id}`}>
                 <Copy className="w-4 h-4 mr-2" />
                 Copy Link
               </DropdownMenuItem>
@@ -708,8 +682,8 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
         </div>
 
         {/* Post Content - Enhanced Readability */}
-        <div className="space-y-3">
-          <div className="prose prose-sm sm:prose-base max-w-none">
+        <div className="space-y-3" data-testid={`social-post-body-${post.id}`}>
+          <div className="prose prose-sm sm:prose-base max-w-none" data-testid={`social-post-text-${post.id}`}>
             <p className="leading-relaxed text-sm sm:text-base text-foreground m-0">
               {post.content.split(' ').map((word, index) => {
                 if (word.startsWith('#')) {
@@ -718,6 +692,8 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
                       key={index}
                       className="text-primary cursor-pointer hover:underline font-medium hover:text-primary/80 transition-colors"
                       onClick={() => handleHashtagClick(word)}
+                      data-testid={`social-post-hashtag-${post.id}-${index}`}
+                      data-hashtag={word}
                     >
                       {word}{' '}
                     </span>
@@ -731,21 +707,23 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
 
         {/* Post Images - Mobile Optimized */}
         {post.images && post.images.length > 0 && (
-          <div className="space-y-2">
-            <div className="relative rounded-xl overflow-hidden bg-muted">
+          <div className="space-y-2" data-testid={`social-post-images-${post.id}`}>
+            <div className="relative rounded-xl overflow-hidden bg-muted" data-testid={`social-post-image-container-${post.id}`}>
               <ImageWithFallback
                 src={post.images[0]}
                 alt="Post content"
                 className="w-full h-auto max-h-80 sm:max-h-96 lg:max-h-[28rem] object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
+                data-testid={`social-post-main-image-${post.id}`}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent pointer-events-none" />
-              
+
               {post.type === 'live' && post.liveData?.isLive && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl">
-                  <Button 
+                <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl" data-testid={`social-post-live-overlay-${post.id}`}>
+                  <Button
                     onClick={() => handleJoinLive(post.id)}
                     className="bg-red-500 hover:bg-red-600 text-white touch-manipulation"
                     size="sm"
+                    data-testid={`social-post-join-live-button-${post.id}`}
                   >
                     <Play className="w-4 h-4 mr-2" />
                     <span className="hidden sm:inline">Join Live • {post.liveData.viewers} watching</span>
@@ -758,10 +736,10 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
         )}
 
         {/* Post Actions - Enhanced Mobile Touch Experience */}
-        <div className="pt-3 border-t border-border/50">
-          <div className="flex items-center justify-between">
+        <div className="pt-3 border-t border-border/50" data-testid={`social-post-actions-${post.id}`}>
+          <div className="flex items-center justify-between" data-testid={`social-post-actions-bar-${post.id}`}>
             {/* Main Action Buttons */}
-            <div className="flex items-center gap-1 sm:gap-3 lg:gap-4">
+            <div className="flex items-center gap-1 sm:gap-3 lg:gap-4" data-testid={`social-post-main-actions-${post.id}`}>
               <Button
                 variant="ghost"
                 size="sm"
@@ -769,50 +747,56 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
                   likedPosts.includes(post.id) ? 'text-red-500 bg-red-50 dark:bg-red-950/20' : 'text-muted-foreground'
                 }`}
                 onClick={() => handleLike(post.id)}
+                data-testid={`social-post-like-button-${post.id}`}
+                data-liked={likedPosts.includes(post.id) ? 'true' : 'false'}
               >
                 <Heart className={`w-4 h-4 mr-1 sm:mr-2 ${likedPosts.includes(post.id) ? 'fill-current' : ''}`} />
-                <span className="text-xs sm:text-sm font-medium">
-                  {(post.likes + (likedPosts.includes(post.id) ? 1 : 0)) > 999 
-                    ? `${Math.floor((post.likes + (likedPosts.includes(post.id) ? 1 : 0)) / 1000)}k` 
+                <span className="text-xs sm:text-sm font-medium" data-testid={`social-post-like-count-${post.id}`}>
+                  {(post.likes + (likedPosts.includes(post.id) ? 1 : 0)) > 999
+                    ? `${Math.floor((post.likes + (likedPosts.includes(post.id) ? 1 : 0)) / 1000)}k`
                     : (post.likes + (likedPosts.includes(post.id) ? 1 : 0))}
                 </span>
               </Button>
-              
+
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-9 px-2 sm:px-3 text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/20 rounded-full transition-colors touch-manipulation min-w-0"
                 onClick={() => handleComment(post.id)}
+                data-testid={`social-post-comment-button-${post.id}`}
               >
                 <MessageCircle className="w-4 h-4 mr-1 sm:mr-2" />
-                <span className="text-xs sm:text-sm font-medium">
+                <span className="text-xs sm:text-sm font-medium" data-testid={`social-post-comment-count-${post.id}`}>
                   {post.comments > 999 ? `${Math.floor(post.comments / 1000)}k` : post.comments}
                 </span>
               </Button>
-              
+
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-9 px-2 sm:px-3 text-muted-foreground hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-950/20 rounded-full transition-colors touch-manipulation min-w-0"
                 onClick={() => handleShare(post.id)}
+                data-testid={`social-post-share-button-${post.id}`}
               >
                 <Share className="w-4 h-4 mr-1 sm:mr-2" />
-                <span className="text-xs sm:text-sm font-medium hidden sm:inline">
+                <span className="text-xs sm:text-sm font-medium hidden sm:inline" data-testid={`social-post-share-count-${post.id}`}>
                   {post.shares > 999 ? `${Math.floor(post.shares / 1000)}k` : post.shares}
                 </span>
               </Button>
             </div>
-            
+
             {/* Bookmark Button */}
             <Button
               variant="ghost"
               size="sm"
               className={`h-9 w-9 rounded-full transition-colors touch-manipulation ${
-                bookmarkedPosts.includes(post.id) 
-                  ? 'text-primary bg-primary/10 hover:bg-primary/20' 
+                bookmarkedPosts.includes(post.id)
+                  ? 'text-primary bg-primary/10 hover:bg-primary/20'
                   : 'text-muted-foreground hover:text-primary hover:bg-primary/10'
               }`}
               onClick={() => handleBookmark(post.id)}
+              data-testid={`social-post-bookmark-button-${post.id}`}
+              data-bookmarked={bookmarkedPosts.includes(post.id) ? 'true' : 'false'}
             >
               <Bookmark className={`w-4 h-4 ${bookmarkedPosts.includes(post.id) ? 'fill-current' : ''}`} />
             </Button>
@@ -821,16 +805,16 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
 
         {/* Comments Section - Enhanced Mobile Layout */}
         {commentsOpen === post.id && (
-          <div className="mt-4 pt-4 border-t border-border/50 space-y-4">
+          <div className="mt-4 pt-4 border-t border-border/50 space-y-4" data-testid={`social-post-comments-section-${post.id}`} data-comments-open="true">
             {/* Comment Input */}
-            <div className="flex gap-3">
-              <Avatar className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0">
+            <div className="flex gap-3" data-testid={`social-post-comment-input-area-${post.id}`}>
+              <Avatar className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0" data-testid={`social-comment-user-avatar-${post.id}`}>
                 <AvatarImage src={user?.avatar} />
                 <AvatarFallback className="bg-gradient-to-br from-chart-1 to-chart-2 text-white">
                   {user?.name?.charAt(0) || 'U'}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1 space-y-2">
+              <div className="flex-1 space-y-2" data-testid={`social-comment-input-controls-${post.id}`}>
                 <Input
                   placeholder="Write a comment..."
                   value={newComment}
@@ -842,12 +826,15 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
                     }
                   }}
                   className="border-0 bg-muted/50 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm sm:text-base"
+                  data-testid={`social-comment-input-field-${post.id}`}
                 />
                 <Button
                   size="sm"
                   className="touch-manipulation"
                   onClick={() => handleAddComment(post.id)}
                   disabled={!newComment.trim()}
+                  data-testid={`social-comment-submit-button-${post.id}`}
+                  data-disabled={!newComment.trim() ? 'true' : 'false'}
                 >
                   <Send className="w-3 h-3 mr-1" />
                   Comment
@@ -856,29 +843,29 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
             </div>
 
             {/* Existing Comments */}
-            <div className="space-y-4">
+            <div className="space-y-4" data-testid={`social-post-comments-list-${post.id}`}>
               {postComments[post.id]?.map((comment) => (
-                <div key={comment.id} className="flex gap-3">
-                  <Avatar className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0">
+                <div key={comment.id} className="flex gap-3" data-testid={`social-comment-item-${comment.id}`} data-comment-id={comment.id}>
+                  <Avatar className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0" data-testid={`social-comment-avatar-${comment.id}`}>
                     <AvatarImage src={comment.user.avatar} />
                     <AvatarFallback className="bg-gradient-to-br from-chart-1 to-chart-2 text-white">
                       {comment.user.name.charAt(0)}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="bg-muted/50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-sm truncate">{comment.user.name}</span>
-                        <span className="text-xs text-muted-foreground flex-shrink-0">{comment.timestamp}</span>
+                  <div className="flex-1 min-w-0" data-testid={`social-comment-content-${comment.id}`}>
+                    <div className="bg-muted/50 rounded-lg p-3" data-testid={`social-comment-bubble-${comment.id}`}>
+                      <div className="flex items-center gap-2 mb-1" data-testid={`social-comment-header-${comment.id}`}>
+                        <span className="font-medium text-sm truncate" data-testid={`social-comment-author-${comment.id}`}>{comment.user.name}</span>
+                        <span className="text-xs text-muted-foreground flex-shrink-0" data-testid={`social-comment-timestamp-${comment.id}`}>{comment.timestamp}</span>
                       </div>
-                      <p className="text-sm leading-relaxed">{comment.text}</p>
+                      <p className="text-sm leading-relaxed" data-testid={`social-comment-text-${comment.id}`}>{comment.text}</p>
                     </div>
-                    <div className="flex items-center gap-4 mt-2">
-                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground touch-manipulation">
+                    <div className="flex items-center gap-4 mt-2" data-testid={`social-comment-actions-${comment.id}`}>
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground touch-manipulation" data-testid={`social-comment-like-button-${comment.id}`}>
                         <Heart className="w-3 h-3 mr-1" />
-                        {comment.likes}
+                        <span data-testid={`social-comment-like-count-${comment.id}`}>{comment.likes}</span>
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground touch-manipulation">
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground touch-manipulation" data-testid={`social-comment-reply-button-${comment.id}`}>
                         Reply
                       </Button>
                     </div>
@@ -893,29 +880,33 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
   );
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col" data-testid="social-tab-container">
       {/* Sticky Header with Moments and Create Post */}
-      <div className="sticky top-0 z-10 bg-background border-b">
+      <div className="sticky top-0 z-10 bg-background border-b" data-testid="social-header-sticky">
         {/* Moments Section */}
-        <div className="p-4 border-b">
-          <ScrollArea orientation="horizontal" className="w-full whitespace-nowrap">
-            <div className="flex gap-3 pb-2">
+        <div className="p-4 border-b" data-testid="social-stories-section">
+          <ScrollArea orientation="horizontal" className="w-full whitespace-nowrap" data-testid="social-stories-scroll">
+            <div className="flex gap-3 pb-2" data-testid="social-stories-list">
               {stories.map((story, index) => (
                 <div
                   key={story.id}
                   className="flex flex-col items-center gap-2 cursor-pointer group"
                   onClick={() => handleStoryClick(story, index)}
+                  data-testid={`social-story-item-${story.id}`}
+                  data-story-type={story.author.name === 'Your Moment' ? 'create' : 'view'}
+                  data-story-live={story.isLive ? 'true' : 'false'}
+                  data-story-viewed={story.isViewed ? 'true' : 'false'}
                 >
                   <div className={`relative w-16 h-16 rounded-full p-0.5 ${
-                    story.author.name === 'Your Moment' 
-                      ? 'bg-gradient-to-tr from-gray-300 to-gray-500' 
-                      : story.isViewed 
-                        ? 'bg-gray-300' 
+                    story.author.name === 'Your Moment'
+                      ? 'bg-gradient-to-tr from-gray-300 to-gray-500'
+                      : story.isViewed
+                        ? 'bg-gray-300'
                         : 'bg-gradient-to-tr from-orange-400 to-red-600'
-                  }`}>
+                  }`} data-testid={`social-story-avatar-${story.id}`}>
                     <div className="w-full h-full rounded-full bg-background p-0.5">
                       {story.author.name === 'Your Moment' ? (
-                        <div className="w-full h-full rounded-full bg-muted flex items-center justify-center">
+                        <div className="w-full h-full rounded-full bg-muted flex items-center justify-center" data-testid="social-story-create-button">
                           <Plus className="w-6 h-6 text-muted-foreground" />
                         </div>
                       ) : (
@@ -923,16 +914,17 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
                           src={story.preview || story.author.avatar || ''}
                           alt={story.author.name}
                           className="w-full h-full rounded-full object-cover"
+                          data-testid={`social-story-preview-${story.id}`}
                         />
                       )}
                     </div>
                     {story.isLive && (
-                      <div className="absolute -bottom-1 -right-1 bg-red-500 text-white text-xs px-1 rounded-full">
+                      <div className="absolute -bottom-1 -right-1 bg-red-500 text-white text-xs px-1 rounded-full" data-testid={`social-story-live-badge-${story.id}`}>
                         LIVE
                       </div>
                     )}
                   </div>
-                  <span className="text-xs text-center max-w-16 truncate group-hover:text-primary transition-colors">
+                  <span className="text-xs text-center max-w-16 truncate group-hover:text-primary transition-colors" data-testid={`social-story-name-${story.id}`}>
                     {story.author.name === 'Your Moment' ? 'Your Moment' : story.author.name}
                   </span>
                 </div>
@@ -942,38 +934,40 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
         </div>
 
         {/* Create Post Section */}
-        <CreatePostSection
-          user={user}
-          onCreatePost={handleCreatePost}
-          newPostText={newPostText}
-          setNewPostText={setNewPostText}
-          selectedImages={selectedImages}
-          setSelectedImages={setSelectedImages}
-          postLocation={postLocation}
-          setPostLocation={setPostLocation}
-          postPrivacy={postPrivacy}
-          setPostPrivacy={setPostPrivacy}
-          createPostOpen={createPostOpen}
-          setCreatePostOpen={setCreatePostOpen}
-        />
+        <div data-testid="social-create-post-section">
+          <CreatePostSection
+            user={user}
+            onCreatePost={handleCreatePost}
+            newPostText={newPostText}
+            setNewPostText={setNewPostText}
+            selectedImages={selectedImages}
+            setSelectedImages={setSelectedImages}
+            postLocation={postLocation}
+            setPostLocation={setPostLocation}
+            postPrivacy={postPrivacy}
+            setPostPrivacy={setPostPrivacy}
+            createPostOpen={createPostOpen}
+            setCreatePostOpen={setCreatePostOpen}
+          />
+        </div>
       </div>
 
       {/* Main Tabs */}
-      <Tabs defaultValue="friends" className="flex-1 flex flex-col">
-        <TabsList className="grid w-full grid-cols-4 px-2 sm:px-4 py-2 mx-0">
-          <TabsTrigger value="friends" className="flex items-center gap-2">
+      <Tabs defaultValue="friends" className="flex-1 flex flex-col" data-testid="social-main-tabs">
+        <TabsList className="grid w-full grid-cols-4 px-2 sm:px-4 py-2 mx-0" data-testid="social-tab-list">
+          <TabsTrigger value="friends" className="flex items-center gap-2" data-testid="social-tab-friends">
             <Users className="w-4 h-4" />
             <span className="hidden sm:inline">Friends</span>
           </TabsTrigger>
-          <TabsTrigger value="feed" className="flex items-center gap-2">
+          <TabsTrigger value="feed" className="flex items-center gap-2" data-testid="social-tab-feed">
             <Star className="w-4 h-4" />
             <span className="hidden sm:inline">Feed</span>
           </TabsTrigger>
-          <TabsTrigger value="discover" className="flex items-center gap-2">
+          <TabsTrigger value="discover" className="flex items-center gap-2" data-testid="social-tab-discover">
             <TrendingUp className="w-4 h-4" />
             <span className="hidden sm:inline">Discover</span>
           </TabsTrigger>
-          <TabsTrigger value="events" className="flex items-center gap-2">
+          <TabsTrigger value="events" className="flex items-center gap-2" data-testid="social-tab-events">
             <Calendar className="w-4 h-4" />
             <span className="hidden sm:inline">Events</span>
           </TabsTrigger>
@@ -1531,52 +1525,54 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
 
       {/* Moment Viewer Dialog */}
       {viewingStory && (
-        <Dialog open={!!viewingStory} onOpenChange={() => setViewingStory(null)}>
-          <DialogContent className="max-w-md p-0 bg-black border-0">
-            <div className="relative aspect-[9/16] bg-black">
+        <Dialog open={!!viewingStory} onOpenChange={() => setViewingStory(null)} data-testid="social-story-viewer-dialog">
+          <DialogContent className="max-w-md p-0 bg-black border-0" data-testid="social-story-viewer-content">
+            <div className="relative aspect-[9/16] bg-black" data-testid={`social-story-viewer-${viewingStory.id}`}>
               {/* Progress Bars */}
-              <div className="absolute top-4 left-4 right-4 flex gap-1 z-10">
+              <div className="absolute top-4 left-4 right-4 flex gap-1 z-10" data-testid={`social-story-progress-bars-${viewingStory.id}`}>
                 {viewingStory.media?.map((_, index) => (
-                  <div key={index} className="flex-1 h-0.5 bg-white/30 rounded">
-                    <div 
+                  <div key={index} className="flex-1 h-0.5 bg-white/30 rounded" data-testid={`social-story-progress-bar-${index}`}>
+                    <div
                       className="h-full bg-white rounded transition-all duration-100"
-                      style={{ 
+                      style={{
                         width: index === storyMediaIndex ? `${storyProgress}%` : index < storyMediaIndex ? '100%' : '0%'
                       }}
+                      data-testid={`social-story-progress-fill-${index}`}
                     />
                   </div>
                 ))}
               </div>
 
               {/* Story Content */}
-              <div className="absolute inset-0">
+              <div className="absolute inset-0" data-testid={`social-story-content-${viewingStory.id}`}>
                 {viewingStory.media && (
                   <ImageWithFallback
                     src={viewingStory.media[storyMediaIndex]?.url || ''}
                     alt="Story content"
                     className="w-full h-full object-cover"
+                    data-testid={`social-story-media-${viewingStory.id}-${storyMediaIndex}`}
                   />
                 )}
-                
+
                 {/* Story Text Overlay */}
-                <div className="absolute bottom-4 left-4 right-4 text-white">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Avatar className="w-8 h-8 border-2 border-white">
+                <div className="absolute bottom-4 left-4 right-4 text-white" data-testid={`social-story-overlay-${viewingStory.id}`}>
+                  <div className="flex items-center gap-2 mb-2" data-testid={`social-story-author-info-${viewingStory.id}`}>
+                    <Avatar className="w-8 h-8 border-2 border-white" data-testid={`social-story-author-avatar-${viewingStory.id}`}>
                       <AvatarImage src={viewingStory.author.avatar} />
                       <AvatarFallback>{viewingStory.author.name.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div>
-                      <div className="font-medium text-sm">{viewingStory.author.name}</div>
-                      <div className="text-xs text-white/80">{viewingStory.timestamp}</div>
+                      <div className="font-medium text-sm" data-testid={`social-story-author-name-${viewingStory.id}`}>{viewingStory.author.name}</div>
+                      <div className="text-xs text-white/80" data-testid={`social-story-timestamp-${viewingStory.id}`}>{viewingStory.timestamp}</div>
                     </div>
                   </div>
                   {viewingStory.content && (
-                    <p className="text-sm bg-black/50 rounded p-2">{viewingStory.content}</p>
+                    <p className="text-sm bg-black/50 rounded p-2" data-testid={`social-story-text-${viewingStory.id}`}>{viewingStory.content}</p>
                   )}
                 </div>
 
                 {/* Navigation */}
-                <button 
+                <button
                   className="absolute left-0 top-0 w-1/3 h-full"
                   onClick={() => {
                     if (storyMediaIndex > 0) {
@@ -1584,8 +1580,10 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
                       setStoryProgress(0);
                     }
                   }}
+                  data-testid={`social-story-nav-previous-${viewingStory.id}`}
+                  aria-label="Previous story segment"
                 />
-                <button 
+                <button
                   className="absolute right-0 top-0 w-1/3 h-full"
                   onClick={() => {
                     if (viewingStory.media && storyMediaIndex < viewingStory.media.length - 1) {
@@ -1596,6 +1594,8 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
                       setStoryMediaIndex(0);
                     }
                   }}
+                  data-testid={`social-story-nav-next-${viewingStory.id}`}
+                  aria-label="Next story segment or close"
                 />
               </div>
             </div>
@@ -1604,25 +1604,26 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
       )}
 
       {/* Create Story Dialog */}
-      <Dialog open={createStoryOpen} onOpenChange={setCreateStoryOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
+      <Dialog open={createStoryOpen} onOpenChange={setCreateStoryOpen} data-testid="social-create-story-dialog">
+        <DialogContent className="max-w-md" data-testid="social-create-story-content">
+          <DialogHeader data-testid="social-create-story-header">
             <DialogTitle>Create Your Moment</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="aspect-[9/16] bg-muted rounded-lg flex items-center justify-center">
+          <div className="space-y-4" data-testid="social-create-story-form">
+            <div className="aspect-[9/16] bg-muted rounded-lg flex items-center justify-center" data-testid="social-create-story-preview">
               <Camera className="w-12 h-12 text-muted-foreground" />
             </div>
             <Input
               placeholder="Add text to your moment..."
               value={storyText}
               onChange={(e) => setStoryText(e.target.value)}
+              data-testid="social-create-story-text-input"
             />
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setCreateStoryOpen(false)}>
+            <div className="flex gap-2" data-testid="social-create-story-actions">
+              <Button variant="outline" onClick={() => setCreateStoryOpen(false)} data-testid="social-create-story-cancel-button">
                 Cancel
               </Button>
-              <Button onClick={handleCreateStory} className="flex-1">
+              <Button onClick={handleCreateStory} className="flex-1" data-testid="social-create-story-submit-button">
                 <Camera className="w-4 h-4 mr-2" />
                 Share Moment
               </Button>

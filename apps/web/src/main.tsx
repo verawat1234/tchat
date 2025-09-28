@@ -5,6 +5,7 @@ import { Provider } from "react-redux";
 import { RouterProvider } from "react-router-dom";
 import { router } from "./router/routes";
 import { store } from "./store";
+import { DialogProvider } from "./components/DialogSystem";
 import "./index.css";
 
 // Import service routing tests for development
@@ -23,7 +24,9 @@ if (import.meta.env.DEV) {
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <Provider store={store}>
-      <RouterProvider router={router} />
+      <DialogProvider>
+        <RouterProvider router={router} />
+      </DialogProvider>
     </Provider>
   </React.StrictMode>
 );

@@ -14,11 +14,35 @@ import com.tchat.mobile.navigation.rememberScreenNavigationState
 import com.tchat.mobile.repositories.ChatRepository
 import com.tchat.mobile.services.SocialContentService
 import com.tchat.mobile.services.ContentApiService
+import com.tchat.mobile.services.AuthService
+import com.tchat.mobile.models.AuthState
+import com.tchat.mobile.models.User
 import com.tchat.mobile.screens.*
 import org.koin.compose.koinInject
 
 @Composable
 fun App() {
+    // Inject authentication service
+    val authService: AuthService = koinInject()
+    val authState by authService.authState.collectAsState()
+
+    // Show authentication screen if not authenticated
+    if (authState !is AuthState.Authenticated) {
+        AuthScreen(
+            onAuthSuccess = { user ->
+                // User is now authenticated, the app will automatically update
+            }
+        )
+        return
+    }
+
+    // Main app content for authenticated users
+    val user = (authState as AuthState.Authenticated).user
+    MainAppContent(authenticatedUser = user)
+}
+
+@Composable
+private fun MainAppContent(authenticatedUser: User) {
     val navigationState = rememberScreenNavigationState()
 
     // Initialize ChatRepository - using koinInject for now
@@ -35,7 +59,7 @@ fun App() {
     val currentTab = when (navigationState.currentScreen) {
         is Screen.Chat, is Screen.ChatDetail -> MainTab.CHAT
         is Screen.Store, is Screen.ProductDetail, is Screen.ShopDetail, is Screen.LiveStream -> MainTab.STORE
-        is Screen.Social, is Screen.UserProfile -> MainTab.SOCIAL
+        is Screen.Social, is Screen.UserProfile, is Screen.EventDetail, is Screen.CategoryEvents -> MainTab.SOCIAL
         is Screen.Video, is Screen.VideoDetail -> MainTab.VIDEO
         is Screen.More, is Screen.Settings, is Screen.EditProfile -> MainTab.ADD
         is Screen.Search, is Screen.QRScanner, is Screen.Notifications -> MainTab.CHAT // Header actions from Chat
@@ -164,6 +188,12 @@ fun App() {
                     onMoreClick = {
                         navigationState.navigateTo(Screen.More)
                     },
+                    onEventClick = { eventId ->
+                        navigationState.navigateTo(Screen.EventDetail(eventId))
+                    },
+                    onCategoryClick = { categoryId, categoryName ->
+                        navigationState.navigateTo(Screen.CategoryEvents(categoryId, categoryName))
+                    },
                     socialContentService = socialContentService,
                     contentApiService = contentApiService,
                     modifier = Modifier.padding(paddingValues)
@@ -232,6 +262,28 @@ fun App() {
                     },
                     onEditClick = {
                         navigationState.navigateTo(Screen.EditProfile)
+                    }
+                )
+
+                is Screen.EventDetail -> EventDetailScreen(
+                    eventId = screen.eventId,
+                    onBackClick = {
+                        if (!navigationState.navigateBack()) {
+                            navigationState.navigateTo(Screen.Social)
+                        }
+                    }
+                )
+
+                is Screen.CategoryEvents -> CategoryEventsScreen(
+                    categoryId = screen.categoryId,
+                    categoryName = screen.categoryName,
+                    onBackClick = {
+                        if (!navigationState.navigateBack()) {
+                            navigationState.navigateTo(Screen.Social)
+                        }
+                    },
+                    onEventClick = { eventId ->
+                        navigationState.navigateTo(Screen.EventDetail(eventId))
                     }
                 )
 

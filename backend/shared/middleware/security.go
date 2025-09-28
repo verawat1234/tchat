@@ -7,22 +7,43 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"context"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 
-	"tchat.dev/auth/services"
 	"tchat.dev/shared/responses"
 )
+
+// Session represents a user session
+type Session struct {
+	ID string `json:"id"`
+}
+
+// JWTService interface for JWT token validation
+type JWTService interface {
+	ValidateAccessToken(ctx context.Context, token string) (*UserClaims, error)
+}
+
+// SessionService interface for session management
+type SessionService interface {
+	ValidateSessionActive(ctx context.Context, sessionID string) (*Session, error)
+	UpdateLastActive(ctx context.Context, sessionID string) error
+}
+
+// UserService interface for user operations
+type UserService interface {
+	// Add user service methods as needed
+}
 
 // SecurityConfig holds comprehensive security middleware configuration
 type SecurityConfig struct {
 	// JWT Configuration
-	JWTService      *services.JWTService
-	SessionService  *services.SessionService
-	UserService     *services.UserService
+	JWTService      JWTService
+	SessionService  SessionService
+	UserService     UserService
 
 	// Rate Limiting
 	RateLimiter     *AdvancedRateLimiter
@@ -49,7 +70,7 @@ type SecurityConfig struct {
 }
 
 // DefaultSecurityConfig returns a secure default configuration
-func DefaultSecurityConfig(jwtService *services.JWTService, redis *redis.Client, logger *logrus.Logger) *SecurityConfig {
+func DefaultSecurityConfig(jwtService JWTService, redis *redis.Client, logger *logrus.Logger) *SecurityConfig {
 	return &SecurityConfig{
 		JWTService:            jwtService,
 		RateLimiter:           NewAdvancedRateLimiter(redis, logger),
@@ -162,7 +183,7 @@ func AuthenticationMiddleware(config *SecurityConfig) gin.HandlerFunc {
 
 		// Additional session validation if configured
 		if config.SessionService != nil {
-			session, err := config.SessionService.ValidateSessionActive(c.Request.Context(), claims.SessionID)
+			session, err := config.SessionService.ValidateSessionActive(c.Request.Context(), claims.SessionID.String())
 			if err != nil {
 				responses.UnauthorizedResponse(c, "Invalid session")
 				c.Abort()
@@ -513,12 +534,10 @@ func extractBearerToken(c *gin.Context) string {
 	return parts[1]
 }
 
-func setAuthenticationContext(c *gin.Context, claims *services.UserClaims) {
+func setAuthenticationContext(c *gin.Context, claims *UserClaims) {
 	c.Set("user_id", claims.UserID)
 	c.Set("session_id", claims.SessionID)
 	c.Set("device_id", claims.DeviceID)
-	c.Set("permissions", claims.Permissions)
-	c.Set("scopes", claims.Scopes)
 	c.Set("kyc_level", claims.KYCLevel)
 	c.Set("country_code", claims.CountryCode)
 	c.Set("user_claims", claims)

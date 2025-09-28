@@ -2,6 +2,7 @@ package com.tchat.mobile.api.models
 
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Contextual
 
 /**
@@ -286,4 +287,97 @@ data class MessageAnalyticsDto(
     val peakHours: List<Int>,
     val reportPeriod: String,
     val generatedAt: Long
+)
+
+// OTP Authentication DTOs
+@Serializable
+data class RequestOTPRequest(
+    @SerialName("phone_number") val phoneNumber: String,
+    @SerialName("country_code") val countryCode: String,
+    @SerialName("device_info") val deviceInfo: DeviceInfo? = null
+)
+
+@Serializable
+data class RequestOTPResponse(
+    val success: Boolean,
+    val message: String,
+    val requestID: String,
+    val expiresIn: Int
+)
+
+@Serializable
+data class VerifyOTPRequest(
+    val requestID: String,
+    val code: String,
+    val phoneNumber: String? = null,
+    val deviceInfo: DeviceInfo? = null
+)
+
+@Serializable
+data class VerifyOTPResponse(
+    val success: Boolean,
+    val message: String,
+    val accessToken: String,
+    val refreshToken: String,
+    val tokenType: String,
+    val expiresIn: Int,
+    val user: UserInfo,
+    val session: SessionInfo
+)
+
+@Serializable
+data class DeviceInfo(
+    val platform: String,
+    val deviceModel: String? = null,
+    val osVersion: String? = null,
+    val appVersion: String? = null,
+    val deviceID: String? = null,
+    val pushToken: String? = null,
+    val userAgent: String? = null,
+    val ipAddress: String? = null,
+    val timezone: String? = null,
+    val language: String? = null
+)
+
+@Serializable
+data class UserInfo(
+    val id: String,
+    val phoneNumber: String,
+    val countryCode: String,
+    val displayName: String? = null,
+    val avatar: String? = null,
+    val kycStatus: String,
+    val kycTier: String,
+    val isActive: Boolean,
+    val createdAt: Long,
+    val updatedAt: Long
+)
+
+@Serializable
+data class SessionInfo(
+    val id: String,
+    val deviceInfo: String,
+    val ipAddress: String,
+    val createdAt: Long,
+    val expiresAt: Long
+)
+
+@Serializable
+data class LoginRequest(
+    val email: String,
+    val password: String,
+    val rememberMe: Boolean = true
+)
+
+@Serializable
+data class LogoutRequest(
+    val refreshToken: String? = null,
+    val logoutAll: Boolean = false
+)
+
+@Serializable
+data class CurrentUserResponse(
+    val user: UserDto,
+    val authenticated: Boolean,
+    val session: SessionInfo? = null
 )

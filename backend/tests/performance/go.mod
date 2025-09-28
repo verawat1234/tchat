@@ -1,6 +1,6 @@
 module tchat.dev/tests/performance
 
-go 1.22
+go 1.23
 
 require (
 	tchat.dev/tests/testutil v0.0.0

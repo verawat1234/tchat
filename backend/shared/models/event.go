@@ -49,6 +49,30 @@ const (
 	EventTypeShopCreated          EventType = "shop.created"
 	EventTypeShopStatusChanged    EventType = "shop.status_changed"
 
+	// Review Events
+	EventTypeReviewCreated        EventType = "review.created"
+	EventTypeReviewUpdated        EventType = "review.updated"
+	EventTypeReviewModerated      EventType = "review.moderated"
+	EventTypeReviewReported       EventType = "review.reported"
+
+	// Wishlist Events
+	EventTypeWishlistCreated      EventType = "wishlist.created"
+	EventTypeWishlistItemAdded    EventType = "wishlist.item_added"
+	EventTypeWishlistItemRemoved  EventType = "wishlist.item_removed"
+	EventTypeWishlistShared       EventType = "wishlist.shared"
+
+	// Cart Events
+	EventTypeCartItemAdded        EventType = "cart.item_added"
+	EventTypeCartItemUpdated      EventType = "cart.item_updated"
+	EventTypeCartItemRemoved      EventType = "cart.item_removed"
+	EventTypeCartAbandoned        EventType = "cart.abandoned"
+	EventTypeCartRecovered        EventType = "cart.recovered"
+
+	// Category Events
+	EventTypeCategoryCreated      EventType = "category.created"
+	EventTypeCategoryUpdated      EventType = "category.updated"
+	EventTypeCategoryDeleted      EventType = "category.deleted"
+
 	// System Events
 	EventTypeSystemStartup        EventType = "system.startup"
 	EventTypeSystemShutdown       EventType = "system.shutdown"

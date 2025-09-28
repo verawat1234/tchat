@@ -1,6 +1,6 @@
 module tchat.dev/tests/testutil
 
-go 1.24.3
+go 1.23
 
 require (
 	github.com/gocql/gocql v1.7.0

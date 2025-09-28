@@ -7,6 +7,7 @@ import contentReducer from '../features/contentSlice';
 import { authMiddleware } from './middleware/authMiddleware';
 import { errorMiddleware } from './middleware/errorMiddleware';
 import { contentFallbackMiddleware } from './middleware/contentFallbackMiddleware';
+import { socialMiddleware } from './middleware/socialMiddleware';
 
 // Root reducer without persistence (temporary)
 const rootReducer = combineReducers({
@@ -30,6 +31,7 @@ export const store = configureStore({
     })
     .concat(api.middleware)
     .concat(contentFallbackMiddleware.middleware)
+    .concat(socialMiddleware.middleware)
     .prepend(authMiddleware.middleware)
     .prepend(errorMiddleware.middleware),
   devTools: process.env.NODE_ENV !== 'production' && {

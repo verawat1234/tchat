@@ -32,6 +32,8 @@ import uiReducer from '../../features/uiSlice';
 import loadingReducer from '../../features/loadingSlice';
 import type { ContentItem, ContentValue } from '../../types/content';
 import { ContentType, ContentStatus } from '../../types/content';
+import { useRealTimeContent, useRealTimeConnectionStatus, useCrossTabSync } from '../../hooks/useRealTimeContent';
+import { initializeRealTimeService } from '../../services/realTimeConnectionService';
 
 // Mock WebSocket class for real-time testing
 class MockWebSocket {
@@ -128,12 +130,18 @@ beforeAll(() => {
 
 // Test Component that displays and updates content
 const ContentDisplay: React.FC<{ contentId: string }> = ({ contentId }) => {
-  // This component would use real-time content hooks (to be implemented)
+  const {
+    value,
+    lastUpdated,
+    syncStatus,
+    connectionStatus,
+  } = useRealTimeContent(contentId);
+
   return (
     <div data-testid={`content-display-${contentId}`}>
-      <div data-testid="content-value">Loading...</div>
-      <div data-testid="sync-status">idle</div>
-      <div data-testid="last-updated">Never</div>
+      <div data-testid="content-value">{value}</div>
+      <div data-testid="sync-status">{syncStatus}</div>
+      <div data-testid="last-updated">{lastUpdated || 'Never'}</div>
     </div>
   );
 };
@@ -144,20 +152,40 @@ const ContentEditor: React.FC<{ contentId: string; onSave: (value: string) => vo
   onSave
 }) => {
   const [value, setValue] = React.useState('');
+  const {
+    updateContent,
+    setIsUserEditing,
+    syncStatus,
+  } = useRealTimeContent(contentId);
+
+  const handleSave = async () => {
+    try {
+      await updateContent(value);
+      onSave(value);
+    } catch (error) {
+      console.error('Failed to save content:', error);
+    }
+  };
 
   return (
     <div data-testid={`content-editor-${contentId}`}>
       <input
         data-testid="content-input"
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => {
+          setValue(e.target.value);
+          setIsUserEditing(e.target.value.length > 0);
+        }}
+        onFocus={() => setIsUserEditing(true)}
+        onBlur={() => setIsUserEditing(false)}
         placeholder="Enter content..."
       />
       <button
         data-testid="save-button"
-        onClick={() => onSave(value)}
+        onClick={handleSave}
+        disabled={syncStatus === 'syncing'}
       >
-        Save
+        {syncStatus === 'syncing' ? 'Saving...' : 'Save'}
       </button>
     </div>
   );
@@ -168,8 +196,14 @@ const TestApp: React.FC = () => {
   const [activeTab, setActiveTab] = React.useState<'tab1' | 'tab2'>('tab1');
   const [contentUpdates, setContentUpdates] = React.useState(0);
 
+  const { status: connectionStatus } = useRealTimeConnectionStatus();
+  const { updates: crossTabUpdates } = useCrossTabSync('test.content.1');
+
+  React.useEffect(() => {
+    setContentUpdates(crossTabUpdates);
+  }, [crossTabUpdates]);
+
   const handleSave = (value: string) => {
-    // This would trigger real-time updates (to be implemented)
     setContentUpdates(prev => prev + 1);
   };
 
@@ -209,7 +243,7 @@ const TestApp: React.FC = () => {
       </div>
 
       <div data-testid="update-counter">Updates: {contentUpdates}</div>
-      <div data-testid="connection-status">connected</div>
+      <div data-testid="connection-status">{connectionStatus}</div>
     </div>
   );
 };
@@ -288,6 +322,15 @@ describe('Real-time Content Updates Integration (T017)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Initialize real-time service for testing
+    initializeRealTimeService({
+      url: 'ws://localhost:8080/realtime',
+      token: 'mock-test-token',
+      reconnectDelay: 1000,
+      maxReconnectAttempts: 3,
+      heartbeatInterval: 10000,
+    });
 
     // Setup MSW handlers for content API
     server.use(

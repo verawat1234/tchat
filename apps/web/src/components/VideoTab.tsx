@@ -285,7 +285,6 @@ export function VideoTab({
   // Use real API data only - no mock data fallback
   const effectiveShortVideos = shortVideosData?.videos || [];
   const effectiveLongVideos = longVideosData?.videos || [];
-  const effectiveChannels = derivedChannels;
 
   // Memoize filtered shorts to prevent infinite re-renders
   const filteredShorts = useMemo(() => {

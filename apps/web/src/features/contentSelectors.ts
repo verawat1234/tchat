@@ -77,15 +77,23 @@ export const selectFallbackContent = (state: RootState): Record<string, ContentV
   state.content.fallbackContent;
 
 /**
- * Factory function to create a selector for specific fallback content by ID
+ * Memoized factory function to create a selector for specific fallback content by ID
+ * Uses a Map to cache selectors and prevent recreation on every render
  * @param contentId - Content ID to retrieve
- * @returns Selector function that returns content value or undefined
+ * @returns Memoized selector function that returns content value or undefined
  */
-export const selectFallbackContentById = (contentId: string) =>
-  createSelector(
-    [selectFallbackContent],
-    (fallbackContent): ContentValue | undefined => fallbackContent[contentId]
-  );
+const selectorCache = new Map<string, ReturnType<typeof createSelector>>();
+
+export const selectFallbackContentById = (contentId: string) => {
+  if (!selectorCache.has(contentId)) {
+    const selector = createSelector(
+      [selectFallbackContent],
+      (fallbackContent): ContentValue | undefined => fallbackContent[contentId]
+    );
+    selectorCache.set(contentId, selector);
+  }
+  return selectorCache.get(contentId)!;
+};
 
 /**
  * Select whether any fallback content exists in cache

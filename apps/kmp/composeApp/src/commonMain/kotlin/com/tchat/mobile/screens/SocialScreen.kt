@@ -71,12 +71,20 @@ import org.koin.compose.koinInject
 fun SocialScreen(
     onUserClick: (userId: String) -> Unit = {},
     onMoreClick: () -> Unit = {},
+    onEventClick: (eventId: String) -> Unit = {},
+    onCategoryClick: (categoryId: String, categoryName: String) -> Unit = { _, _ -> },
     socialContentService: SocialContentService? = null,
     contentApiService: ContentApiService? = null,
     modifier: Modifier = Modifier
 ) {
+    // Use new social architecture
+    com.tchat.mobile.social.presentation.SocialScreen(modifier = modifier)
+    return
+    println("🎯 SocialScreen composable started")
+
     // Inject EventRepository
-    val eventRepository: EventRepository = koinInject()
+    val eventRepository: EventRepository = koinInject<EventRepository>()
+    println("✅ EventRepository injected successfully")
 
     // Tab and UI state
     var selectedTabIndex by remember { mutableStateOf(0) }
@@ -124,6 +132,9 @@ fun SocialScreen(
     var eventCategories by remember { mutableStateOf<List<Pair<String, Int>>>(emptyList()) }
     var eventPosts by remember { mutableStateOf<List<PostItem>>(emptyList()) }
 
+    // RSVP state management
+    var rsvpEvents by remember { mutableStateOf(setOf<String>()) }
+
     // Load real social data if service is available
     LaunchedEffect(socialContentService) {
         socialContentService?.let { service ->
@@ -154,19 +165,33 @@ fun SocialScreen(
     // Initialize event repository with seed data and load categories/posts
     LaunchedEffect(eventRepository) {
         eventDataLoading = true
+        println("🚀 Starting EventRepository initialization...")
         try {
             // Initialize with seed data (creates categories and posts if they don't exist)
-            eventRepository.initializeWithSeedData()
+            println("📊 Initializing with seed data...")
+            val seedResult = eventRepository.initializeWithSeedData()
+            if (seedResult.isSuccess) {
+                println("✅ Database seeding successful")
+            } else {
+                println("❌ Database seeding failed: ${seedResult.exceptionOrNull()?.message}")
+            }
 
             // Load event categories for browse section
+            println("📋 Loading event categories...")
             eventCategories = eventRepository.getEventCategoriesForUI()
+            println("✅ Loaded ${eventCategories.size} event categories: ${eventCategories.map { "${it.first}(${it.second})" }}")
 
             // Load event posts for event posts section
+            println("📝 Loading event posts...")
             eventPosts = eventRepository.getEventPostsForUI()
+            println("✅ Loaded ${eventPosts.size} event posts")
+            eventPosts.forEach { post ->
+                println("   - ${post.author.name}: ${post.content.take(50)}...")
+            }
 
-            println("✅ Loaded ${eventCategories.size} event categories and ${eventPosts.size} event posts")
         } catch (e: Exception) {
-            println("Error loading event data: ${e.message}")
+            println("❌ Error loading event data: ${e.message}")
+            e.printStackTrace()
             // Fallback to hardcoded data
             eventCategories = listOf(
                 "Music" to 15,
@@ -175,8 +200,10 @@ fun SocialScreen(
                 "Arts & Culture" to 12
             )
             eventPosts = emptyList()
+            println("🔄 Using fallback data: ${eventCategories.size} categories, ${eventPosts.size} posts")
         } finally {
             eventDataLoading = false
+            println("🏁 EventRepository initialization complete")
         }
     }
 
@@ -251,7 +278,7 @@ fun SocialScreen(
                 username = friend.profile?.username ?: "unknown",
                 avatar = friend.profile?.avatarUrl ?: "",
                 isOnline = friend.profile?.isOnline ?: false,
-                isFollowing = true, // TODO: Check actual follow status
+                isFollowing = followingUsers.contains(friend.id),
                 mutualFriends = friend.mutualFriendsCount,
                 status = friend.profile?.statusMessage ?: ""
             )
@@ -272,7 +299,7 @@ fun SocialScreen(
                 imageUrl = event.imageUrl ?: "",
                 attendeesCount = event.attendeesCount,
                 category = event.category,
-                isAttending = false // TODO: Check user's RSVP status
+                isAttending = rsvpEvents.contains(event.id)
             )
         }
     } else {
@@ -538,6 +565,7 @@ fun SocialScreen(
                     commentsOpen = commentsOpen,
                     newComment = newComment,
                     postComments = postComments,
+                    rsvpEvents = rsvpEvents,
                     onLike = handleLike,
                     onBookmark = handleBookmark,
                     onFollow = handleFollow,
@@ -545,7 +573,17 @@ fun SocialScreen(
                     onShare = onShare,
                     onHashtagClick = handleHashtagClick,
                     onCommentTextChange = { newComment = it },
-                    onAddComment = handleAddComment
+                    onAddComment = handleAddComment,
+                    onEventClick = onEventClick,
+                    onCategoryClick = onCategoryClick,
+                    onRSVPClick = { event ->
+                        println("🎫 RSVP toggled for: ${event.title}")
+                        rsvpEvents = if (rsvpEvents.contains(event.id)) {
+                            rsvpEvents - event.id
+                        } else {
+                            rsvpEvents + event.id
+                        }
+                    }
                 )
             }
         }
@@ -1352,6 +1390,7 @@ private fun EventsTab(
     commentsOpen: String?,
     newComment: String,
     postComments: Map<String, List<CommentItem>>,
+    rsvpEvents: Set<String>,
     onLike: (String) -> Unit,
     onBookmark: (String) -> Unit,
     onFollow: (String) -> Unit,
@@ -1360,6 +1399,9 @@ private fun EventsTab(
     onHashtagClick: (String) -> Unit,
     onCommentTextChange: (String) -> Unit,
     onAddComment: (String) -> Unit,
+    onEventClick: (String) -> Unit,
+    onCategoryClick: (String, String) -> Unit,
+    onRSVPClick: (EventItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -1417,9 +1459,17 @@ private fun EventsTab(
                 horizontalArrangement = Arrangement.spacedBy(TchatSpacing.sm)
             ) {
                 eventPair.forEach { event ->
+                    // Update event RSVP status based on local state
+                    val updatedEvent = event.copy(isAttending = rsvpEvents.contains(event.id))
+
                     EventCard(
-                        event = event,
-                        modifier = Modifier.weight(1f)
+                        event = updatedEvent,
+                        modifier = Modifier.weight(1f),
+                        onClick = { clickedEvent ->
+                            println("🎭 Event clicked: ${clickedEvent.title} at ${clickedEvent.location}")
+                            onEventClick(clickedEvent.id)
+                        },
+                        onRSVPClick = onRSVPClick
                     )
                 }
                 if (eventPair.size == 1) {
@@ -2159,10 +2209,16 @@ private fun TrendingCategoriesCard(
 @Composable
 private fun EventCard(
     event: EventItem,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (EventItem) -> Unit = {},
+    onRSVPClick: (EventItem) -> Unit = {}
 ) {
     Card(
-        modifier = modifier,
+        modifier = modifier
+            .clickable {
+                println("🎪 Event card clicked: ${event.title}")
+                onClick(event)
+            },
         colors = CardDefaults.cardColors(containerColor = TchatColors.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
@@ -2221,7 +2277,10 @@ private fun EventCard(
                     )
 
                     TchatButton(
-                        onClick = { },
+                        onClick = {
+                            println("🎫 RSVP clicked for: ${event.title}")
+                            onRSVPClick(event)
+                        },
                         text = if (event.isAttending) "Going" else "RSVP",
                         variant = if (event.isAttending) TchatButtonVariant.Secondary else TchatButtonVariant.Primary,
                         modifier = Modifier.height(32.dp)
@@ -2279,7 +2338,12 @@ private fun EventCategoriesCard(
 
                 categoriesToShow.forEach { (category, icon, count) ->
                     Card(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                println("🔍 Category clicked: $category")
+                                // TODO: Implement category filtering
+                            },
                         colors = CardDefaults.cardColors(
                             containerColor = TchatColors.primary.copy(alpha = 0.1f)
                         )

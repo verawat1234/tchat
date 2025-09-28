@@ -1,12 +1,33 @@
 import { api } from './api';
 import type {
-  LoginRequest,
-  LoginResponse,
   RefreshTokenRequest,
   RefreshTokenResponse,
   User,
   ApiResponse
 } from '../types/api';
+
+// OTP-specific types for the actual backend API
+export interface OTPRequest {
+  phone_number: string;
+  country_code: string;
+}
+
+export interface OTPRequestResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface OTPVerifyRequest {
+  phoneNumber: string;
+  code: string;
+}
+
+export interface OTPVerifyResponse {
+  user: User;
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+}
 
 /**
  * Authentication API endpoints using RTK Query
@@ -32,44 +53,77 @@ import type {
 export const authApi = api.injectEndpoints({
   endpoints: (builder) => ({
     /**
-     * Authenticate user with email and password
+     * Request OTP for phone number authentication
      *
-     * @param credentials User login credentials
-     * @param credentials.email User's email address
-     * @param credentials.password User's password
-     * @param credentials.rememberMe Optional flag to extend session duration
-     * @returns Promise<LoginResponse> User data and authentication tokens
+     * @param request OTP request with phone number
+     * @param request.phoneNumber User's phone number in international format
+     * @returns Promise<OTPRequestResponse> Success confirmation
      *
      * @example
      * ```typescript
-     * const [login, { isLoading, error }] = useLoginMutation();
+     * const [requestOTP, { isLoading, error }] = useRequestOTPMutation();
      *
-     * const handleLogin = async () => {
+     * const handleRequestOTP = async () => {
      *   try {
-     *     const result = await login({
-     *       email: 'user@example.com',
-     *       password: 'password123',
-     *       rememberMe: true
+     *     const result = await requestOTP({
+     *       phoneNumber: '+66812345678'
+     *     }).unwrap();
+     *
+     *     console.log('OTP sent:', result.message);
+     *   } catch (error) {
+     *     console.error('OTP request failed:', error);
+     *   }
+     * };
+     * ```
+     *
+     * @throws {ApiError} When phone number is invalid or server error occurs
+     */
+    requestOTP: builder.mutation<OTPRequestResponse, OTPRequest>({
+      query: (request) => ({
+        url: '/auth/login',
+        method: 'POST',
+        body: request,
+      }),
+      transformResponse: (response: OTPRequestResponse) => response,
+    }),
+
+    /**
+     * Verify OTP code and complete authentication
+     *
+     * @param request OTP verification request
+     * @param request.phoneNumber User's phone number
+     * @param request.code 6-digit OTP code
+     * @returns Promise<OTPVerifyResponse> User data and authentication tokens
+     *
+     * @example
+     * ```typescript
+     * const [verifyOTP, { isLoading, error }] = useVerifyOTPMutation();
+     *
+     * const handleVerifyOTP = async () => {
+     *   try {
+     *     const result = await verifyOTP({
+     *       phoneNumber: '+66812345678',
+     *       code: '123456'
      *     }).unwrap();
      *
      *     console.log('Logged in user:', result.user);
      *     // Tokens are automatically stored by middleware
      *   } catch (error) {
-     *     console.error('Login failed:', error);
+     *     console.error('OTP verification failed:', error);
      *   }
      * };
      * ```
      *
-     * @throws {ApiError} When credentials are invalid or server error occurs
+     * @throws {ApiError} When OTP is invalid or expired
      */
-    login: builder.mutation<LoginResponse, LoginRequest>({
-      query: (credentials) => ({
-        url: '/auth/login',
+    verifyOTP: builder.mutation<OTPVerifyResponse, OTPVerifyRequest>({
+      query: (request) => ({
+        url: '/auth/verify-otp',
         method: 'POST',
-        body: credentials,
+        body: request,
       }),
       invalidatesTags: ['User', 'Auth'],
-      transformResponse: (response: LoginResponse) => response,
+      transformResponse: (response: OTPVerifyResponse) => response,
     }),
 
     /**
@@ -199,10 +253,16 @@ export const authApi = api.injectEndpoints({
  */
 export const {
   /**
-   * Hook for user login mutation
-   * @returns [mutationTrigger, mutationResult] Login mutation trigger and result
+   * Hook for requesting OTP mutation
+   * @returns [mutationTrigger, mutationResult] OTP request mutation trigger and result
    */
-  useLoginMutation,
+  useRequestOTPMutation,
+
+  /**
+   * Hook for verifying OTP mutation
+   * @returns [mutationTrigger, mutationResult] OTP verification mutation trigger and result
+   */
+  useVerifyOTPMutation,
 
   /**
    * Hook for user logout mutation

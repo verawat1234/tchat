@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,19 +11,20 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"gorm.io/gorm/schema"
 
+	"tchat.dev/messaging/external"
 	"tchat.dev/messaging/handlers"
 	"tchat.dev/messaging/models"
+	"tchat.dev/messaging/repositories"
 	"tchat.dev/messaging/services"
 	"tchat.dev/shared/config"
-	"tchat.dev/shared/database"
-	"tchat.dev/shared/middleware"
 	sharedModels "tchat.dev/shared/models"
 )
 
@@ -30,17 +32,15 @@ import (
 type App struct {
 	config    *config.Config
 	db        *gorm.DB
-	router    *gin.Engine
+	router    *mux.Router
 	server    *http.Server
 	validator *validator.Validate
 
 	// Services
-	messageService  *services.MessageService
-	dialogService   *services.DialogService
-	presenceService *services.PresenceService
-
-	// Services
-	messagingService services.MessagingService
+	messageService    *services.MessageService
+	dialogService     *services.DialogService
+	presenceService   *services.PresenceService
+	messagingService  services.MessagingService
 
 	// Handlers
 	messagingHandlers *handlers.MessagingHandler
@@ -97,7 +97,7 @@ func (a *App) initDatabase() error {
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger:         gormLogger,
-		NamingStrategy: database.NamingStrategy{},
+		NamingStrategy: schema.NamingStrategy{SingularTable: false},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
@@ -134,31 +134,25 @@ func (a *App) runMigrations(db *gorm.DB) error {
 	)
 }
 
-// initServices initializes all business logic services
+// initServices initializes all business logic services using real implementations
 func (a *App) initServices() error {
-	// Mock event publisher for now
-	eventPublisher := &mockEventPublisher{}
+	// Real repository implementations
+	messageRepo := repositories.NewMessageRepository(a.db)
+	dialogRepo := repositories.NewDialogRepository(a.db)
+	presenceRepo := repositories.NewPresenceRepository(a.db)
 
-	// Mock repositories for now - these would be implemented based on your repository pattern
-	messageRepo := &mockMessageRepository{db: a.db}
-	dialogRepo := &mockDialogRepository{db: a.db}
-	presenceRepo := &mockPresenceRepository{db: a.db}
+	// External service implementations
+	eventPublisher := external.NewEventPublisher()
+	wsManager := external.NewWebSocketManager()
+	locationService := external.NewLocationService()
+	notificationService := external.NewNotificationService()
+	contentModerator := external.NewContentModerator()
+	mediaProcessor := external.NewMediaProcessor()
 
-	// Mock WebSocket manager for now
-	wsManager := &mockWebSocketManager{}
+	// Message delivery service depends on notification and websocket services
+	deliveryService := external.NewMessageDeliveryService(notificationService, wsManager)
 
-	// Mock location service for now
-	locationService := &mockLocationService{}
-
-	// Mock notification service
-	notificationService := &mockNotificationService{}
-
-	// Mock delivery services
-	deliveryService := &mockDeliveryService{}
-	contentModerator := &mockContentModerator{}
-	mediaProcessor := &mockMediaProcessor{}
-
-	// Initialize services
+	// Initialize core business services
 	a.dialogService = services.NewDialogService(dialogRepo, eventPublisher, notificationService, a.db)
 	a.messageService = services.NewMessageService(messageRepo, a.dialogService, deliveryService, contentModerator, mediaProcessor, eventPublisher, a.db)
 	a.presenceService = services.NewPresenceService(presenceRepo, wsManager, locationService, eventPublisher, a.db)
@@ -166,13 +160,13 @@ func (a *App) initServices() error {
 	// Initialize messaging service
 	a.messagingService = services.NewMessagingService(a.dialogService, a.messageService, nil, nil, nil)
 
-	log.Println("Services initialized successfully")
+	log.Println("Services initialized successfully with real implementations")
 	return nil
 }
 
 // initHandlers initializes HTTP handlers
 func (a *App) initHandlers() error {
-	// Initialize handlers - pass the struct, not interface
+	// Initialize handlers
 	a.messagingHandlers = handlers.NewMessagingHandler(a.messagingService)
 
 	log.Println("Handlers initialized successfully")
@@ -181,52 +175,33 @@ func (a *App) initHandlers() error {
 
 // initRouter initializes the HTTP router with all routes
 func (a *App) initRouter() error {
-	// Set Gin mode
-	if !a.config.Debug {
-		gin.SetMode(gin.ReleaseMode)
-	}
+	router := mux.NewRouter()
 
-	router := gin.New()
-
-	// Add middleware
-	router.Use(gin.Logger())
-	router.Use(gin.Recovery())
-	router.Use(middleware.CORS())
-	router.Use(middleware.SecurityHeaders())
-
-	// Rate limiting (commented out for now)
-	// if a.config.RateLimit.Enabled {
-	// 	rateLimiter := middleware.NewRateLimiter(
-	// 		a.config.RateLimit.RequestsPerMinute,
-	// 		a.config.RateLimit.BurstSize,
-	// 		a.config.RateLimit.CleanupInterval,
-	// 	)
-	// 	router.Use(rateLimiter.Middleware())
-	// }
+	// Add test authentication middleware for development
+	router.Use(a.testAuthMiddleware)
 
 	// Health check endpoints
-	router.GET("/health", a.healthCheck)
-	router.GET("/ready", a.readinessCheck)
+	router.HandleFunc("/health", a.healthCheck).Methods("GET")
+	router.HandleFunc("/ready", a.readinessCheck).Methods("GET")
 
-	// API routes - for now, manually register routes
-	v1 := router.Group("/api/v1")
-	{
-		// Health endpoint for messaging
-		v1.GET("/messaging/health", func(c *gin.Context) {
-			c.JSON(200, gin.H{"status": "messaging service healthy"})
-		})
+	// API routes
+	v1 := router.PathPrefix("/api/v1").Subrouter()
 
-		// Note: Individual route registration would be implemented here
-		// For now, we'll keep it simple to get the service running
-	}
+	// Health endpoint for messaging
+	v1.HandleFunc("/messaging/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status": "messaging service healthy"}`))
+	}).Methods("GET")
 
-	// Swagger documentation (if enabled)
-	if a.config.Debug {
-		// Add swagger routes here if needed
-	}
+	// Register messaging routes
+	a.messagingHandlers.RegisterRoutes(v1)
+
+	// Start messaging handler
+	a.messagingHandlers.Start()
 
 	a.router = router
-	log.Println("Router initialized successfully")
+	log.Println("Router initialized successfully with messaging routes")
 	return nil
 }
 
@@ -279,346 +254,71 @@ func (a *App) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// testAuthMiddleware provides test authentication for development
+func (a *App) testAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Skip auth for health endpoints
+		if r.URL.Path == "/health" || r.URL.Path == "/ready" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Create a test user for development/testing
+		testUser := &sharedModels.User{
+			ID:          uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), // Fixed test UUID
+			PhoneNumber: "+1234567890",
+			CountryCode: "US",
+			Active:      true,
+		}
+
+		// Add user to request context
+		ctx := context.WithValue(r.Context(), "user", testUser)
+		r = r.WithContext(ctx)
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 // Health check endpoint
-func (a *App) healthCheck(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
+func (a *App) healthCheck(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	response := map[string]interface{}{
 		"status":    "ok",
 		"service":   "messaging-service",
 		"version":   "1.0.0",
 		"timestamp": time.Now().UTC(),
-	})
+	}
+
+	json.NewEncoder(w).Encode(response)
 }
 
 // Readiness check endpoint
-func (a *App) readinessCheck(c *gin.Context) {
+func (a *App) readinessCheck(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
 	// Check database connection
 	if a.db != nil {
 		sqlDB, err := a.db.DB()
 		if err != nil || sqlDB.Ping() != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"status": "error",
+			w.WriteHeader(http.StatusServiceUnavailable)
+			response := map[string]interface{}{
+				"status":  "error",
 				"message": "Database not ready",
-			})
+			}
+			json.NewEncoder(w).Encode(response)
 			return
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	w.WriteHeader(http.StatusOK)
+	response := map[string]interface{}{
 		"status":   "ready",
 		"service":  "messaging-service",
 		"database": "connected",
-	})
-}
-
-// Mock implementations for repositories and services
-
-type mockEventPublisher struct{}
-
-func (m *mockEventPublisher) Publish(ctx context.Context, event *sharedModels.Event) error {
-	log.Printf("Event published: %s - %s", event.Type, event.Subject)
-	return nil
-}
-
-type mockMessageRepository struct {
-	db *gorm.DB
-}
-
-func (m *mockMessageRepository) Create(ctx context.Context, message *models.Message) error {
-	return m.db.WithContext(ctx).Create(message).Error
-}
-
-func (m *mockMessageRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Message, error) {
-	var message models.Message
-	err := m.db.WithContext(ctx).First(&message, id).Error
-	return &message, err
-}
-
-func (m *mockMessageRepository) GetByDialogID(ctx context.Context, dialogID uuid.UUID, filters services.MessageFilters, pagination services.Pagination) ([]*models.Message, int64, error) {
-	var messages []*models.Message
-	var total int64
-	query := m.db.WithContext(ctx).Where("dialog_id = ?", dialogID)
-
-	// Count total
-	query.Model(&models.Message{}).Count(&total)
-
-	// Apply pagination
-	offset := (pagination.Page - 1) * pagination.PageSize
-	err := query.Limit(pagination.PageSize).Offset(offset).Find(&messages).Error
-	return messages, total, err
-}
-
-func (m *mockMessageRepository) Update(ctx context.Context, message *models.Message) error {
-	return m.db.WithContext(ctx).Save(message).Error
-}
-
-func (m *mockMessageRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	return m.db.WithContext(ctx).Delete(&models.Message{}, id).Error
-}
-
-func (m *mockMessageRepository) MarkAsRead(ctx context.Context, messageID, userID uuid.UUID) error {
-	// Implementation for marking message as read
-	log.Printf("Marking message %s as read for user %s", messageID, userID)
-	return nil
-}
-
-func (m *mockMessageRepository) GetUnreadCount(ctx context.Context, dialogID, userID uuid.UUID) (int, error) {
-	return 0, nil
-}
-
-func (m *mockMessageRepository) MarkAsDelivered(ctx context.Context, messageID, userID uuid.UUID) error {
-	log.Printf("Marking message %s as delivered for user %s", messageID, userID)
-	return nil
-}
-
-func (m *mockMessageRepository) SearchMessages(ctx context.Context, dialogID uuid.UUID, query string, limit int) ([]*models.Message, error) {
-	var messages []*models.Message
-	err := m.db.WithContext(ctx).Where("dialog_id = ? AND content ILIKE ?", dialogID, "%"+query+"%").Limit(limit).Find(&messages).Error
-	return messages, err
-}
-
-func (m *mockMessageRepository) GetMessageStats(ctx context.Context, dialogID uuid.UUID) (*services.MessageStats, error) {
-	return &services.MessageStats{
-		TotalMessages:  100,
-		TextMessages:   80,
-		MediaMessages:  15,
-		SystemMessages: 5,
-		AverageLength:  50.5,
-		MessagesPerDay: 10,
-		ActiveSenders:  5,
-	}, nil
-}
-
-type mockDialogRepository struct {
-	db *gorm.DB
-}
-
-func (m *mockDialogRepository) Create(ctx context.Context, dialog *models.Dialog) error {
-	return m.db.WithContext(ctx).Create(dialog).Error
-}
-
-func (m *mockDialogRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Dialog, error) {
-	var dialog models.Dialog
-	err := m.db.WithContext(ctx).First(&dialog, id).Error
-	return &dialog, err
-}
-
-func (m *mockDialogRepository) GetByUserID(ctx context.Context, userID uuid.UUID, filters services.DialogFilters, pagination services.Pagination) ([]*models.Dialog, int64, error) {
-	var dialogs []*models.Dialog
-	var total int64
-	query := m.db.WithContext(ctx).Where("? = ANY(participants)", userID)
-
-	// Count total
-	query.Model(&models.Dialog{}).Count(&total)
-
-	// Apply pagination
-	offset := (pagination.Page - 1) * pagination.PageSize
-	err := query.Limit(pagination.PageSize).Offset(offset).Find(&dialogs).Error
-	return dialogs, total, err
-}
-
-func (m *mockDialogRepository) GetParticipants(ctx context.Context, dialogID uuid.UUID) ([]*models.DialogParticipant, error) {
-	var participants []*models.DialogParticipant
-	err := m.db.WithContext(ctx).Where("dialog_id = ?", dialogID).Find(&participants).Error
-	return participants, err
-}
-
-func (m *mockDialogRepository) AddParticipant(ctx context.Context, participant *models.DialogParticipant) error {
-	return m.db.WithContext(ctx).Create(participant).Error
-}
-
-func (m *mockDialogRepository) RemoveParticipant(ctx context.Context, dialogID, userID uuid.UUID) error {
-	return m.db.WithContext(ctx).Where("dialog_id = ? AND user_id = ?", dialogID, userID).Delete(&models.DialogParticipant{}).Error
-}
-
-func (m *mockDialogRepository) UpdateParticipant(ctx context.Context, participant *models.DialogParticipant) error {
-	return m.db.WithContext(ctx).Save(participant).Error
-}
-
-func (m *mockDialogRepository) GetAdmins(ctx context.Context, dialogID uuid.UUID) ([]*models.DialogParticipant, error) {
-	var admins []*models.DialogParticipant
-	err := m.db.WithContext(ctx).Where("dialog_id = ? AND role IN ?", dialogID, []string{"admin", "owner"}).Find(&admins).Error
-	return admins, err
-}
-
-func (m *mockDialogRepository) SearchDialogs(ctx context.Context, userID uuid.UUID, query string, limit int) ([]*models.Dialog, error) {
-	var dialogs []*models.Dialog
-	err := m.db.WithContext(ctx).Where("? = ANY(participants) AND name ILIKE ?", userID, "%"+query+"%").Limit(limit).Find(&dialogs).Error
-	return dialogs, err
-}
-
-func (m *mockDialogRepository) Update(ctx context.Context, dialog *models.Dialog) error {
-	return m.db.WithContext(ctx).Save(dialog).Error
-}
-
-func (m *mockDialogRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	return m.db.WithContext(ctx).Delete(&models.Dialog{}, id).Error
-}
-
-type mockPresenceRepository struct {
-	db *gorm.DB
-}
-
-func (m *mockPresenceRepository) Create(ctx context.Context, presence *models.Presence) error {
-	return m.db.WithContext(ctx).Create(presence).Error
-}
-
-func (m *mockPresenceRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*models.Presence, error) {
-	var presence models.Presence
-	err := m.db.WithContext(ctx).Where("user_id = ?", userID).First(&presence).Error
-	return &presence, err
-}
-
-func (m *mockPresenceRepository) Update(ctx context.Context, presence *models.Presence) error {
-	return m.db.WithContext(ctx).Save(presence).Error
-}
-
-func (m *mockPresenceRepository) GetByUserIDs(ctx context.Context, userIDs []uuid.UUID) ([]*models.Presence, error) {
-	var presences []*models.Presence
-	err := m.db.WithContext(ctx).Where("user_id IN ?", userIDs).Find(&presences).Error
-	return presences, err
-}
-
-func (m *mockPresenceRepository) GetOnlineUsers(ctx context.Context, limit int) ([]*models.Presence, error) {
-	var presences []*models.Presence
-	err := m.db.WithContext(ctx).Where("is_online = ?", true).Limit(limit).Find(&presences).Error
-	return presences, err
-}
-
-func (m *mockPresenceRepository) CleanupStalePresence(ctx context.Context, staleThreshold time.Duration) error {
-	threshold := time.Now().Add(-staleThreshold)
-	return m.db.WithContext(ctx).Model(&models.Presence{}).
-		Where("last_updated < ? AND is_online = ?", threshold, true).
-		Update("is_online", false).Error
-}
-
-func (m *mockPresenceRepository) GetPresenceStats(ctx context.Context) (*services.PresenceStats, error) {
-	return &services.PresenceStats{
-		TotalUsers:      1000,
-		OnlineUsers:     250,
-		AwayUsers:       50,
-		BusyUsers:       25,
-		OfflineUsers:    675,
-		AverageUptime:   4 * time.Hour,
-		PeakOnlineTime:  time.Now().Add(-2 * time.Hour),
-		PeakOnlineCount: 300,
-	}, nil
-}
-
-type mockWebSocketManager struct{}
-
-func (m *mockWebSocketManager) BroadcastToUser(ctx context.Context, userID uuid.UUID, message interface{}) error {
-	log.Printf("Broadcasting to user %s: %+v", userID, message)
-	return nil
-}
-
-func (m *mockWebSocketManager) BroadcastToUsers(ctx context.Context, userIDs []uuid.UUID, message interface{}) error {
-	log.Printf("Broadcasting to %d users: %+v", len(userIDs), message)
-	return nil
-}
-
-func (m *mockWebSocketManager) GetConnectedUsers(ctx context.Context) []uuid.UUID {
-	// Return some mock connected users
-	return []uuid.UUID{uuid.New(), uuid.New(), uuid.New()}
-}
-
-func (m *mockWebSocketManager) IsUserConnected(ctx context.Context, userID uuid.UUID) bool {
-	// Mock implementation - would check actual connections
-	return true
-}
-
-type mockLocationService struct{}
-
-func (m *mockLocationService) UpdateUserLocation(ctx context.Context, userID uuid.UUID, location models.Location) error {
-	log.Printf("Updated location for user %s: %+v", userID, location)
-	return nil
-}
-
-func (m *mockLocationService) GetNearbyUsers(ctx context.Context, userID uuid.UUID, radius float64) ([]uuid.UUID, error) {
-	// Return some mock nearby users
-	return []uuid.UUID{uuid.New(), uuid.New()}, nil
-}
-
-// Additional mock services needed for service constructors
-
-type mockNotificationService struct{}
-
-func (m *mockNotificationService) SendNotification(ctx context.Context, userID uuid.UUID, notificationType string, data map[string]interface{}) error {
-	log.Printf("Notification sent to user %s: %s - %+v", userID, notificationType, data)
-	return nil
-}
-
-type mockDeliveryService struct{}
-
-func (m *mockDeliveryService) DeliverMessage(ctx context.Context, message *models.Message, recipientIDs []uuid.UUID) error {
-	log.Printf("Message %s delivered to %d recipients", message.ID, len(recipientIDs))
-	return nil
-}
-
-func (m *mockDeliveryService) SendPushNotification(ctx context.Context, userID uuid.UUID, message *models.Message) error {
-	log.Printf("Push notification sent to user %s for message %s", userID, message.ID)
-	return nil
-}
-
-type mockContentModerator struct{}
-
-func (m *mockContentModerator) ModerateContent(ctx context.Context, content string, contentType models.MessageType) (*services.ModerationResult, error) {
-	return &services.ModerationResult{
-		IsApproved:      true,
-		Violations:      []string{},
-		Confidence:      0.95,
-		FilteredContent: content,
-	}, nil
-}
-
-func (m *mockContentModerator) DetectSpam(ctx context.Context, senderID uuid.UUID, content string) (*services.SpamDetectionResult, error) {
-	return &services.SpamDetectionResult{
-		IsSpam:     false,
-		Confidence: 0.1,
-		Reasons:    []string{},
-	}, nil
-}
-
-type mockMediaProcessor struct{}
-
-func (m *mockMediaProcessor) ProcessImageUpload(ctx context.Context, imageData []byte, metadata map[string]interface{}) (*services.ProcessedMedia, error) {
-	return &services.ProcessedMedia{
-		URL:          "https://example.com/image.jpg",
-		ThumbnailURL: "https://example.com/thumb.jpg",
-		Size:         int64(len(imageData)),
-		Width:        800,
-		Height:       600,
-		Format:       "jpeg",
-		Metadata:     metadata,
-	}, nil
-}
-
-func (m *mockMediaProcessor) ProcessVideoUpload(ctx context.Context, videoData []byte, metadata map[string]interface{}) (*services.ProcessedMedia, error) {
-	duration := 30.0
-	return &services.ProcessedMedia{
-		URL:          "https://example.com/video.mp4",
-		ThumbnailURL: "https://example.com/video_thumb.jpg",
-		Size:         int64(len(videoData)),
-		Width:        1920,
-		Height:       1080,
-		Duration:     &duration,
-		Format:       "mp4",
-		Metadata:     metadata,
-	}, nil
-}
-
-func (m *mockMediaProcessor) ProcessAudioUpload(ctx context.Context, audioData []byte, metadata map[string]interface{}) (*services.ProcessedMedia, error) {
-	duration := 60.0
-	return &services.ProcessedMedia{
-		URL:      "https://example.com/audio.mp3",
-		Size:     int64(len(audioData)),
-		Duration: &duration,
-		Format:   "mp3",
-		Metadata: metadata,
-	}, nil
-}
-
-func (m *mockMediaProcessor) GenerateThumbnail(ctx context.Context, mediaURL string, mediaType string) (string, error) {
-	return "https://example.com/thumbnail.jpg", nil
+	}
+	json.NewEncoder(w).Encode(response)
 }
 
 func main() {

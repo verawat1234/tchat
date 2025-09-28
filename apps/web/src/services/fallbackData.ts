@@ -140,33 +140,308 @@ export const MOCK_CHATS = [
   }
 ];
 
+// Enhanced messages with comprehensive message types aligned with mobile platform
 export const MOCK_MESSAGES = [
   {
     id: 'msg-1',
     chatId: 'chat-1',
     content: 'Hey! How are you doing?',
     senderId: 'user-1',
+    senderName: 'Sarah Chen',
+    senderAvatar: 'https://images.unsplash.com/photo-1494790108755-2616b2e0d36c?w=100&h=100&fit=crop&crop=face',
     timestamp: '2024-03-15T10:30:00Z',
     type: 'text',
-    status: 'delivered'
+    status: 'delivered',
+    messageType: 'TEXT',
+    isEdited: false,
+    isPinned: false,
+    isDeleted: false,
+    reactions: [],
+    attachments: [],
+    deliveryStatus: 'DELIVERED',
+    readBy: ['user-2']
   },
   {
     id: 'msg-2',
     chatId: 'chat-1',
     content: 'I am doing great! Just got back from Bali. The beaches were amazing! 🏖️',
     senderId: 'user-2',
+    senderName: 'Arif Rahman',
+    senderAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
     timestamp: '2024-03-15T10:32:00Z',
     type: 'text',
-    status: 'read'
+    status: 'read',
+    messageType: 'TEXT',
+    isEdited: false,
+    isPinned: false,
+    isDeleted: false,
+    reactions: [
+      {
+        emoji: '🏖️',
+        userId: 'user-1',
+        userName: 'Sarah Chen',
+        timestamp: '2024-03-15T10:33:00Z'
+      }
+    ],
+    attachments: [],
+    deliveryStatus: 'READ',
+    readBy: ['user-1']
   },
   {
     id: 'msg-3',
     chatId: 'chat-1',
     content: 'That sounds incredible! I am planning a trip to Thailand next month.',
     senderId: 'user-1',
+    senderName: 'Sarah Chen',
+    senderAvatar: 'https://images.unsplash.com/photo-1494790108755-2616b2e0d36c?w=100&h=100&fit=crop&crop=face',
     timestamp: '2024-03-15T10:35:00Z',
     type: 'text',
-    status: 'sent'
+    status: 'sent',
+    messageType: 'TEXT',
+    isEdited: false,
+    isPinned: false,
+    isDeleted: false,
+    reactions: [],
+    attachments: [],
+    deliveryStatus: 'SENT',
+    readBy: []
+  },
+  {
+    id: 'msg-4',
+    chatId: 'chat-1',
+    content: 'Check out this amazing temple I visited!',
+    senderId: 'user-2',
+    senderName: 'Arif Rahman',
+    senderAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
+    timestamp: '2024-03-15T10:37:00Z',
+    type: 'image',
+    status: 'delivered',
+    messageType: 'IMAGE',
+    isEdited: false,
+    isPinned: false,
+    isDeleted: false,
+    reactions: [
+      {
+        emoji: '😍',
+        userId: 'user-1',
+        userName: 'Sarah Chen',
+        timestamp: '2024-03-15T10:38:00Z'
+      },
+      {
+        emoji: '🙏',
+        userId: 'user-1',
+        userName: 'Sarah Chen',
+        timestamp: '2024-03-15T10:38:30Z'
+      }
+    ],
+    attachments: [
+      {
+        id: 'att-1',
+        type: 'IMAGE',
+        url: 'https://images.unsplash.com/photo-1563492065037-3b3c1aa9be1d?w=600&h=400&fit=crop',
+        thumbnail: 'https://images.unsplash.com/photo-1563492065037-3b3c1aa9be1d?w=200&h=150&fit=crop',
+        caption: 'Wat Arun temple in Bangkok - absolutely stunning!',
+        width: 600,
+        height: 400,
+        metadata: {
+          location: 'Wat Arun, Bangkok, Thailand'
+        }
+      }
+    ],
+    deliveryStatus: 'DELIVERED',
+    readBy: ['user-1']
+  },
+  {
+    id: 'msg-5',
+    chatId: 'chat-1',
+    content: 'Where is this exactly?',
+    senderId: 'user-1',
+    senderName: 'Sarah Chen',
+    senderAvatar: 'https://images.unsplash.com/photo-1494790108755-2616b2e0d36c?w=100&h=100&fit=crop&crop=face',
+    timestamp: '2024-03-15T10:40:00Z',
+    type: 'text',
+    status: 'read',
+    messageType: 'TEXT',
+    isEdited: false,
+    isPinned: false,
+    isDeleted: false,
+    reactions: [],
+    attachments: [],
+    deliveryStatus: 'READ',
+    readBy: ['user-2']
+  },
+  {
+    id: 'msg-6',
+    chatId: 'chat-1',
+    content: 'Here\'s the exact location!',
+    senderId: 'user-2',
+    senderName: 'Arif Rahman',
+    senderAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
+    timestamp: '2024-03-15T10:42:00Z',
+    type: 'location',
+    status: 'delivered',
+    messageType: 'LOCATION',
+    isEdited: false,
+    isPinned: false,
+    isDeleted: false,
+    reactions: [
+      {
+        emoji: '📍',
+        userId: 'user-1',
+        userName: 'Sarah Chen',
+        timestamp: '2024-03-15T10:43:00Z'
+      }
+    ],
+    attachments: [
+      {
+        id: 'att-2',
+        type: 'LOCATION',
+        url: 'https://maps.google.com/?q=13.7443,100.4893',
+        metadata: {
+          latitude: '13.7443',
+          longitude: '100.4893',
+          address: 'Wat Arun Ratchawararam Ratchawaramahawihan, Bangkok, Thailand',
+          placeName: 'Wat Arun (Temple of Dawn)'
+        }
+      }
+    ],
+    deliveryStatus: 'DELIVERED',
+    readBy: ['user-1']
+  },
+  {
+    id: 'msg-7',
+    chatId: 'chat-1',
+    content: 'Let\'s plan a Southeast Asia meetup!',
+    senderId: 'user-1',
+    senderName: 'Sarah Chen',
+    senderAvatar: 'https://images.unsplash.com/photo-1494790108755-2616b2e0d36c?w=100&h=100&fit=crop&crop=face',
+    timestamp: '2024-03-15T11:00:00Z',
+    type: 'poll',
+    status: 'delivered',
+    messageType: 'POLL',
+    isEdited: false,
+    isPinned: false,
+    isDeleted: false,
+    reactions: [
+      {
+        emoji: '🎉',
+        userId: 'user-2',
+        userName: 'Arif Rahman',
+        timestamp: '2024-03-15T11:01:00Z'
+      }
+    ],
+    attachments: [],
+    poll: {
+      question: 'Which city should we meet in?',
+      options: ['Bangkok, Thailand', 'Singapore', 'Ho Chi Minh City, Vietnam', 'Kuala Lumpur, Malaysia'],
+      votes: { 0: 2, 1: 3, 2: 1, 3: 2 },
+      expiresAt: '2024-03-20T11:00:00Z'
+    },
+    deliveryStatus: 'DELIVERED',
+    readBy: ['user-2']
+  },
+  {
+    id: 'msg-8',
+    chatId: 'chat-1',
+    content: 'Digital Nomad Meetup - Bangkok',
+    senderId: 'user-2',
+    senderName: 'Arif Rahman',
+    senderAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
+    timestamp: '2024-03-15T14:30:00Z',
+    type: 'event',
+    status: 'delivered',
+    messageType: 'EVENT',
+    isEdited: false,
+    isPinned: true,
+    isDeleted: false,
+    reactions: [
+      {
+        emoji: '📅',
+        userId: 'user-1',
+        userName: 'Sarah Chen',
+        timestamp: '2024-03-15T14:31:00Z'
+      }
+    ],
+    attachments: [],
+    event: {
+      title: 'Digital Nomad Meetup - Bangkok',
+      description: 'Let\'s meet up for coffee and co-working in Bangkok! Great opportunity to network and share experiences.',
+      startDate: '2024-04-15T09:00:00Z',
+      endDate: '2024-04-15T17:00:00Z',
+      location: {
+        name: 'WeWork Ploenchit',
+        address: '518 Ploenchit Rd, Lumphini, Pathum Wan, Bangkok 10330',
+        latitude: 13.7420,
+        longitude: 100.5480
+      },
+      attendees: ['user-1', 'user-2'],
+      maxAttendees: 20,
+      rsvpDeadline: '2024-04-10T23:59:59Z'
+    },
+    deliveryStatus: 'DELIVERED',
+    readBy: ['user-1']
+  },
+  {
+    id: 'msg-9',
+    chatId: 'chat-1',
+    content: 'Check out this great co-working space!',
+    senderId: 'user-1',
+    senderName: 'Sarah Chen',
+    senderAvatar: 'https://images.unsplash.com/photo-1494790108755-2616b2e0d36c?w=100&h=100&fit=crop&crop=face',
+    timestamp: '2024-03-15T16:15:00Z',
+    type: 'embed',
+    status: 'read',
+    messageType: 'EMBED',
+    isEdited: false,
+    isPinned: false,
+    isDeleted: false,
+    reactions: [
+      {
+        emoji: '💼',
+        userId: 'user-2',
+        userName: 'Arif Rahman',
+        timestamp: '2024-03-15T16:16:00Z'
+      }
+    ],
+    attachments: [],
+    embed: {
+      title: 'Hubud - Bali Co-working Space',
+      description: 'A beautiful bamboo co-working space in the heart of Ubud, Bali. Perfect for digital nomads!',
+      url: 'https://hubud.org',
+      image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop',
+      siteName: 'Hubud',
+      type: 'website'
+    },
+    deliveryStatus: 'READ',
+    readBy: ['user-2']
+  },
+  {
+    id: 'msg-10',
+    chatId: 'chat-1',
+    content: 'Split the bill for last night\'s dinner?',
+    senderId: 'user-2',
+    senderName: 'Arif Rahman',
+    senderAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
+    timestamp: '2024-03-15T18:20:00Z',
+    type: 'payment',
+    status: 'delivered',
+    messageType: 'PAYMENT_REQUEST',
+    isEdited: false,
+    isPinned: false,
+    isDeleted: false,
+    reactions: [],
+    attachments: [],
+    payment: {
+      type: 'request',
+      amount: 1850,
+      currency: 'THB',
+      description: 'Dinner at Som Tam Nua - Thai Restaurant',
+      recipient: 'user-1',
+      dueDate: '2024-03-20T23:59:59Z',
+      status: 'pending'
+    },
+    deliveryStatus: 'DELIVERED',
+    readBy: ['user-1']
   }
 ];
 
@@ -253,11 +528,12 @@ export const MOCK_NOTIFICATIONS = [
   }
 ];
 
+// Enhanced social feed with comprehensive post types aligned with mobile platform
 export const MOCK_SOCIAL_FEED = [
   {
     id: 'post-1',
     userId: 'user-2',
-    type: 'photo',
+    type: 'IMAGE',
     content: 'Amazing sunset at Tanah Lot, Bali! The colors were absolutely breathtaking. 🌅',
     images: ['https://images.unsplash.com/photo-1537953773345-d172ccf13cf1?w=600&h=400&fit=crop'],
     location: 'Tanah Lot, Bali, Indonesia',
@@ -265,24 +541,26 @@ export const MOCK_SOCIAL_FEED = [
     likes: 127,
     comments: 23,
     shares: 8,
-    createdAt: '2024-03-14T18:45:00Z'
+    createdAt: '2024-03-14T18:45:00Z',
+    postType: 'TRAVEL_LOG'
   },
   {
     id: 'post-2',
     userId: 'user-3',
-    type: 'text',
+    type: 'TEXT',
     content: 'Just tried the most incredible Pad Thai at this tiny street stall in Bangkok. Sometimes the best food comes from the most unexpected places! 🍜 #streetfood #bangkok #thailand',
     location: 'Bangkok, Thailand',
     tags: ['food', 'bangkok', 'thailand', 'streetfood'],
     likes: 89,
     comments: 15,
     shares: 4,
-    createdAt: '2024-03-15T12:30:00Z'
+    createdAt: '2024-03-15T12:30:00Z',
+    postType: 'RECIPE'
   },
   {
     id: 'post-3',
     userId: 'user-1',
-    type: 'photo',
+    type: 'IMAGE',
     content: 'Marina Bay Sands at night never gets old. Singapore, you are beautiful! ✨',
     images: ['https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=600&h=400&fit=crop'],
     location: 'Marina Bay, Singapore',
@@ -290,7 +568,126 @@ export const MOCK_SOCIAL_FEED = [
     likes: 156,
     comments: 31,
     shares: 12,
-    createdAt: '2024-03-13T20:15:00Z'
+    createdAt: '2024-03-13T20:15:00Z',
+    postType: 'CHECK_IN'
+  },
+  {
+    id: 'post-4',
+    userId: 'user-1',
+    type: 'POLL',
+    content: 'Planning my next Southeast Asia adventure! Where should I go next? 🌍',
+    poll: {
+      question: 'Best Southeast Asian destination for digital nomads?',
+      options: ['Chiang Mai, Thailand', 'Canggu, Bali', 'Ho Chi Minh City, Vietnam', 'Penang, Malaysia'],
+      votes: { 0: 45, 1: 67, 2: 23, 3: 31 },
+      expiresAt: '2024-03-20T18:00:00Z'
+    },
+    tags: ['travel', 'digitalnomad', 'southeastasia'],
+    likes: 89,
+    comments: 42,
+    shares: 15,
+    createdAt: '2024-03-15T14:20:00Z',
+    postType: 'POLL'
+  },
+  {
+    id: 'post-5',
+    userId: 'user-2',
+    type: 'PRODUCT_SHOWCASE',
+    content: 'New handwoven silk scarves from local artisans in Luang Prabang! Supporting traditional crafts and fair trade. 🧣✨',
+    images: ['https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=600&h=400&fit=crop'],
+    location: 'Luang Prabang, Laos',
+    tags: ['handmade', 'fairtrade', 'laos', 'silk'],
+    likes: 234,
+    comments: 18,
+    shares: 32,
+    createdAt: '2024-03-14T09:30:00Z',
+    postType: 'PRODUCT_SHOWCASE',
+    product: {
+      name: 'Traditional Silk Scarf',
+      price: 45,
+      currency: 'USD'
+    }
+  },
+  {
+    id: 'post-6',
+    userId: 'user-3',
+    type: 'LIVE_STREAM',
+    content: 'LIVE: Sunset cooking class from my rooftop in Bangkok! Learning to make authentic Tom Yum 🍲',
+    location: 'Bangkok, Thailand',
+    tags: ['cooking', 'livestream', 'tomyum', 'thai'],
+    likes: 445,
+    comments: 127,
+    shares: 67,
+    createdAt: '2024-03-15T17:30:00Z',
+    postType: 'LIVE_STREAM',
+    liveData: {
+      viewers: 234,
+      startTime: '2024-03-15T17:30:00Z',
+      isLive: true
+    }
+  },
+  {
+    id: 'post-7',
+    userId: 'user-1',
+    type: 'REVIEW',
+    content: 'Just stayed at this incredible eco-resort in Ubud. The infinity pool overlooking rice terraces was magical! Perfect for digital detox 🌾',
+    images: ['https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9?w=600&h=400&fit=crop'],
+    location: 'Ubud, Bali, Indonesia',
+    tags: ['review', 'ubud', 'ecoresort', 'digitaldetox'],
+    likes: 312,
+    comments: 45,
+    shares: 28,
+    createdAt: '2024-03-13T11:15:00Z',
+    postType: 'REVIEW',
+    rating: 4.8,
+    targetType: 'venue',
+    targetName: 'Kamandalu Ubud Resort'
+  },
+  {
+    id: 'post-8',
+    userId: 'user-2',
+    type: 'STORY',
+    content: 'Quick temple visit before my flight ✈️ Always grateful for these peaceful moments',
+    images: ['https://images.unsplash.com/photo-1563492065037-3b3c1aa9be1d?w=600&h=400&fit=crop'],
+    location: 'Wat Arun, Bangkok',
+    tags: ['temple', 'gratitude', 'travel'],
+    likes: 89,
+    comments: 7,
+    shares: 3,
+    createdAt: '2024-03-15T08:45:00Z',
+    postType: 'STORY',
+    expiresAt: '2024-03-16T08:45:00Z'
+  },
+  {
+    id: 'post-9',
+    userId: 'user-3',
+    type: 'MILESTONE',
+    content: '🎉 One year of living as a digital nomad in Southeast Asia! From beaches to mountains, street food to temple visits, this journey has been incredible. Thank you to everyone who followed along! 🙏',
+    images: [
+      'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=300&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?w=300&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1528181304800-259b08848526?w=300&h=300&fit=crop'
+    ],
+    tags: ['milestone', 'digitalnomad', 'oneyear', 'grateful'],
+    likes: 567,
+    comments: 89,
+    shares: 156,
+    createdAt: '2024-03-12T16:00:00Z',
+    postType: 'MILESTONE'
+  },
+  {
+    id: 'post-10',
+    userId: 'user-1',
+    type: 'RECOMMENDATION',
+    content: 'Hidden gem alert! 💎 This local coffee shop in Hoi An serves the most amazing Vietnamese iced coffee and they support local farmers. A must-visit!',
+    images: ['https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=600&h=400&fit=crop'],
+    location: 'Hoi An, Vietnam',
+    tags: ['coffee', 'hoian', 'hidden gem', 'recommendation'],
+    likes: 178,
+    comments: 34,
+    shares: 67,
+    createdAt: '2024-03-14T13:20:00Z',
+    postType: 'RECOMMENDATION'
   }
 ];
 

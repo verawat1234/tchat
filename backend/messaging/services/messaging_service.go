@@ -12,13 +12,20 @@ import (
 // MessagingService interface defines messaging service operations
 type MessagingService interface {
 	CreateDialog(ctx context.Context, req *CreateDialogRequest) (*models.Dialog, error)
+	UpdateDialog(ctx context.Context, dialogID uuid.UUID, userID uuid.UUID, req *UpdateDialogRequest) (*models.Dialog, error)
+	DeleteDialog(ctx context.Context, dialogID uuid.UUID, userID uuid.UUID) error
 	SendMessage(ctx context.Context, req *SendMessageRequest) (*models.Message, error)
 	GetDialogByID(ctx context.Context, dialogID uuid.UUID, userID uuid.UUID) (*models.Dialog, error)
 	GetMessageByID(ctx context.Context, messageID uuid.UUID, userID uuid.UUID) (*models.Message, error)
+	EditMessage(ctx context.Context, messageID uuid.UUID, userID uuid.UUID, newContent string) (*models.Message, error)
+	DeleteMessage(ctx context.Context, messageID uuid.UUID, userID uuid.UUID, deleteForEveryone bool) error
 	GetDialogParticipants(ctx context.Context, dialogID uuid.UUID) ([]*models.DialogParticipant, error)
+	AddParticipant(ctx context.Context, dialogID uuid.UUID, adminUserID uuid.UUID, req *AddParticipantRequest) error
+	RemoveParticipant(ctx context.Context, dialogID uuid.UUID, adminUserID uuid.UUID, userID uuid.UUID) error
 	GetUserDialogs(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.Dialog, error)
 	GetMessages(ctx context.Context, dialogID uuid.UUID, userID uuid.UUID, limit, offset int) ([]*models.Message, error)
 	AddReaction(ctx context.Context, messageID uuid.UUID, userID uuid.UUID, reaction string) error
+	RemoveReaction(ctx context.Context, messageID uuid.UUID, userID uuid.UUID, reaction string) error
 	MarkAsRead(ctx context.Context, messageID uuid.UUID, userID uuid.UUID) error
 	GetUnreadCount(ctx context.Context, dialogID uuid.UUID, userID uuid.UUID) (int, error)
 }
@@ -117,6 +124,16 @@ func (m *MessagingServiceImpl) CreateDialog(ctx context.Context, req *CreateDial
 	return m.dialogService.CreateDialog(ctx, req)
 }
 
+// UpdateDialog delegates dialog updating to the dialog service
+func (m *MessagingServiceImpl) UpdateDialog(ctx context.Context, dialogID uuid.UUID, userID uuid.UUID, req *UpdateDialogRequest) (*models.Dialog, error) {
+	return m.dialogService.UpdateDialog(ctx, dialogID, userID, req)
+}
+
+// DeleteDialog delegates dialog deletion to the dialog service
+func (m *MessagingServiceImpl) DeleteDialog(ctx context.Context, dialogID uuid.UUID, userID uuid.UUID) error {
+	return m.dialogService.DeleteDialog(ctx, dialogID, userID)
+}
+
 // SendMessage delegates message sending to the message service
 func (m *MessagingServiceImpl) SendMessage(ctx context.Context, req *SendMessageRequest) (*models.Message, error) {
 	return m.messageService.SendMessage(ctx, req)
@@ -132,11 +149,31 @@ func (m *MessagingServiceImpl) GetMessageByID(ctx context.Context, messageID uui
 	return m.messageService.GetMessageByID(ctx, messageID, userID)
 }
 
+// EditMessage delegates to message service
+func (m *MessagingServiceImpl) EditMessage(ctx context.Context, messageID uuid.UUID, userID uuid.UUID, newContent string) (*models.Message, error) {
+	return m.messageService.EditMessage(ctx, messageID, userID, newContent)
+}
+
+// DeleteMessage delegates to message service
+func (m *MessagingServiceImpl) DeleteMessage(ctx context.Context, messageID uuid.UUID, userID uuid.UUID, deleteForEveryone bool) error {
+	return m.messageService.DeleteMessage(ctx, messageID, userID, deleteForEveryone)
+}
+
 // GetDialogParticipants delegates to dialog service
 func (m *MessagingServiceImpl) GetDialogParticipants(ctx context.Context, dialogID uuid.UUID) ([]*models.DialogParticipant, error) {
 	// Create a dummy user ID for the internal call since this method doesn't require user validation
 	dummyUserID := uuid.New()
 	return m.dialogService.GetDialogParticipants(ctx, dialogID, dummyUserID)
+}
+
+// AddParticipant delegates to dialog service
+func (m *MessagingServiceImpl) AddParticipant(ctx context.Context, dialogID uuid.UUID, adminUserID uuid.UUID, req *AddParticipantRequest) error {
+	return m.dialogService.AddParticipant(ctx, dialogID, adminUserID, req)
+}
+
+// RemoveParticipant delegates to dialog service
+func (m *MessagingServiceImpl) RemoveParticipant(ctx context.Context, dialogID uuid.UUID, adminUserID uuid.UUID, userID uuid.UUID) error {
+	return m.dialogService.RemoveParticipant(ctx, dialogID, adminUserID, userID)
 }
 
 // GetUserDialogs delegates to dialog service
@@ -170,6 +207,13 @@ func (m *MessagingServiceImpl) AddReaction(ctx context.Context, messageID uuid.U
 	// This would need to be implemented in the message service
 	// For now, return not implemented
 	return fmt.Errorf("add reaction not implemented yet")
+}
+
+// RemoveReaction delegates to message service
+func (m *MessagingServiceImpl) RemoveReaction(ctx context.Context, messageID uuid.UUID, userID uuid.UUID, reaction string) error {
+	// This would need to be implemented in the message service
+	// For now, return not implemented
+	return fmt.Errorf("remove reaction not implemented yet")
 }
 
 // MarkAsRead delegates to message service

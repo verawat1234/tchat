@@ -24,6 +24,11 @@ import (
 	"tchat.dev/shared/responses"
 	sharedModels "tchat.dev/shared/models"
 	"tchat.dev/tests/fixtures"
+
+	"tchat.dev/commerce/handlers"
+	"tchat.dev/commerce/models"
+	"tchat.dev/commerce/repository"
+	"tchat.dev/commerce/services"
 )
 
 // App represents the main commerce application
@@ -33,6 +38,35 @@ type App struct {
 	router    *gin.Engine
 	server    *http.Server
 	validator *validator.Validate
+
+	// Repositories
+	businessRepo         repository.BusinessRepository
+	productRepo          repository.ProductRepository
+	reviewRepo           repository.ReviewRepository
+	wishlistRepo         repository.WishlistRepository
+	productFollowRepo    repository.ProductFollowRepository
+	wishlistShareRepo    repository.WishlistShareRepository
+	cartRepo             repository.CartRepository
+	cartAbandonmentRepo  repository.CartAbandonmentRepository
+	categoryRepo         repository.CategoryRepository
+	productCategoryRepo  repository.ProductCategoryRepository
+	categoryViewRepo     repository.CategoryViewRepository
+
+	// Services
+	businessService services.BusinessService
+	productService  services.ProductService
+	reviewService   services.ReviewService
+	wishlistService services.WishlistService
+	cartService     services.CartService
+	categoryService services.CategoryService
+
+	// Handlers
+	businessHandler *handlers.BusinessHandler
+	productHandler  *handlers.ProductHandler
+	reviewHandler   *handlers.ReviewHandler
+	wishlistHandler *handlers.WishlistHandler
+	cartHandler     *handlers.CartHandler
+	categoryHandler *handlers.CategoryHandler
 }
 
 // NewApp creates a new commerce application instance
@@ -48,6 +82,21 @@ func (a *App) Initialize() error {
 	// Initialize database
 	if err := a.initDatabase(); err != nil {
 		return fmt.Errorf("failed to initialize database: %w", err)
+	}
+
+	// Initialize repositories
+	if err := a.initRepositories(); err != nil {
+		return fmt.Errorf("failed to initialize repositories: %w", err)
+	}
+
+	// Initialize services
+	if err := a.initServices(); err != nil {
+		return fmt.Errorf("failed to initialize services: %w", err)
+	}
+
+	// Initialize handlers
+	if err := a.initHandlers(); err != nil {
+		return fmt.Errorf("failed to initialize handlers: %w", err)
 	}
 
 	// Initialize router
@@ -106,11 +155,66 @@ func (a *App) initDatabase() error {
 // runMigrations runs database migrations for commerce service models
 func (a *App) runMigrations(db *gorm.DB) error {
 	return db.AutoMigrate(
+		// Shared models
 		&sharedModels.Business{},
 		&sharedModels.Product{},
 		&sharedModels.Order{},
 		&sharedModels.Event{},
+		// Commerce-specific models
+		&models.Review{},
+		&models.Wishlist{},
+		&models.ProductFollow{},
+		&models.WishlistShare{},
+		&models.Cart{},
+		&models.CartAbandonmentTracking{},
+		&models.Category{},
+		&models.ProductCategory{},
+		&models.CategoryView{},
 	)
+}
+
+// initRepositories initializes all data access repositories
+func (a *App) initRepositories() error {
+	a.businessRepo = repository.NewBusinessRepository(a.db)
+	a.productRepo = repository.NewProductRepository(a.db)
+	a.reviewRepo = repository.NewReviewRepository(a.db)
+	a.wishlistRepo = repository.NewWishlistRepository(a.db)
+	a.productFollowRepo = repository.NewProductFollowRepository(a.db)
+	a.wishlistShareRepo = repository.NewWishlistShareRepository(a.db)
+	a.cartRepo = repository.NewCartRepository(a.db)
+	a.cartAbandonmentRepo = repository.NewCartAbandonmentRepository(a.db)
+	a.categoryRepo = repository.NewCategoryRepository(a.db)
+	a.productCategoryRepo = repository.NewProductCategoryRepository(a.db)
+	a.categoryViewRepo = repository.NewCategoryViewRepository(a.db)
+
+	log.Println("Repositories initialized successfully")
+	return nil
+}
+
+// initServices initializes all business logic services
+func (a *App) initServices() error {
+	a.businessService = services.NewBusinessService(a.businessRepo, a.productRepo)
+	a.productService = services.NewProductService(a.productRepo, a.businessRepo)
+	a.reviewService = services.NewReviewService(a.reviewRepo, a.db)
+	a.wishlistService = services.NewWishlistService(a.wishlistRepo, a.productFollowRepo, a.wishlistShareRepo, a.db)
+	a.cartService = services.NewCartService(a.cartRepo, a.cartAbandonmentRepo, a.db)
+	a.categoryService = services.NewCategoryService(a.categoryRepo, a.productCategoryRepo, a.categoryViewRepo, a.db)
+
+	log.Println("Services initialized successfully")
+	return nil
+}
+
+// initHandlers initializes HTTP handlers
+func (a *App) initHandlers() error {
+	a.businessHandler = handlers.NewBusinessHandler(a.businessService)
+	a.productHandler = handlers.NewProductHandler(a.productService)
+	a.reviewHandler = handlers.NewReviewHandler(a.reviewService)
+	a.wishlistHandler = handlers.NewWishlistHandler(a.wishlistService)
+	a.cartHandler = handlers.NewCartHandler(a.cartService)
+	a.categoryHandler = handlers.NewCategoryHandler(a.categoryService)
+
+	log.Println("Handlers initialized successfully")
+	return nil
 }
 
 // initRouter initializes the HTTP router
@@ -132,13 +236,109 @@ func (a *App) initRouter() error {
 	a.router.GET("/health", a.healthCheck)
 	a.router.GET("/ready", a.readinessCheck)
 
-	// Mock commerce endpoints
+	// Commerce API endpoints
 	v1 := a.router.Group("/api/v1")
 	{
-		v1.GET("/shops", a.getShops)
-		v1.POST("/shops", a.createShop)
-		v1.GET("/products", a.getProducts)
-		v1.POST("/products", a.createProduct)
+		// Business (Shop) routes
+		shops := v1.Group("/shops")
+		{
+			shops.GET("", a.businessHandler.GetBusinesses)
+			shops.POST("", a.businessHandler.CreateBusiness)
+			shops.GET("/:id", a.businessHandler.GetBusiness)
+			shops.PUT("/:id", a.businessHandler.UpdateBusiness)
+			shops.DELETE("/:id", a.businessHandler.DeleteBusiness)
+			shops.GET("/:id/products", a.businessHandler.GetBusinessProducts)
+		}
+
+		// Product routes
+		products := v1.Group("/products")
+		{
+			products.GET("", a.productHandler.GetProducts)
+			products.POST("", a.productHandler.CreateProduct)
+			products.GET("/:id", a.productHandler.GetProduct)
+			products.PUT("/:id", a.productHandler.UpdateProduct)
+			products.DELETE("/:id", a.productHandler.DeleteProduct)
+			products.GET("/:productId/reviews", a.reviewHandler.GetProductReviews)
+			products.POST("/:productId/follow", a.wishlistHandler.FollowProduct)
+			products.DELETE("/:productId/follow", a.wishlistHandler.UnfollowProduct)
+		}
+
+		// Review routes
+		reviews := v1.Group("/reviews")
+		{
+			reviews.GET("", a.reviewHandler.ListReviews)
+			reviews.POST("", a.reviewHandler.CreateReview)
+			reviews.GET("/:id", a.reviewHandler.GetReview)
+			reviews.PUT("/:id", a.reviewHandler.UpdateReview)
+			reviews.DELETE("/:id", a.reviewHandler.DeleteReview)
+			reviews.POST("/:reviewId/helpful", a.reviewHandler.MarkReviewHelpful)
+			reviews.POST("/:reviewId/report", a.reviewHandler.ReportReview)
+			reviews.POST("/:reviewId/moderate", a.reviewHandler.ModerateReview)
+			reviews.GET("/average-rating", a.reviewHandler.GetAverageRating)
+		}
+
+		// Business review routes
+		businesses := v1.Group("/businesses")
+		{
+			businesses.GET("/:businessId/reviews", a.reviewHandler.GetBusinessReviews)
+			businesses.GET("/:businessId/categories", a.categoryHandler.GetBusinessCategories)
+		}
+
+		// Wishlist routes
+		wishlists := v1.Group("/wishlists")
+		{
+			wishlists.GET("", a.wishlistHandler.ListUserWishlists)
+			wishlists.POST("", a.wishlistHandler.CreateWishlist)
+			wishlists.GET("/default", a.wishlistHandler.GetDefaultWishlist)
+			wishlists.GET("/shared", a.wishlistHandler.GetSharedWishlists)
+			wishlists.GET("/shared/:token", a.wishlistHandler.GetWishlistByShareToken)
+			wishlists.GET("/:id", a.wishlistHandler.GetWishlist)
+			wishlists.PUT("/:id", a.wishlistHandler.UpdateWishlist)
+			wishlists.DELETE("/:id", a.wishlistHandler.DeleteWishlist)
+			wishlists.POST("/:id/items", a.wishlistHandler.AddToWishlist)
+			wishlists.DELETE("/:id/items/:productId", a.wishlistHandler.RemoveFromWishlist)
+			wishlists.POST("/:id/share", a.wishlistHandler.ShareWishlist)
+		}
+
+		// Product following routes
+		following := v1.Group("/products/following")
+		{
+			following.GET("", a.wishlistHandler.ListFollowedProducts)
+		}
+
+		// Cart routes
+		carts := v1.Group("/carts")
+		{
+			carts.GET("", a.cartHandler.GetCart)
+			carts.POST("/items", a.cartHandler.AddToCart)
+			carts.PUT("/items/:itemId", a.cartHandler.UpdateCartItem)
+			carts.DELETE("/items/:itemId", a.cartHandler.RemoveFromCart)
+			carts.POST("/clear", a.cartHandler.ClearCart)
+			carts.POST("/merge", a.cartHandler.MergeCart)
+			carts.GET("/abandoned", a.cartHandler.GetAbandonedCarts)
+			carts.POST("/abandonment", a.cartHandler.CreateAbandonmentTracking)
+			carts.GET("/abandonment/analytics", a.cartHandler.GetAbandonmentAnalytics)
+		}
+
+		// Category routes
+		categories := v1.Group("/categories")
+		{
+			categories.GET("", a.categoryHandler.ListCategories)
+			categories.POST("", a.categoryHandler.CreateCategory)
+			categories.GET("/global", a.categoryHandler.GetGlobalCategories)
+			categories.GET("/featured", a.categoryHandler.GetFeaturedCategories)
+			categories.GET("/root", a.categoryHandler.GetRootCategories)
+			categories.GET("/path/:path", a.categoryHandler.GetCategoryByPath)
+			categories.GET("/:id", a.categoryHandler.GetCategory)
+			categories.PUT("/:id", a.categoryHandler.UpdateCategory)
+			categories.DELETE("/:id", a.categoryHandler.DeleteCategory)
+			categories.GET("/:id/children", a.categoryHandler.GetCategoryChildren)
+			categories.GET("/:categoryId/products", a.categoryHandler.GetCategoryProducts)
+			categories.POST("/:categoryId/products", a.categoryHandler.AddProductToCategory)
+			categories.DELETE("/:categoryId/products/:productId", a.categoryHandler.RemoveProductFromCategory)
+			categories.POST("/:categoryId/views", a.categoryHandler.TrackCategoryView)
+			categories.GET("/:categoryId/analytics", a.categoryHandler.GetCategoryAnalytics)
+		}
 	}
 
 	// Seed data endpoints (for development/testing only)
@@ -193,59 +393,7 @@ func (a *App) readinessCheck(c *gin.Context) {
 	})
 }
 
-// Mock commerce endpoints
-func (a *App) getShops(c *gin.Context) {
-	responses.SendSuccessResponse(c, []map[string]interface{}{
-		{
-			"id":     uuid.New().String(),
-			"name":   "Sample Shop",
-			"status": "active",
-		},
-	})
-}
-
-func (a *App) createShop(c *gin.Context) {
-	responses.SendSuccessResponse(c, map[string]interface{}{
-		"id":     uuid.New().String(),
-		"name":   "New Shop",
-		"status": "created",
-	})
-}
-
-// getProducts handles getting products
-func (a *App) getProducts(c *gin.Context) {
-	var products []sharedModels.Product
-
-	result := a.db.Find(&products)
-	if result.Error != nil {
-		responses.SendErrorResponse(c, http.StatusInternalServerError, "Failed to fetch products", "DATABASE_ERROR")
-		return
-	}
-
-	responses.SendSuccessResponse(c, products)
-}
-
-// createProduct handles creating a new product
-func (a *App) createProduct(c *gin.Context) {
-	var product sharedModels.Product
-
-	if err := c.ShouldBindJSON(&product); err != nil {
-		responses.SendErrorResponse(c, http.StatusBadRequest, "Invalid product data", "VALIDATION_ERROR")
-		return
-	}
-
-	if product.ID == uuid.Nil {
-		product.ID = uuid.New()
-	}
-
-	result := a.db.Create(&product)
-	if result.Error != nil {
-		responses.SendErrorResponse(c, http.StatusInternalServerError, "Failed to create product", "DATABASE_ERROR")
-		return
-	}
-
-	responses.SendSuccessResponse(c, product)
-}
+// Commerce API endpoints are now handled by proper handlers in the handlers package
 
 // seedCommerceData handles seeding all commerce data
 func (a *App) seedCommerceData(c *gin.Context) {

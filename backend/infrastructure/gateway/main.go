@@ -211,6 +211,12 @@ func (g *Gateway) setupRoutes() {
 		{
 			channels.Any("/*path", g.proxyHandler("video-service"))
 		}
+
+		// Social service routes
+		social := v1.Group("/social", g.authMiddleware())
+		{
+			social.Any("/*path", g.proxyHandler("social-service"))
+		}
 	}
 
 	// WebSocket proxy for real-time messaging
@@ -290,6 +296,15 @@ func (g *Gateway) registerDefaultServices() {
 			Health:  string(Unknown),
 			Version: "1.0.0",
 			Tags:    []string{"video", "media"},
+		},
+		{
+			ID:      uuid.New().String(),
+			Name:    "social-service",
+			Host:    "localhost",
+			Port:    8092,
+			Health:  string(Unknown),
+			Version: "1.0.0",
+			Tags:    []string{"social", "community"},
 		},
 	}
 

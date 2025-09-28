@@ -297,7 +297,7 @@ export const CustomSkeletonExample: React.FC = () => {
       <div className="space-y-4">
         <div className="flex items-center space-x-4">
           <img
-            src="https://via.placeholder.com/80"
+            src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&auto=format"
             alt="Profile"
             className="w-20 h-20 rounded-full"
           />
@@ -311,7 +311,11 @@ export const CustomSkeletonExample: React.FC = () => {
           {[1, 2, 3].map((i) => (
             <div key={i} className="space-y-2">
               <img
-                src={`https://via.placeholder.com/200x128?text=Image${i}`}
+                src={`https://images.unsplash.com/photo-${[
+                  '1506905925661-52d59fd7e096',
+                  '1516117172878-fd2c41f4a759',
+                  '1506755594592-349d12a7c9c3'
+                ][i-1]}?w=200&h=128&fit=crop&auto=format`}
                 alt={`Image ${i}`}
                 className="w-full h-32 object-cover rounded"
               />

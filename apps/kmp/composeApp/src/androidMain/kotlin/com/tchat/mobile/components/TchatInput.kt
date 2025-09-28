@@ -177,9 +177,10 @@ actual fun TchatInput(
         OutlinedTextField(
             value = value,
             onValueChange = { newValue ->
-                // Filter numeric input
+                // Filter numeric input for phone numbers
                 if (type == TchatInputType.Number) {
-                    if (newValue.all { it.isDigit() || it == '.' || it == '-' }) {
+                    // Allow digits, spaces, plus signs, hyphens, parentheses, and dots for phone numbers
+                    if (newValue.all { it.isDigit() || it == ' ' || it == '+' || it == '-' || it == '(' || it == ')' || it == '.' }) {
                         onValueChange(newValue)
                     }
                 } else {

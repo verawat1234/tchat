@@ -1,21 +1,33 @@
 import { useGetContentItemQuery } from '../services/content';
 import type { ContentItem } from '../types/content';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../store';
 
 /**
- * Get current locale from various sources
+ * Custom hook to get current locale from various sources
  *
  * Attempts to determine the user's preferred locale from:
- * 1. User preferences (if implemented)
+ * 1. User preferences from Redux store (authenticated user's locale/contentLanguages)
  * 2. Browser language
  * 3. Navigator language
  * 4. Default fallback
  */
-function getCurrentLocale(): string {
-  // TODO: Add user preference context when implemented
-  // const userLocale = useUserPreference('locale');
-  // if (userLocale) return userLocale;
+function useCurrentLocale(): string {
+  const currentUser = useSelector((state: RootState) => state.auth.user);
 
-  // Try browser language
+  // 1. Try authenticated user's locale preference
+  if (currentUser?.locale) {
+    // Extract primary language code (e.g., 'en' from 'en-US' or 'th-TH')
+    return currentUser.locale.split('-')[0].toLowerCase();
+  }
+
+  // 2. Try user's content language preferences (if available)
+  if (currentUser?.preferences?.contentLanguages?.length > 0) {
+    const primaryContentLang = currentUser.preferences.contentLanguages[0];
+    return primaryContentLang.split('-')[0].toLowerCase();
+  }
+
+  // 3. Try browser language
   if (typeof window !== 'undefined') {
     // Get primary language from browser
     const browserLang = window.navigator.language;
@@ -31,7 +43,7 @@ function getCurrentLocale(): string {
     }
   }
 
-  // Default fallback
+  // 4. Default fallback
   return 'en';
 }
 
@@ -61,6 +73,9 @@ export function useContentText(
   /** Whether the returned text is from fallback (not API) */
   isFallback: boolean;
 } {
+  // Get current locale using the hook
+  const currentLocale = useCurrentLocale();
+
   const {
     data: contentItem,
     isLoading,
@@ -71,7 +86,7 @@ export function useContentText(
   });
 
   // Extract text from content item
-  const getTextFromContentItem = (item: ContentItem): string => {
+  const getTextFromContentItem = (item: ContentItem, locale: string): string => {
     if (!item?.data) {
       return fallbackText;
     }
@@ -86,9 +101,8 @@ export function useContentText(
         // For translation type, try to get the current locale or default
         if (typeof item.data === 'object' && item.data !== null) {
           const translations = item.data as Record<string, string>;
-          // Try to get current locale from various sources
-          const currentLocale = getCurrentLocale();
-          return translations[currentLocale] ||
+          // Use the passed locale parameter (from user preferences)
+          return translations[locale] ||
                  translations['en'] ||
                  translations['en-US'] ||
                  Object.values(translations)[0] ||
@@ -110,7 +124,7 @@ export function useContentText(
     }
   };
 
-  const text = contentItem ? getTextFromContentItem(contentItem) : fallbackText;
+  const text = contentItem ? getTextFromContentItem(contentItem, currentLocale) : fallbackText;
   const isFallback = !contentItem || isError || text === fallbackText;
 
   return {

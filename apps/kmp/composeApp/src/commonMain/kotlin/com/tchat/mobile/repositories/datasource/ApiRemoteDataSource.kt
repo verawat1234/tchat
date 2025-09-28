@@ -42,15 +42,12 @@ class ApiRemoteDataSource(
 
     // Authentication & User Management
     override suspend fun authenticateUser(token: String): Result<User> {
-        return apiClient.authenticate(token).mapCatching { response ->
-            response.user.toDomainModel()
-        }.recoverCatching { throwable ->
-            throw mapApiException(throwable)
-        }
+        // This method is deprecated, new authentication flows use OTP or email/password
+        return Result.failure(Exception("Use OTP or email authentication instead"))
     }
 
     override suspend fun refreshToken(): Result<String> {
-        return apiClient.refreshToken().mapCatching { response ->
+        return apiClient.refreshAuthToken().mapCatching { response ->
             response.accessToken
         }.recoverCatching { throwable ->
             throw mapApiException(throwable)

@@ -1,0 +1,1314 @@
+package main
+
+import (
+	"tchat-backend/auth/models"
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+
+	"tchat-backend/shared/models"
+)
+
+// ContractService provides business logic for contract validation operations
+type ContractService struct {
+	db                *gorm.DB
+	logger            *log.Logger
+	pactBrokerURL     string
+	pactBrokerAuth    *PactBrokerAuth
+	httpClient        *http.Client
+	providerRegistry  map[string]string // service name -> base URL mapping
+	validationTimeout time.Duration
+
+	// Enhanced features for T022
+	retryConfig       *RetryConfig
+	metricsCollector  *MetricsCollector
+	verificationQueue chan *VerificationJob
+	workerCount       int
+}
+
+// PactBrokerAuth represents authentication configuration for Pact Broker
+type PactBrokerAuth struct {
+	Username string
+	Password string
+	Token    string
+}
+
+// ValidationRequest represents a contract validation request
+type ValidationRequest struct {
+	ContractID      string
+	ProviderVersion string
+	ConsumerVersion string
+	Environment     string
+	ProviderBaseURL string
+}
+
+// RetryConfig represents retry configuration for operations
+type RetryConfig struct {
+	MaxAttempts      int
+	BaseDelay        time.Duration
+	MaxDelay         time.Duration
+	BackoffMultiplier float64
+}
+
+// MetricsCollector collects performance and validation metrics
+type MetricsCollector struct {
+	TotalValidations      int64
+	SuccessfulValidations int64
+	FailedValidations     int64
+	AverageResponseTime   time.Duration
+	PublicationCount      int64
+	ErrorCount            int64
+	mutex                 sync.RWMutex
+}
+
+// VerificationJob represents a provider verification job
+type VerificationJob struct {
+	ID              string
+	Contract        *models.ContractSpecification
+	ValidationReq   *ValidationRequest
+	Retries         int
+	MaxRetries      int
+	CreatedAt       time.Time
+	ResultChan      chan *models.ValidationResult
+	ErrorChan       chan error
+}
+
+// CrossPlatformValidation represents cross-platform validation results
+type CrossPlatformValidation struct {
+	PlatformResults map[string]*PlatformValidationResult `json:"platform_results"`
+	OverallStatus   string                               `json:"overall_status"`
+	Timestamp       time.Time                            `json:"timestamp"`
+	Summary         *ValidationSummary                   `json:"summary"`
+}
+
+// PlatformValidationResult represents validation results for a specific platform
+type PlatformValidationResult struct {
+	Platform          string             `json:"platform"`
+	Status            string             `json:"status"`
+	CompatibleServices []string          `json:"compatible_services"`
+	IncompatibleServices []string        `json:"incompatible_services"`
+	ValidationResults []*models.ValidationResult `json:"validation_results"`
+	LastUpdated       time.Time          `json:"last_updated"`
+}
+
+// ValidationSummary provides a summary of cross-platform validation
+type ValidationSummary struct {
+	TotalServices        int     `json:"total_services"`
+	CompatibleServices   int     `json:"compatible_services"`
+	IncompatibleServices int     `json:"incompatible_services"`
+	CompatibilityRate    float64 `json:"compatibility_rate"`
+}
+
+// ProviderVerificationOrchestration manages verification across multiple providers
+type ProviderVerificationOrchestration struct {
+	JobID              string                                         `json:"job_id"`
+	Services           []string                                       `json:"services"`
+	Results            map[string]*models.ValidationResult           `json:"results"`
+	Status             string                                         `json:"status"`
+	StartedAt          time.Time                                      `json:"started_at"`
+	CompletedAt        *time.Time                                     `json:"completed_at,omitempty"`
+	TotalDuration      time.Duration                                  `json:"total_duration"`
+	PerformanceMetrics *OrchestrationPerformanceMetrics              `json:"performance_metrics"`
+}
+
+// OrchestrationPerformanceMetrics represents performance metrics for orchestration
+type OrchestrationPerformanceMetrics struct {
+	ConcurrentVerifications int                     `json:"concurrent_verifications"`
+	AverageVerificationTime time.Duration           `json:"average_verification_time"`
+	TotalRequestCount       int                     `json:"total_request_count"`
+	ErrorRate               float64                 `json:"error_rate"`
+	ServiceMetrics          map[string]*ServiceMetrics `json:"service_metrics"`
+}
+
+// ServiceMetrics represents metrics for individual service verification
+type ServiceMetrics struct {
+	ServiceName           string        `json:"service_name"`
+	ResponseTime          time.Duration `json:"response_time"`
+	Success               bool          `json:"success"`
+	InteractionCount      int           `json:"interaction_count"`
+	FailedInteractions    int           `json:"failed_interactions"`
+	ErrorDetails          []string      `json:"error_details,omitempty"`
+}
+
+
+// PactContract represents a contract in Pact format for broker integration
+type PactContract struct {
+	Consumer     PactParticipant `json:"consumer"`
+	Provider     PactParticipant `json:"provider"`
+	Interactions []PactInteraction `json:"interactions"`
+	Metadata     PactMetadata    `json:"metadata"`
+}
+
+// PactParticipant represents a participant in a Pact contract
+type PactParticipant struct {
+	Name string `json:"name"`
+}
+
+// PactInteraction represents an interaction in Pact format
+type PactInteraction struct {
+	Description   string                 `json:"description"`
+	Request       map[string]interface{} `json:"request"`
+	Response      map[string]interface{} `json:"response"`
+	ProviderState string                 `json:"providerState,omitempty"`
+}
+
+// PactMetadata represents metadata in Pact format
+type PactMetadata struct {
+	PactSpecification PactSpecification `json:"pactSpecification"`
+}
+
+// PactSpecification represents Pact specification version
+type PactSpecification struct {
+	Version string `json:"version"`
+}
+
+// NewContractService creates a new contract service instance
+func NewContractService(db *gorm.DB, logger *log.Logger, pactBrokerURL string, auth *PactBrokerAuth) *ContractService {
+	// Initialize provider registry with default service URLs
+	providerRegistry := map[string]string{
+		"auth":         "http://localhost:8081",
+		"content":      "http://localhost:8086",
+		"commerce":     "http://localhost:8084",
+		"messaging":    "http://localhost:8082",
+		"payment":      "http://localhost:8083",
+		"notification": "http://localhost:8085",
+		"gateway":      "http://localhost:8080",
+	}
+
+	// Enhanced retry configuration
+	retryConfig := &RetryConfig{
+		MaxAttempts:      3,
+		BaseDelay:        1 * time.Second,
+		MaxDelay:         30 * time.Second,
+		BackoffMultiplier: 2.0,
+	}
+
+	// Initialize metrics collector
+	metricsCollector := &MetricsCollector{}
+
+	// Worker configuration
+	workerCount := 5
+	verificationQueue := make(chan *VerificationJob, 100)
+
+	service := &ContractService{
+		db:                db,
+		logger:            logger,
+		pactBrokerURL:     pactBrokerURL,
+		pactBrokerAuth:    auth,
+		httpClient:        &http.Client{Timeout: 30 * time.Second},
+		providerRegistry:  providerRegistry,
+		validationTimeout: 60 * time.Second,
+		retryConfig:       retryConfig,
+		metricsCollector:  metricsCollector,
+		verificationQueue: verificationQueue,
+		workerCount:       workerCount,
+	}
+
+	// Start verification workers
+	service.startVerificationWorkers()
+
+	return service
+}
+
+// Database Operations
+
+// ListContracts retrieves contracts with filtering and pagination
+func (s *ContractService) ListContracts(filters map[string]interface{}, page, limit int) ([]*models.ContractSpecification, int, error) {
+	var contracts []*models.ContractSpecification
+	var total int64
+
+	query := s.db.Model(&models.ContractSpecification{})
+
+	// Apply filters
+	for key, value := range filters {
+		query = query.Where(fmt.Sprintf("%s = ?", key), value)
+	}
+
+	// Get total count
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to count contracts: %w", err)
+	}
+
+	// Apply pagination
+	offset := (page - 1) * limit
+	if err := query.Offset(offset).Limit(limit).Order("created_at DESC").
+		Find(&contracts).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to list contracts: %w", err)
+	}
+
+	return contracts, int(total), nil
+}
+
+// CreateContract creates a new contract specification
+func (s *ContractService) CreateContract(contract *models.ContractSpecification) (*models.ContractSpecification, error) {
+	if err := s.db.Create(contract).Error; err != nil {
+		return nil, fmt.Errorf("failed to create contract: %w", err)
+	}
+
+	// Publish to Pact Broker
+	if err := s.publishToPactBroker(contract); err != nil {
+		s.logger.Printf("Warning: failed to publish contract to broker: %v", err)
+		s.metricsCollector.IncrementError()
+		// Don't fail the entire operation if broker publication fails
+	} else {
+		s.metricsCollector.IncrementPublication()
+	}
+
+	// Reload with relationships
+	return s.GetContract(contract.ID.String())
+}
+
+// GetContract retrieves a contract by ID
+func (s *ContractService) GetContract(contractID string) (*models.ContractSpecification, error) {
+	// Parse UUID
+	id, err := uuid.Parse(contractID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid contract ID format: %w", err)
+	}
+
+	var contract models.ContractSpecification
+	if err := s.db.Where("id = ?", id).First(&contract).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("contract not found: %s", contractID)
+		}
+		return nil, fmt.Errorf("failed to get contract: %w", err)
+	}
+
+	return &contract, nil
+}
+
+// GetContractByConsumerProviderVersion retrieves a contract by consumer, provider, and version
+func (s *ContractService) GetContractByConsumerProviderVersion(consumer models.ConsumerPlatform, provider models.ProviderService, version models.SemanticVersion) (*models.ContractSpecification, error) {
+	var contract models.ContractSpecification
+	if err := s.db.Where("consumer_name = ? AND provider_name = ? AND major = ? AND minor = ? AND patch = ?",
+		      consumer, provider, version.Major, version.Minor, version.Patch).
+		First(&contract).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("contract not found for %s -> %s v%s", consumer, provider, version.String())
+		}
+		return nil, fmt.Errorf("failed to get contract: %w", err)
+	}
+
+	return &contract, nil
+}
+
+// UpdateContract updates an existing contract specification
+func (s *ContractService) UpdateContract(contract *models.ContractSpecification) (*models.ContractSpecification, error) {
+	if err := s.db.Session(&gorm.Session{FullSaveAssociations: true}).Save(contract).Error; err != nil {
+		return nil, fmt.Errorf("failed to update contract: %w", err)
+	}
+
+	// Publish updated contract to Pact Broker
+	if err := s.publishToPactBroker(contract); err != nil {
+		s.logger.Printf("Warning: failed to publish updated contract to broker: %v", err)
+		s.metricsCollector.IncrementError()
+	} else {
+		s.metricsCollector.IncrementPublication()
+	}
+
+	return s.GetContract(contract.ID.String())
+}
+
+// Contract Validation
+
+// ValidateContract executes provider verification for a contract
+func (s *ContractService) ValidateContract(contract *models.ContractSpecification, req *ValidationRequest) (*models.ValidationResult, error) {
+	startTime := time.Now()
+
+	// Create validation result
+	result := &models.ValidationResult{
+		ID:                  uuid.New(),
+		ContractID:          contract.ID,
+		Status:              models.ValidationStatusRunning,
+		Success:             true,
+		ProviderVersion: models.VersionInfo{
+			Version: req.ProviderVersion,
+		},
+		ConsumerVersion: models.VersionInfo{
+			Version: req.ConsumerVersion,
+		},
+		Environment: models.EnvironmentInfo{
+			Name:            req.Environment,
+			Type:            req.Environment,
+			ProviderBaseURL: req.ProviderBaseURL,
+		},
+		ValidationTimestamp: startTime,
+		StartedAt:          startTime,
+		Failures:           []models.ValidationFailure{},
+		PerformanceMetrics: models.PerformanceMetrics{},
+	}
+
+	// Set provider base URL from registry if not provided
+	providerBaseURL := req.ProviderBaseURL
+	if providerBaseURL == "" {
+		if url, exists := s.providerRegistry[string(contract.ProviderName)]; exists {
+			providerBaseURL = url
+		} else {
+			return nil, fmt.Errorf("provider base URL not configured for service: %s", contract.ProviderName)
+		}
+	}
+
+	// Execute validation for each interaction
+	var totalDuration time.Duration
+	var maxResponseTime time.Duration
+	var minResponseTime time.Duration = time.Hour // Initialize to a large value
+	interactionCount := 0
+	successfulInteractions := 0
+
+	for _, interactionRef := range contract.Interactions {
+		interactionStart := time.Now()
+
+		// Execute interaction validation
+		failure := s.validateInteractionRef(interactionRef, providerBaseURL)
+		if failure != nil {
+			result.Success = false
+			result.Failures = append(result.Failures, *failure)
+		} else {
+			successfulInteractions++
+		}
+
+		interactionDuration := time.Since(interactionStart)
+		totalDuration += interactionDuration
+		if interactionDuration > maxResponseTime {
+			maxResponseTime = interactionDuration
+		}
+		if interactionDuration < minResponseTime {
+			minResponseTime = interactionDuration
+		}
+		interactionCount++
+	}
+
+	// Set final status
+	if result.Success {
+		result.Status = models.ValidationStatusSuccess
+	} else {
+		result.Status = models.ValidationStatusFailed
+	}
+
+	// Calculate performance metrics
+	now := time.Now()
+	result.CompletedAt = &now
+	result.ExecutionDuration = now.Sub(startTime)
+	result.FailureCount = len(result.Failures)
+
+	result.PerformanceMetrics = models.PerformanceMetrics{
+		ValidationDuration:     totalDuration,
+		TotalInteractions:      interactionCount,
+		SuccessfulInteractions: successfulInteractions,
+		FailedInteractions:     interactionCount - successfulInteractions,
+		AverageResponseTime:    totalDuration / time.Duration(max(1, interactionCount)),
+		MinResponseTime:        minResponseTime,
+		MaxResponseTime:        maxResponseTime,
+	}
+
+	// Store validation result
+	if err := s.db.Create(result).Error; err != nil {
+		return nil, fmt.Errorf("failed to store validation result: %w", err)
+	}
+
+	// Update metrics
+	s.metricsCollector.IncrementValidation(result.Success)
+	s.metricsCollector.UpdateAverageResponseTime(result.ExecutionDuration)
+
+	// Update contract status based on validation result
+	if result.Success && contract.Status == models.ContractStatusPublished {
+		contract.Status = models.ContractStatusVerified
+		contract.UpdatedAt = time.Now()
+		s.db.Save(contract)
+	}
+
+	// Report to Pact Broker
+	if err := s.reportValidationToBroker(contract, result); err != nil {
+		s.logger.Printf("Warning: failed to report validation to broker: %v", err)
+		s.metricsCollector.IncrementError()
+	}
+
+	return result, nil
+}
+
+// validateInteractionRef validates a single contract interaction reference
+func (s *ContractService) validateInteractionRef(interactionRef models.ContractInteractionRef, providerBaseURL string) *models.ValidationFailure {
+	// Build request URL
+	url := providerBaseURL + interactionRef.Path
+
+	// Create HTTP request
+	req, err := http.NewRequest(interactionRef.Method, url, nil)
+	if err != nil {
+		return &models.ValidationFailure{
+			ID:              uuid.New(),
+			InteractionID:   interactionRef.ID,
+			Type:            models.FailureTypeSetupError,
+			Severity:        models.FailureSeverityHigh,
+			Message:         "Failed to create HTTP request",
+			DetailedMessage: fmt.Sprintf("Request error: %v", err),
+			OccurredAt:      time.Now(),
+		}
+	}
+
+	// Execute request with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), s.validationTimeout)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		failureType := models.FailureTypeNetworkError
+		if ctx.Err() == context.DeadlineExceeded {
+			failureType = models.FailureTypeTimeoutError
+		}
+
+		return &models.ValidationFailure{
+			ID:              uuid.New(),
+			InteractionID:   interactionRef.ID,
+			Type:            failureType,
+			Severity:        models.FailureSeverityMedium,
+			Message:         "HTTP request failed",
+			DetailedMessage: fmt.Sprintf("Request error: %v", err),
+			OccurredAt:      time.Now(),
+		}
+	}
+	defer resp.Body.Close()
+
+	// Validate response status
+	if resp.StatusCode != interactionRef.StatusCode {
+		return &models.ValidationFailure{
+			ID:              uuid.New(),
+			InteractionID:   interactionRef.ID,
+			Type:            models.FailureTypeStatusCodeMismatch,
+			Severity:        models.FailureSeverityHigh,
+			Message:         "Response status mismatch",
+			DetailedMessage: fmt.Sprintf("Expected status: %d, got: %d", interactionRef.StatusCode, resp.StatusCode),
+			ExpectedValue:   interactionRef.StatusCode,
+			ActualValue:     resp.StatusCode,
+			OccurredAt:      time.Now(),
+		}
+	}
+
+	// Interaction validated successfully
+	return nil
+}
+
+// validateInteraction validates a single contract interaction (legacy method for compatibility)
+func (s *ContractService) validateInteraction(interaction *models.ContractInteraction, providerBaseURL string) *models.ValidationFailure {
+	// This method is deprecated - use validateInteractionRef instead
+	// Return no failure for compatibility
+	return nil
+}
+
+// Validation and Violation Queries
+
+// ListValidations retrieves validation results with filtering and pagination
+func (s *ContractService) ListValidations(filters map[string]interface{}, page, limit int) ([]*models.ValidationResult, int, error) {
+	var validations []*models.ValidationResult
+	var total int64
+
+	query := s.db.Model(&models.ValidationResult{})
+
+	// Apply filters
+	for key, value := range filters {
+		switch key {
+		case "contract_id":
+			query = query.Where("contract_id = ?", value)
+		case "success":
+			query = query.Where("success = ?", value)
+		case "from_date":
+			query = query.Where("validation_timestamp >= ?", value)
+		case "to_date":
+			query = query.Where("validation_timestamp <= ?", value)
+		}
+	}
+
+	// Get total count
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to count validations: %w", err)
+	}
+
+	// Apply pagination
+	offset := (page - 1) * limit
+	if err := query.Offset(offset).Limit(limit).Order("validation_timestamp DESC").
+		Find(&validations).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to list validations: %w", err)
+	}
+
+	return validations, int(total), nil
+}
+
+// GetPlatformCompatibility retrieves compatibility status for a platform
+func (s *ContractService) GetPlatformCompatibility(platform string) (*PlatformCompatibilityResponse, error) {
+	// Get all contracts for the platform
+	var contracts []*models.ContractSpecification
+	if err := s.db.Where("consumer_name = ?", platform).Find(&contracts).Error; err != nil {
+		return nil, fmt.Errorf("failed to get contracts for platform: %w", err)
+	}
+
+	if len(contracts) == 0 {
+		return nil, fmt.Errorf("no contracts found for platform: %s", platform)
+	}
+
+	services := make([]*ServiceCompatibility, 0)
+	serviceMap := make(map[string]*ServiceCompatibility)
+	var overallLastValidated *time.Time
+
+	// Process each contract
+	for _, contract := range contracts {
+		serviceName := contract.ProviderName
+
+		// Get latest validation result for this contract
+		var validation models.ValidationResult
+		err := s.db.Where("contract_id = ?", contract.ID).
+			Order("validation_timestamp DESC").First(&validation).Error
+
+		var lastValidation *time.Time
+		status := "unknown"
+		issuesCount := 0
+
+		if err == nil {
+			lastValidation = &validation.ValidationTimestamp
+			if validation.Success {
+				status = "compatible"
+			} else {
+				status = "incompatible"
+				issuesCount = len(validation.Failures)
+			}
+
+			if overallLastValidated == nil || validation.ValidationTimestamp.After(*overallLastValidated) {
+				overallLastValidated = &validation.ValidationTimestamp
+			}
+		}
+
+		// Update or create service compatibility entry
+		if existing, exists := serviceMap[string(serviceName)]; exists {
+			// Update if this is a newer validation
+			if lastValidation != nil && (existing.LastValidation == nil || lastValidation.After(*existing.LastValidation)) {
+				existing.ContractVersion = contract.Version.String()
+				existing.Status = status
+				existing.LastValidation = lastValidation
+				existing.IssuesCount = issuesCount
+			}
+		} else {
+			serviceMap[string(serviceName)] = &ServiceCompatibility{
+				ServiceName:           string(serviceName),
+				ContractVersion:       contract.Version.String(),
+				ImplementationVersion: "unknown", // Would need to be tracked separately
+				Status:                status,
+				LastValidation:        lastValidation,
+				IssuesCount:          issuesCount,
+			}
+		}
+	}
+
+	// Convert map to slice
+	for _, service := range serviceMap {
+		services = append(services, service)
+	}
+
+	// Determine overall status
+	overallStatus := "compatible"
+	for _, service := range services {
+		if service.Status == "incompatible" {
+			overallStatus = "incompatible"
+			break
+		} else if service.Status == "unknown" && overallStatus == "compatible" {
+			overallStatus = "partial"
+		}
+	}
+
+	return &PlatformCompatibilityResponse{
+		Platform:      platform,
+		Services:      services,
+		OverallStatus: overallStatus,
+		LastValidated: overallLastValidated,
+	}, nil
+}
+
+// ListViolations retrieves contract violations with filtering and summary
+func (s *ContractService) ListViolations(filters map[string]interface{}, page, limit int) ([]*models.ContractViolation, *ViolationSummary, error) {
+	var violations []*models.ContractViolation
+
+	query := s.db.Model(&models.ContractViolation{})
+
+	// Apply filters
+	for key, value := range filters {
+		query = query.Where(fmt.Sprintf("%s = ?", key), value)
+	}
+
+	// Apply pagination
+	offset := (page - 1) * limit
+	if err := query.Offset(offset).Limit(limit).Order("detection_timestamp DESC").
+		Find(&violations).Error; err != nil {
+		return nil, nil, fmt.Errorf("failed to list violations: %w", err)
+	}
+
+	// Generate summary
+	summary, err := s.generateViolationSummary(filters)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate violation summary: %w", err)
+	}
+
+	return violations, summary, nil
+}
+
+// generateViolationSummary generates summary statistics for violations
+func (s *ContractService) generateViolationSummary(filters map[string]interface{}) (*ViolationSummary, error) {
+	query := s.db.Model(&models.ContractViolation{})
+
+	// Apply same filters
+	for key, value := range filters {
+		query = query.Where(fmt.Sprintf("%s = ?", key), value)
+	}
+
+	// Get total count
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	// Count by severity
+	bySeverity := make(map[string]int)
+	severities := []string{"critical", "high", "medium", "low"}
+	for _, severity := range severities {
+		var count int64
+		if err := query.Where("severity = ?", severity).Count(&count).Error; err != nil {
+			return nil, err
+		}
+		bySeverity[severity] = int(count)
+	}
+
+	// Count by platform (this would need contract lookup)
+	byPlatform := make(map[string]int)
+	platforms := []string{"web", "ios", "android"}
+	for _, platform := range platforms {
+		var count int64
+		subQuery := s.db.Model(&models.ContractViolation{}).
+			Joins("JOIN contract_specifications ON contract_violations.contract_id = contract_specifications.id").
+			Where("contract_specifications.consumer_name = ?", platform)
+
+		// Apply original filters
+		for key, value := range filters {
+			if key != "platform" {
+				subQuery = subQuery.Where(fmt.Sprintf("contract_violations.%s = ?", key), value)
+			}
+		}
+
+		if err := subQuery.Count(&count).Error; err != nil {
+			return nil, err
+		}
+		byPlatform[platform] = int(count)
+	}
+
+	// Calculate resolution rate
+	var resolved int64
+	resolvedQuery := query.Where("resolution_status = ?", "resolved")
+	if err := resolvedQuery.Count(&resolved).Error; err != nil {
+		return nil, err
+	}
+
+	resolutionRate := 0.0
+	if total > 0 {
+		resolutionRate = float64(resolved) / float64(total)
+	}
+
+	return &ViolationSummary{
+		TotalViolations: int(total),
+		BySeverity:      bySeverity,
+		ByPlatform:      byPlatform,
+		ResolutionRate:  resolutionRate,
+	}, nil
+}
+
+// Pact Broker Integration
+
+// publishToPactBroker publishes a contract to the Pact Broker
+func (s *ContractService) publishToPactBroker(contract *models.ContractSpecification) error {
+	if s.pactBrokerURL == "" {
+		return fmt.Errorf("Pact Broker URL not configured")
+	}
+
+	// Convert to Pact format
+	pactContract := s.convertToPactFormat(contract)
+
+	// Publish to broker
+	url := fmt.Sprintf("%s/pacts/provider/%s/consumer/%s/version/%s",
+		s.pactBrokerURL, contract.ProviderName, contract.ConsumerName, contract.Version)
+
+	body, err := json.Marshal(pactContract)
+	if err != nil {
+		return fmt.Errorf("failed to marshal pact contract: %w", err)
+	}
+
+	req, err := http.NewRequest("PUT", url, bytes.NewBuffer(body))
+	if err != nil {
+		return fmt.Errorf("failed to create broker request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	// Add authentication if configured
+	if s.pactBrokerAuth != nil {
+		if s.pactBrokerAuth.Token != "" {
+			req.Header.Set("Authorization", "Bearer "+s.pactBrokerAuth.Token)
+		} else if s.pactBrokerAuth.Username != "" && s.pactBrokerAuth.Password != "" {
+			req.SetBasicAuth(s.pactBrokerAuth.Username, s.pactBrokerAuth.Password)
+		}
+	}
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to publish to broker: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("broker returned status %d", resp.StatusCode)
+	}
+
+	s.logger.Printf("Published contract to broker: %s -> %s v%s",
+		contract.ConsumerName, contract.ProviderName, contract.Version)
+
+	return nil
+}
+
+// reportValidationToBroker reports validation results to the Pact Broker
+func (s *ContractService) reportValidationToBroker(contract *models.ContractSpecification, result *models.ValidationResult) error {
+	if s.pactBrokerURL == "" {
+		return fmt.Errorf("Pact Broker URL not configured")
+	}
+
+	// Prepare verification result for broker
+	verificationResult := map[string]interface{}{
+		"success":      result.Success,
+		"providerApplicationVersion": result.ProviderVersion,
+		"verificationDate": result.ValidationTimestamp.Format(time.RFC3339),
+	}
+
+	if !result.Success {
+		var failures []string
+		for _, failure := range result.Failures {
+			failures = append(failures, failure.Message)
+		}
+		verificationResult["mismatches"] = failures
+	}
+
+	url := fmt.Sprintf("%s/pacts/provider/%s/consumer/%s/version/%s/verification-results",
+		s.pactBrokerURL, contract.ProviderName, contract.ConsumerName, contract.Version)
+
+	body, err := json.Marshal(verificationResult)
+	if err != nil {
+		return fmt.Errorf("failed to marshal verification result: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
+	if err != nil {
+		return fmt.Errorf("failed to create verification request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	// Add authentication if configured
+	if s.pactBrokerAuth != nil {
+		if s.pactBrokerAuth.Token != "" {
+			req.Header.Set("Authorization", "Bearer "+s.pactBrokerAuth.Token)
+		} else if s.pactBrokerAuth.Username != "" && s.pactBrokerAuth.Password != "" {
+			req.SetBasicAuth(s.pactBrokerAuth.Username, s.pactBrokerAuth.Password)
+		}
+	}
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to report verification: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("broker returned status %d", resp.StatusCode)
+	}
+
+	s.logger.Printf("Reported verification to broker: %s -> %s v%s (success: %t)",
+		contract.ConsumerName, contract.ProviderName, contract.Version, result.Success)
+
+	return nil
+}
+
+// convertToPactFormat converts internal contract format to Pact format
+func (s *ContractService) convertToPactFormat(contract *models.ContractSpecification) *PactContract {
+	interactions := make([]PactInteraction, 0, len(contract.Interactions))
+
+	for _, interaction := range contract.Interactions {
+		pactInteraction := PactInteraction{
+			Description: interaction.Description,
+			Request: map[string]interface{}{
+				"method": interaction.Method,
+				"path":   interaction.Path,
+			},
+			Response: map[string]interface{}{
+				"status": interaction.StatusCode,
+			},
+		}
+
+		// Note: ContractInteractionRef has limited data
+		// Full interaction details would need to be loaded from ContractInteraction table
+
+		interactions = append(interactions, pactInteraction)
+	}
+
+	return &PactContract{
+		Consumer: PactParticipant{Name: string(contract.ConsumerName)},
+		Provider: PactParticipant{Name: string(contract.ProviderName)},
+		Interactions: interactions,
+		Metadata: PactMetadata{
+			PactSpecification: PactSpecification{Version: "2.0.0"},
+		},
+	}
+}
+
+// Enhanced Methods for T022
+
+// startVerificationWorkers starts background workers for processing verification jobs
+func (s *ContractService) startVerificationWorkers() {
+	for i := 0; i < s.workerCount; i++ {
+		go s.verificationWorker(i)
+	}
+	s.logger.Printf("Started %d verification workers", s.workerCount)
+}
+
+// verificationWorker processes verification jobs from the queue
+func (s *ContractService) verificationWorker(workerID int) {
+	for job := range s.verificationQueue {
+		s.logger.Printf("Worker %d processing job %s", workerID, job.ID)
+
+		result, err := s.processVerificationJobWithRetry(job)
+		if err != nil {
+			s.metricsCollector.IncrementError()
+			s.logger.Printf("Worker %d job %s failed: %v", workerID, job.ID, err)
+			job.ErrorChan <- err
+		} else {
+			s.metricsCollector.IncrementValidation(result.Success)
+			s.logger.Printf("Worker %d job %s completed successfully", workerID, job.ID)
+			job.ResultChan <- result
+		}
+
+		close(job.ResultChan)
+		close(job.ErrorChan)
+	}
+}
+
+// processVerificationJobWithRetry processes a verification job with retry logic
+func (s *ContractService) processVerificationJobWithRetry(job *VerificationJob) (*models.ValidationResult, error) {
+	var lastErr error
+
+	for attempt := 0; attempt <= job.MaxRetries; attempt++ {
+		if attempt > 0 {
+			delay := s.calculateBackoffDelay(attempt)
+			s.logger.Printf("Job %s retry %d/%d after %v", job.ID, attempt, job.MaxRetries, delay)
+			time.Sleep(delay)
+		}
+
+		result, err := s.ValidateContract(job.Contract, job.ValidationReq)
+		if err == nil {
+			return result, nil
+		}
+
+		lastErr = err
+		if !s.isRetryableError(err) {
+			break
+		}
+	}
+
+	return nil, fmt.Errorf("job failed after %d attempts: %w", job.MaxRetries+1, lastErr)
+}
+
+// calculateBackoffDelay calculates exponential backoff delay
+func (s *ContractService) calculateBackoffDelay(attempt int) time.Duration {
+	delay := time.Duration(float64(s.retryConfig.BaseDelay) *
+		(s.retryConfig.BackoffMultiplier * float64(attempt-1)))
+
+	if delay > s.retryConfig.MaxDelay {
+		delay = s.retryConfig.MaxDelay
+	}
+
+	return delay
+}
+
+// isRetryableError determines if an error is retryable
+func (s *ContractService) isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := err.Error()
+	retryableErrors := []string{
+		"timeout", "connection refused", "network error",
+		"temporary failure", "503", "502", "504",
+	}
+
+	for _, retryable := range retryableErrors {
+		if contains(errStr, retryable) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// OrchestateProviderVerification orchestrates verification across multiple providers
+func (s *ContractService) OrchestateProviderVerification(contracts []*models.ContractSpecification, env string) (*ProviderVerificationOrchestration, error) {
+	orchestrationID := uuid.New().String()
+	orchestration := &ProviderVerificationOrchestration{
+		JobID:      orchestrationID,
+		Services:   make([]string, 0),
+		Results:    make(map[string]*models.ValidationResult),
+		Status:     "running",
+		StartedAt:  time.Now(),
+		PerformanceMetrics: &OrchestrationPerformanceMetrics{
+			ServiceMetrics: make(map[string]*ServiceMetrics),
+		},
+	}
+
+	s.logger.Printf("Starting provider verification orchestration %s for %d contracts", orchestrationID, len(contracts))
+
+	// Collect unique services
+	serviceSet := make(map[string]bool)
+	for _, contract := range contracts {
+		serviceName := string(contract.ProviderName)
+		serviceSet[serviceName] = true
+	}
+
+	for service := range serviceSet {
+		orchestration.Services = append(orchestration.Services, service)
+	}
+
+	// Create verification jobs
+	jobs := make([]*VerificationJob, 0)
+	resultChans := make([]chan *models.ValidationResult, 0)
+	errorChans := make([]chan error, 0)
+
+	for _, contract := range contracts {
+		serviceName := string(contract.ProviderName)
+		providerBaseURL := s.providerRegistry[serviceName]
+
+		if providerBaseURL == "" {
+			s.logger.Printf("No base URL configured for service: %s", serviceName)
+			continue
+		}
+
+		job := &VerificationJob{
+			ID:         uuid.New().String(),
+			Contract:   contract,
+			ValidationReq: &ValidationRequest{
+				ContractID:      contract.ID.String(),
+				ProviderVersion: "latest",
+				ConsumerVersion: contract.Version.String(),
+				Environment:     env,
+				ProviderBaseURL: providerBaseURL,
+			},
+			Retries:    0,
+			MaxRetries: s.retryConfig.MaxAttempts,
+			CreatedAt:  time.Now(),
+			ResultChan: make(chan *models.ValidationResult, 1),
+			ErrorChan:  make(chan error, 1),
+		}
+
+		jobs = append(jobs, job)
+		resultChans = append(resultChans, job.ResultChan)
+		errorChans = append(errorChans, job.ErrorChan)
+
+		// Queue the job
+		s.verificationQueue <- job
+	}
+
+	// Wait for all jobs to complete
+	completedJobs := 0
+	totalJobs := len(jobs)
+	var totalDuration time.Duration
+	errorCount := 0
+
+	for completedJobs < totalJobs {
+		for i, job := range jobs {
+			if orchestration.Results[string(job.Contract.ProviderName)] != nil {
+				continue // Already processed
+			}
+
+			select {
+			case result := <-resultChans[i]:
+				serviceName := string(job.Contract.ProviderName)
+				orchestration.Results[serviceName] = result
+
+				// Calculate metrics
+				serviceMetrics := &ServiceMetrics{
+					ServiceName:      serviceName,
+					ResponseTime:     result.ExecutionDuration,
+					Success:          result.Success,
+					InteractionCount: result.PerformanceMetrics.TotalInteractions,
+					FailedInteractions: result.PerformanceMetrics.FailedInteractions,
+				}
+
+				if !result.Success {
+					errorCount++
+					serviceMetrics.ErrorDetails = make([]string, 0)
+					for _, failure := range result.Failures {
+						serviceMetrics.ErrorDetails = append(serviceMetrics.ErrorDetails, failure.Message)
+					}
+				}
+
+				orchestration.PerformanceMetrics.ServiceMetrics[serviceName] = serviceMetrics
+				totalDuration += result.ExecutionDuration
+				completedJobs++
+
+				s.logger.Printf("Orchestration %s: completed %s (%d/%d)", orchestrationID, serviceName, completedJobs, totalJobs)
+
+			case err := <-errorChans[i]:
+				serviceName := string(job.Contract.ProviderName)
+				s.logger.Printf("Orchestration %s: %s failed: %v", orchestrationID, serviceName, err)
+
+				// Create a failed validation result
+				failedResult := &models.ValidationResult{
+					ID:         uuid.New(),
+					ContractID: job.Contract.ID,
+					Status:     models.ValidationStatusFailed,
+					Success:    false,
+					Failures: []models.ValidationFailure{{
+						ID:      uuid.New(),
+						Type:    models.FailureTypeNetworkError,
+						Severity: models.FailureSeverityHigh,
+						Message: err.Error(),
+						OccurredAt: time.Now(),
+					}},
+					StartedAt:  job.CreatedAt,
+					CompletedAt: &[]time.Time{time.Now()}[0],
+					ExecutionDuration: time.Since(job.CreatedAt),
+				}
+
+				orchestration.Results[serviceName] = failedResult
+				errorCount++
+				completedJobs++
+
+			default:
+				time.Sleep(10 * time.Millisecond) // Small delay to prevent busy waiting
+			}
+		}
+	}
+
+	// Finalize orchestration
+	now := time.Now()
+	orchestration.CompletedAt = &now
+	orchestration.TotalDuration = now.Sub(orchestration.StartedAt)
+	orchestration.Status = "completed"
+
+	// Calculate final metrics
+	orchestration.PerformanceMetrics.ConcurrentVerifications = len(jobs)
+	orchestration.PerformanceMetrics.AverageVerificationTime = totalDuration / time.Duration(max(1, len(jobs)))
+	orchestration.PerformanceMetrics.TotalRequestCount = len(jobs)
+	orchestration.PerformanceMetrics.ErrorRate = float64(errorCount) / float64(len(jobs))
+
+	s.logger.Printf("Provider verification orchestration %s completed: %d services, %.2f%% success rate",
+		orchestrationID, len(orchestration.Services), (1.0-orchestration.PerformanceMetrics.ErrorRate)*100)
+
+	return orchestration, nil
+}
+
+// ValidateCrossPlatformCompatibility validates contracts across all platforms
+func (s *ContractService) ValidateCrossPlatformCompatibility(providerService string, environment string) (*CrossPlatformValidation, error) {
+	platforms := []models.ConsumerPlatform{
+		models.ConsumerPlatformWeb,
+		models.ConsumerPlatformIOS,
+		models.ConsumerPlatformAndroid,
+	}
+
+	platformResults := make(map[string]*PlatformValidationResult)
+	totalServices := 0
+	compatibleServices := 0
+
+	for _, platform := range platforms {
+		platformResult := &PlatformValidationResult{
+			Platform:             string(platform),
+			Status:               "unknown",
+			CompatibleServices:   make([]string, 0),
+			IncompatibleServices: make([]string, 0),
+			ValidationResults:    make([]*models.ValidationResult, 0),
+			LastUpdated:          time.Now(),
+		}
+
+		// Get contracts for this platform and provider
+		var contracts []*models.ContractSpecification
+		err := s.db.Where("consumer_name = ? AND provider_name = ?", platform, providerService).
+			Find(&contracts).Error
+		if err != nil {
+			s.logger.Printf("Failed to get contracts for platform %s: %v", platform, err)
+			continue
+		}
+
+		if len(contracts) == 0 {
+			platformResult.Status = "no_contracts"
+			platformResults[string(platform)] = platformResult
+			continue
+		}
+
+		// Validate each contract
+		allCompatible := true
+		for _, contract := range contracts {
+			validationReq := &ValidationRequest{
+				ContractID:      contract.ID.String(),
+				ProviderVersion: "latest",
+				ConsumerVersion: contract.Version.String(),
+				Environment:     environment,
+			}
+
+			result, err := s.ValidateContract(contract, validationReq)
+			if err != nil {
+				s.logger.Printf("Failed to validate contract %s: %v", contract.ID, err)
+				allCompatible = false
+				platformResult.IncompatibleServices = append(platformResult.IncompatibleServices, providerService)
+				continue
+			}
+
+			platformResult.ValidationResults = append(platformResult.ValidationResults, result)
+
+			if result.Success {
+				platformResult.CompatibleServices = append(platformResult.CompatibleServices, providerService)
+				compatibleServices++
+			} else {
+				platformResult.IncompatibleServices = append(platformResult.IncompatibleServices, providerService)
+				allCompatible = false
+			}
+		}
+
+		if allCompatible {
+			platformResult.Status = "compatible"
+		} else {
+			platformResult.Status = "incompatible"
+		}
+
+		totalServices++
+		platformResults[string(platform)] = platformResult
+	}
+
+	// Determine overall status
+	overallStatus := "compatible"
+	if compatibleServices == 0 {
+		overallStatus = "incompatible"
+	} else if compatibleServices < totalServices {
+		overallStatus = "partial"
+	}
+
+	// Calculate compatibility rate
+	compatibilityRate := 0.0
+	if totalServices > 0 {
+		compatibilityRate = float64(compatibleServices) / float64(totalServices)
+	}
+
+	validation := &CrossPlatformValidation{
+		PlatformResults: platformResults,
+		OverallStatus:   overallStatus,
+		Timestamp:       time.Now(),
+		Summary: &ValidationSummary{
+			TotalServices:        totalServices,
+			CompatibleServices:   compatibleServices,
+			IncompatibleServices: totalServices - compatibleServices,
+			CompatibilityRate:    compatibilityRate,
+		},
+	}
+
+	s.logger.Printf("Cross-platform compatibility validation completed: %.2f%% compatibility rate", compatibilityRate*100)
+
+	return validation, nil
+}
+
+// GetPerformanceMetrics returns current performance metrics
+func (s *ContractService) GetPerformanceMetrics() *MetricsCollector {
+	s.metricsCollector.mutex.RLock()
+	defer s.metricsCollector.mutex.RUnlock()
+
+	// Create a copy to avoid race conditions
+	metrics := &MetricsCollector{
+		TotalValidations:      s.metricsCollector.TotalValidations,
+		SuccessfulValidations: s.metricsCollector.SuccessfulValidations,
+		FailedValidations:     s.metricsCollector.FailedValidations,
+		AverageResponseTime:   s.metricsCollector.AverageResponseTime,
+		PublicationCount:      s.metricsCollector.PublicationCount,
+		ErrorCount:            s.metricsCollector.ErrorCount,
+	}
+
+	return metrics
+}
+
+// MetricsCollector methods
+
+// IncrementValidation increments validation counters
+func (mc *MetricsCollector) IncrementValidation(success bool) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+
+	mc.TotalValidations++
+	if success {
+		mc.SuccessfulValidations++
+	} else {
+		mc.FailedValidations++
+	}
+}
+
+// IncrementPublication increments publication counter
+func (mc *MetricsCollector) IncrementPublication() {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+
+	mc.PublicationCount++
+}
+
+// IncrementError increments error counter
+func (mc *MetricsCollector) IncrementError() {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+
+	mc.ErrorCount++
+}
+
+// UpdateAverageResponseTime updates the average response time
+func (mc *MetricsCollector) UpdateAverageResponseTime(responseTime time.Duration) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+
+	if mc.TotalValidations == 1 {
+		mc.AverageResponseTime = responseTime
+	} else {
+		// Calculate running average
+		totalTime := time.Duration(mc.TotalValidations-1) * mc.AverageResponseTime + responseTime
+		mc.AverageResponseTime = totalTime / time.Duration(mc.TotalValidations)
+	}
+}
+
+// Helper functions
+
+// contains checks if a string contains a substring
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) &&
+		   (s == substr ||
+		    (len(s) > len(substr) &&
+		     (s[:len(substr)] == substr ||
+		      s[len(s)-len(substr):] == substr ||
+		      indexOf(s, substr) >= 0)))
+}
+
+// indexOf returns the index of the first occurrence of substr in s, or -1 if not found
+func indexOf(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}

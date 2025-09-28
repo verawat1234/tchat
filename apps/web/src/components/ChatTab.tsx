@@ -14,9 +14,11 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, Con
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Textarea } from './ui/textarea';
 import { ChatMessages, ChatHeaderActions } from './ChatActions';
+import { AdvancedChatMessages } from './EnhancedChatMessages';
 import { ChatInput } from './ChatInput';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { toast } from "sonner";
+import { useGetUserChatsQuery } from '../services/microservicesApi';
 
 interface ChatTabProps {
   user: any;
@@ -82,6 +84,13 @@ export function ChatTab({
 }: ChatTabProps) {
   const [selectedDialog, setSelectedDialog] = useState<string | null>('golden-mango');
   const [messageInput, setMessageInput] = useState('');
+
+  // Fetch user chats from API
+  const {
+    data: userChats,
+    isLoading: chatsLoading,
+    error: chatsError
+  } = useGetUserChatsQuery();
   const [isRecording, setIsRecording] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -1164,61 +1173,45 @@ export function ChatTab({
             </div>
 
             {/* Messages */}
-            <ScrollArea className="flex-1 p-4">
-              <div className="space-y-4">
-                {(() => {
-                  const messages = selectedDialog === 'family' ? familyMessages : 
-                                 selectedDialog === 'golden-mango' ? businessMessages : 
-                                 [];
-                  
-                  return messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${message.isOwn ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                        message.isOwn
-                          ? 'bg-primary text-primary-foreground'
-                          : message.type === 'system'
-                          ? 'bg-chart-1/10 border border-chart-1/20'
-                          : 'bg-muted'
-                      }`}>
-                        {!message.isOwn && (
-                          <p className={`text-xs font-medium mb-1 ${
-                            message.senderName === 'AI Assistant' ? 'text-chart-1' : ''
-                          }`}>
-                            {message.senderName}
-                          </p>
-                        )}
-                        {message.type === 'voice' ? (
-                          <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="icon" className="w-8 h-8">
-                              <Play className="w-4 h-4" />
-                            </Button>
-                            <div className="flex-1">
-                              <div className="w-24 h-2 bg-muted-foreground/20 rounded-full">
-                                <div className="w-1/3 h-full bg-muted-foreground rounded-full"></div>
-                              </div>
-                            </div>
-                            <span className="text-xs">{message.duration}</span>
-                          </div>
-                        ) : message.type === 'file' ? (
-                          <div className="flex items-center gap-2">
-                            <File className="w-4 h-4" />
-                            <div>
-                              <p className="text-sm">{message.fileName}</p>
-                              <p className="text-xs opacity-70">{message.fileSize}</p>
-                            </div>
-                          </div>
-                        ) : (
-                          <p className="text-sm whitespace-pre-line">{message.content}</p>
-                        )}
-                        <p className="text-xs opacity-70 mt-1">{message.timestamp}</p>
-                      </div>
-                    </div>
-                  ));
-                })()}
-              </div>
+            <ScrollArea className="flex-1">
+              <AdvancedChatMessages
+                messages={selectedDialog === 'family' ? familyMessages :
+                         selectedDialog === 'golden-mango' ? businessMessages :
+                         []}
+                selectedMessages={[]}
+                isSelectionMode={false}
+                onReplyToMessage={(message) => {
+                  // Handle reply functionality
+                  console.log('Reply to:', message);
+                }}
+                onEditMessage={(message) => {
+                  // Handle edit functionality
+                  console.log('Edit:', message);
+                }}
+                onDeleteMessage={(messageId) => {
+                  // Handle delete functionality
+                  console.log('Delete:', messageId);
+                }}
+                onForwardMessage={(messageId) => {
+                  // Handle forward functionality
+                  console.log('Forward:', messageId);
+                }}
+                onCopyMessage={(content) => {
+                  // Handle copy functionality
+                  navigator.clipboard.writeText(content);
+                  toast("Message copied to clipboard");
+                }}
+                onPinMessage={(messageId) => {
+                  // Handle pin functionality
+                  console.log('Pin:', messageId);
+                }}
+                onSelectMessage={(messageId) => {
+                  // Handle selection functionality
+                  console.log('Select:', messageId);
+                }}
+                chatId={selectedDialog || 'default-chat'}
+                currentUserId="current-user"
+              />
             </ScrollArea>
 
             {/* Message Input */}

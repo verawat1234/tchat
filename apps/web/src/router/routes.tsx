@@ -4,7 +4,7 @@ import { ChatTab } from '../components/ChatTab';
 import { StoreTab } from '../components/StoreTab';
 import { SocialTab } from '../components/SocialTab';
 import { VideoTab } from '../components/VideoTab';
-import { WorkspaceTab } from '../components/WorkspaceTab';
+import WorkspaceTab from '../components/WorkspaceTab';
 import { NotificationsScreen } from '../components/NotificationsScreen';
 import { SettingsScreen } from '../components/SettingsScreen';
 import { WalletScreen } from '../components/WalletScreen';

@@ -389,7 +389,8 @@ func (a *App) initRouter() error {
 	// Add middleware
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
-	router.Use(middleware.CORS())
+	// CORS disabled - handled by gateway
+	// router.Use(middleware.CORS())
 	router.Use(middleware.SecurityHeaders())
 
 	// Rate limiting - temporarily disabled

@@ -299,6 +299,55 @@ func (ds *DialogService) UpdateDialog(ctx context.Context, dialogID uuid.UUID, u
 	return dialog, nil
 }
 
+func (ds *DialogService) DeleteDialog(ctx context.Context, dialogID uuid.UUID, userID uuid.UUID) error {
+	// Get dialog to check permissions
+	dialog, err := ds.GetDialogByID(ctx, dialogID, userID)
+	if err != nil {
+		return err
+	}
+
+	// Check if user is admin (admins can delete dialogs)
+	if !ds.userIsAdmin(ctx, dialogID, userID) {
+		return fmt.Errorf("only admins can delete dialog")
+	}
+
+	// Get participants for event notification
+	participants, err := ds.dialogRepo.GetParticipants(ctx, dialogID)
+	if err != nil {
+		fmt.Printf("Failed to get participants for deletion event: %v\n", err)
+	}
+
+	// Delete from database
+	if err := ds.dialogRepo.Delete(ctx, dialogID); err != nil {
+		return fmt.Errorf("failed to delete dialog: %w", err)
+	}
+
+	// Publish dialog deleted event
+	if err := ds.publishDialogEvent(ctx, "dialog.deleted", dialogID, userID, map[string]interface{}{
+		"dialog_type": dialog.Type,
+		"deleted_by":  userID,
+	}); err != nil {
+		fmt.Printf("Failed to publish dialog deleted event: %v\n", err)
+	}
+
+	// Send notification to participants if available
+	if len(participants) > 0 {
+		for _, participant := range participants {
+			if participant.UserID != userID { // Don't notify the deleter
+				if err := ds.notificationService.SendNotification(ctx, participant.UserID, "dialog_deleted", map[string]interface{}{
+					"dialog_id":   dialogID,
+					"dialog_type": dialog.Type,
+					"deleted_by":  userID,
+				}); err != nil {
+					fmt.Printf("Failed to send deletion notification to user %s: %v\n", participant.UserID, err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 func (ds *DialogService) AddParticipant(ctx context.Context, dialogID uuid.UUID, adminUserID uuid.UUID, req *AddParticipantRequest) error {
 	// Check if user is admin
 	if !ds.userIsAdmin(ctx, dialogID, adminUserID) {

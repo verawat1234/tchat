@@ -735,13 +735,7 @@ export const {
   useSendChatMessageMutation,
   useCreateChatMutation,
 
-  // Commerce hooks - Shops
-  useGetFeaturedShopsQuery,
-  useSearchShopsQuery,
-
-  // Commerce hooks - Products
-  useGetFeaturedProductsQuery,
-  useSearchProductsQuery,
+  // Commerce hooks - Orders only (products/shops exported from commerceApi above)
   useGetProductQuery,
   useCreateOrderMutation,
   useGetUserOrdersQuery,
@@ -1060,6 +1054,13 @@ export const authApi = api.injectEndpoints({
     })
   }),
 });
+
+// Export the generated hooks from authApi
+export const {
+  useGetCurrentUserQuery,
+  useUpdateUserProfileMutation,
+  useGetUserSessionQuery,
+} = authApi;
 
 // =============================================================================
 // Product Reviews Service Endpoints (E-commerce Reviews)

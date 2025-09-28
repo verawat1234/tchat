@@ -68,18 +68,18 @@ export function CreatePostSection({
     }
   };
   return (
-    <div className="px-4 py-3 bg-card border-b border-border">
-      <Card className="hover:bg-accent/30 transition-colors">
-        <CardContent className="p-4 space-y-4">
-          <div className="flex items-center gap-4">
-            <Avatar className="w-12 h-12 ring-2 ring-primary/10">
+    <div className="px-4 py-3 bg-card border-b border-border" data-testid="create-post-section">
+      <Card className="hover:bg-accent/30 transition-colors" data-testid="create-post-card">
+        <CardContent className="p-4 space-y-4" data-testid="create-post-content">
+          <div className="flex items-center gap-4" data-testid="create-post-input-area">
+            <Avatar className="w-12 h-12 ring-2 ring-primary/10" data-testid="create-post-user-avatar">
               <AvatarImage src={user?.avatar || ''} />
               <AvatarFallback className="bg-gradient-to-br from-chart-1 to-chart-2 text-white">
                 {(user?.name || 'You').charAt(0)}
               </AvatarFallback>
             </Avatar>
-            
-            <div className="flex-1 relative">
+
+            <div className="flex-1 relative" data-testid="create-post-textarea-container">
               <textarea
                 placeholder="What's happening in Bangkok today? 🍜"
                 className="w-full bg-muted/60 hover:bg-muted/80 focus:bg-muted/80 rounded-2xl px-5 py-3 text-sm border border-border/50 focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all resize-none min-h-[44px] max-h-32"
@@ -97,46 +97,52 @@ export function CreatePostSection({
                     handleCreatePost();
                   }
                 }}
+                data-testid="create-post-textarea-input"
               />
             </div>
           </div>
           
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1">
-              <Button 
-                variant="ghost" 
-                size="sm" 
+          <div className="flex items-center justify-between" data-testid="create-post-actions">
+            <div className="flex items-center gap-1" data-testid="create-post-media-buttons">
+              <Button
+                variant="ghost"
+                size="sm"
                 className="text-chart-1 hover:bg-chart-1/10 rounded-xl px-3 h-8 gap-2 touch-manipulation"
                 onClick={handleCreatePhotoPost}
+                data-testid="create-post-photo-button"
               >
                 <Camera className="w-4 h-4" />
                 <span className="text-xs hidden sm:inline">Photo</span>
               </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 className="text-chart-2 hover:bg-chart-2/10 rounded-xl px-3 h-8 gap-2 touch-manipulation"
                 onClick={handleCreateGalleryPost}
+                data-testid="create-post-gallery-button"
               >
                 <Image className="w-4 h-4" />
                 <span className="text-xs hidden sm:inline">Gallery</span>
               </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 className="text-chart-3 hover:bg-chart-3/10 rounded-xl px-3 h-8 gap-2 touch-manipulation"
                 onClick={handleCreateLocationPost}
+                data-testid="create-post-location-button"
               >
                 <MapPin className="w-4 h-4" />
                 <span className="text-xs hidden sm:inline">Location</span>
               </Button>
             </div>
-            
-            <Button 
-              size="sm" 
+
+            <Button
+              size="sm"
               className="gap-2 rounded-xl bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-sm touch-manipulation"
               onClick={handleCreatePost}
               disabled={!textContent.trim()}
+              data-testid="create-post-submit-button"
+              data-disabled={!textContent.trim() ? 'true' : 'false'}
             >
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Create Post</span>
@@ -144,7 +150,7 @@ export function CreatePostSection({
             </Button>
           </div>
           
-          <div className="text-xs text-muted-foreground/80 bg-muted/30 rounded-lg px-3 py-2 border-l-2 border-chart-1/30">
+          <div className="text-xs text-muted-foreground/80 bg-muted/30 rounded-lg px-3 py-2 border-l-2 border-chart-1/30" data-testid="create-post-hint">
             💡 Share your Bangkok adventures, food discoveries, or local insights with the community
           </div>
         </CardContent>

@@ -1,0 +1,163 @@
+# Tchat Railway Environment Configuration
+# Dedicated database per microservice for proper isolation
+
+project:
+  name: "Tchat"
+  id: "0a1f3508-2150-4d0c-8ae9-878f74a607a0"
+  environment: "production"
+  environment_id: "19409922-4e4e-4758-b94b-1f7b0fd6ed8c"
+
+# Shared Resources
+shared:
+  redis:
+    service_id: "04ff225c-1a50-43f3-a20d-081c5ce26bd4"
+    internal_url: "redis://default:jOFuvSfgpVbdzhbzzMyThAxjMfEHxsKT@redis.railway.internal:6379"
+    public_url: "redis://default:jOFuvSfgpVbdzhbzzMyThAxjMfEHxsKT@shuttle.proxy.rlwy.net:34804"
+
+# Service to Database Mapping
+services:
+  gateway:
+    service_id: "b1af743f-a76d-4653-9b2f-9cc58ac94dc8"
+    database_id: "d56a51d7-5fa7-494f-99f7-ad38b37734c8"  # gateway-db
+    port: 8080
+    purpose: "API Gateway, rate limiting, request logs"
+    database_schema:
+      - "api_logs"
+      - "rate_limits"
+      - "request_metrics"
+      - "gateway_config"
+    environment_variables:
+      PORT: "8080"
+      GATEWAY_PORT: "8080"
+      ENVIRONMENT: "production"
+      LOG_LEVEL: "info"
+      AUTH_SERVICE_URL: "http://auth.railway.internal:8081"
+      CONTENT_SERVICE_URL: "http://content.railway.internal:8086"
+      MESSAGING_SERVICE_URL: "http://messaging.railway.internal:8082"
+      VIDEO_SERVICE_URL: "http://video.railway.internal:8091"
+      SOCIAL_SERVICE_URL: "http://social.railway.internal:8092"
+
+  auth:
+    service_id: "86c0c4fd-b5bb-440c-aeb9-370c41cf7065"
+    database_id: "2758804b-93d5-4f6a-9f28-ae1c47eda321"  # auth-db
+    port: 8081
+    purpose: "Authentication, user management, sessions"
+    database_schema:
+      - "users"
+      - "sessions"
+      - "permissions"
+      - "roles"
+      - "oauth_tokens"
+      - "password_resets"
+    environment_variables:
+      PORT: "8081"
+      ENVIRONMENT: "production"
+      LOG_LEVEL: "info"
+      JWT_SECRET: "tchat-super-secret-jwt-key-change-in-production-2024"
+      TOKEN_EXPIRY: "24h"
+      GATEWAY_URL: "http://gateway.railway.internal:8080"
+
+  content:
+    service_id: "d39a0a01-f0ee-4ff1-bfb9-6925b27c4b40"
+    database_id: "a837ae5f-9927-48af-9ecf-a3120f902a89"  # content-db
+    port: 8086
+    purpose: "Content management, articles, media"
+    database_schema:
+      - "articles"
+      - "media_files"
+      - "categories"
+      - "tags"
+      - "content_versions"
+      - "content_metadata"
+    environment_variables:
+      PORT: "8086"
+      ENVIRONMENT: "production"
+      LOG_LEVEL: "info"
+      AUTH_SERVICE_URL: "http://auth.railway.internal:8081"
+      GATEWAY_URL: "http://gateway.railway.internal:8080"
+
+  messaging:
+    service_id: "6e3e5023-c7f6-48a7-bd74-c5decd45bd66"
+    database_id: "b1b89c76-a7fa-4e07-a2db-338157d6ad88"  # messaging-db
+    port: 8082
+    purpose: "Real-time messaging, chat, notifications"
+    database_schema:
+      - "conversations"
+      - "messages"
+      - "participants"
+      - "message_status"
+      - "typing_indicators"
+      - "message_attachments"
+    environment_variables:
+      PORT: "8082"
+      WEBSOCKET_PORT: "8082"
+      ENVIRONMENT: "production"
+      LOG_LEVEL: "info"
+      AUTH_SERVICE_URL: "http://auth.railway.internal:8081"
+      GATEWAY_URL: "http://gateway.railway.internal:8080"
+
+  video:
+    service_id: "38138100-d1d5-41d5-940b-372026dcfc8b"
+    database_id: "b8f88eb4-9a05-4bdf-8514-5bf8f190ecd8"  # video-db
+    port: 8091
+    purpose: "Video content, streaming, analytics"
+    database_schema:
+      - "videos"
+      - "video_metadata"
+      - "thumbnails"
+      - "video_analytics"
+      - "streaming_sessions"
+      - "video_comments"
+    environment_variables:
+      PORT: "8091"
+      ENVIRONMENT: "production"
+      LOG_LEVEL: "info"
+      VIDEO_UPLOAD_PATH: "/uploads"
+      MAX_FILE_SIZE: "100MB"
+      AUTH_SERVICE_URL: "http://auth.railway.internal:8081"
+      GATEWAY_URL: "http://gateway.railway.internal:8080"
+
+  social:
+    service_id: "37a5a091-370f-4f47-b33b-b1799a976d03"
+    database_id: "d1f09c59-339d-41a1-940b-53610bf36716"  # social-db
+    port: 8092
+    purpose: "Social features, posts, interactions"
+    database_schema:
+      - "posts"
+      - "likes"
+      - "comments"
+      - "follows"
+      - "social_feeds"
+      - "user_interactions"
+    environment_variables:
+      PORT: "8092"
+      SOCIAL_PORT: "8092"
+      ENVIRONMENT: "production"
+      LOG_LEVEL: "info"
+      AUTH_SERVICE_URL: "http://auth.railway.internal:8081"
+      GATEWAY_URL: "http://gateway.railway.internal:8080"
+
+# Database Configuration Template
+database_template:
+  connection_format: "postgresql://postgres:{password}@{service_name}-db.railway.internal:5432/railway"
+  shared_config:
+    PGPORT: "5432"
+    PGUSER: "postgres"
+    POSTGRES_DB: "railway"
+    POSTGRES_USER: "postgres"
+
+# Deployment Commands
+deployment_commands:
+  setup_databases: "./setup-database-isolation.sh"
+  deploy_services: "./railway-deploy-centralized.sh"
+  check_status: "railway status"
+  view_logs: "railway logs --service {service_name}"
+
+# Database Migration Commands (per service)
+migration_commands:
+  auth: "railway run --service auth -- go run migrations/auth/*.go"
+  content: "railway run --service content -- go run migrations/content/*.go"
+  messaging: "railway run --service messaging -- go run migrations/messaging/*.go"
+  video: "railway run --service video -- go run migrations/video/*.go"
+  social: "railway run --service social -- go run migrations/social/*.go"
+  gateway: "railway run --service gateway -- go run migrations/gateway/*.go"

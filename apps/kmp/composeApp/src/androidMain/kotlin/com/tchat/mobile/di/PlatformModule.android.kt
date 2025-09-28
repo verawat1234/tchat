@@ -5,6 +5,8 @@ import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 import com.tchat.mobile.database.TchatDatabase
 import com.tchat.mobile.services.UserSeedingService
+import com.tchat.mobile.services.AuthPersistenceManager
+import com.tchat.mobile.services.SessionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -43,5 +45,15 @@ actual val platformModule: Module = module {
             socialRepository = get(),
             chatRepository = get()
         )
+    }
+
+    // Authentication persistence
+    single<AuthPersistenceManager> {
+        AuthPersistenceManager(androidContext())
+    }
+
+    // Session manager
+    single<SessionManager> {
+        SessionManager(get())
     }
 }
