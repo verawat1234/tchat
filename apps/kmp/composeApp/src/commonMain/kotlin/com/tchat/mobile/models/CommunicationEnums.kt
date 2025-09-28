@@ -16,8 +16,27 @@ enum class MessageType(val value: String, val displayName: String) {
     AUDIO("audio", "Audio"),
     FILE("file", "File"),
     LOCATION("location", "Location"),
+    CONTACT("contact", "Contact"),
     STICKER("sticker", "Sticker"),
-    SYSTEM("system", "System Message");
+    GIF("gif", "GIF"),
+    POLL("poll", "Poll"),
+    EVENT("event", "Event"),
+    SYSTEM("system", "System Message"),
+    DELETED("deleted", "Deleted Message"),
+    // Extended message types (Phase D: T036-T041)
+    EMBED("embed", "Rich Embed"),
+    EVENT_MESSAGE("event_message", "Calendar Event"),
+    FORM("form", "Interactive Form"),
+    LOCATION_MESSAGE("location_message", "Enhanced Location"),
+    PAYMENT("payment", "Payment"),
+    FILE_MESSAGE("file_message", "Advanced File"),
+    // Commerce types
+    PRODUCT("product", "Product"),
+    INVOICE("invoice", "Invoice"),
+    ORDER("order", "Order"),
+    ORDER_STATUS_UPDATE("order_status_update", "Order Status Update"),
+    PAYMENT_REQUEST("payment_request", "Payment Request"),
+    QUOTATION("quotation", "Quotation");
 
     companion object {
         fun fromValue(value: String): MessageType? {
@@ -25,16 +44,51 @@ enum class MessageType(val value: String, val displayName: String) {
         }
 
         fun getMediaTypes(): List<MessageType> {
-            return listOf(IMAGE, VIDEO, AUDIO, FILE)
+            return listOf(IMAGE, VIDEO, AUDIO, FILE, GIF, FILE_MESSAGE)
         }
 
         fun getInteractiveTypes(): List<MessageType> {
-            return listOf(TEXT, IMAGE, VIDEO, AUDIO, FILE, LOCATION, STICKER)
+            return listOf(TEXT, IMAGE, VIDEO, AUDIO, FILE, LOCATION, CONTACT, STICKER, GIF, POLL, EVENT, EMBED, EVENT_MESSAGE, FORM, LOCATION_MESSAGE, PRODUCT, INVOICE, ORDER, PAYMENT_REQUEST, QUOTATION)
+        }
+
+        fun getCommerceTypes(): List<MessageType> {
+            return listOf(PRODUCT, INVOICE, ORDER, ORDER_STATUS_UPDATE, PAYMENT_REQUEST, QUOTATION)
         }
     }
 
     fun isMediaType(): Boolean {
-        return this in listOf(IMAGE, VIDEO, AUDIO, FILE)
+        return this in listOf(IMAGE, VIDEO, AUDIO, FILE, GIF, FILE_MESSAGE)
+    }
+}
+
+/**
+ * Reaction type enum for emoji-like reactions
+ * Used across posts, videos, messages, and other content
+ */
+enum class ReactionType(val value: String, val emoji: String, val displayName: String) {
+    LIKE("like", "👍", "Like"),
+    LOVE("love", "❤️", "Love"),
+    HAHA("haha", "😂", "Haha"),
+    WOW("wow", "😮", "Wow"),
+    SAD("sad", "😢", "Sad"),
+    ANGRY("angry", "😠", "Angry"),
+    CARE("care", "🤗", "Care"),
+    FIRE("fire", "🔥", "Fire"),
+    CLAP("clap", "👏", "Clap"),
+    CELEBRATE("celebrate", "🎉", "Celebrate");
+
+    companion object {
+        fun fromValue(value: String): ReactionType? {
+            return values().find { it.value == value }
+        }
+
+        fun getPopularReactions(): List<ReactionType> {
+            return listOf(LIKE, LOVE, HAHA, WOW, SAD, ANGRY)
+        }
+
+        fun getExtendedReactions(): List<ReactionType> {
+            return listOf(CARE, FIRE, CLAP, CELEBRATE)
+        }
     }
 }
 

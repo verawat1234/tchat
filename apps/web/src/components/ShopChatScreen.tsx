@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ArrowLeft, Phone, Video, MoreVertical, Send, Plus, Camera, Mic, MapPin, Star, Clock, CreditCard, Package, CheckCircle2, Info } from 'lucide-react';
+import { useGetChatMessagesQuery } from '../services/microservicesApi';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -166,12 +167,42 @@ const getInitialMessages = (shopId: string): Message[] => {
 };
 
 export function ShopChatScreen({ user, shopId, onBack, onCall, onVideoCall, onOrderNow }: ShopChatScreenProps) {
-  const [messages, setMessages] = useState<Message[]>(getInitialMessages(shopId));
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  
+
+  // RTK Query for chat messages
+  const {
+    data: messagesData,
+    isLoading: messagesLoading,
+    error: messagesError
+  } = useGetChatMessagesQuery({
+    chatId: shopId,
+    page: 1,
+    limit: 50
+  });
+
+  const messages: Message[] = useMemo(() => {
+    if (messagesLoading || !messagesData?.data) {
+      // Fallback data while loading
+      return getInitialMessages(shopId);
+    }
+
+    return messagesData.data.map((msg: any) => ({
+      id: msg.id || msg.message_id || `msg-${Math.random()}`,
+      type: msg.type || msg.message_type || 'text',
+      content: msg.content || msg.message || msg.text || '',
+      sender: msg.sender || msg.sender_type || (msg.from_user ? 'user' : 'shop'),
+      timestamp: new Date(msg.timestamp || msg.created_at || Date.now()),
+      data: msg.data || msg.metadata || undefined,
+      status: msg.status || msg.message_status || 'sent'
+    }));
+  }, [messagesData, messagesLoading, shopId]);
+
+  const [localMessages, setLocalMessages] = useState<Message[]>([]);
+  const allMessages = [...messages, ...localMessages];
+
   const shopData = getShopData(shopId);
 
   // Auto-scroll to bottom when new messages arrive
@@ -182,7 +213,7 @@ export function ShopChatScreen({ user, shopId, onBack, onCall, onVideoCall, onOr
         scrollContainer.scrollTop = scrollContainer.scrollHeight;
       }
     }
-  }, [messages]);
+  }, [allMessages]);
 
   const sendMessage = () => {
     if (!inputValue.trim()) return;
@@ -196,7 +227,7 @@ export function ShopChatScreen({ user, shopId, onBack, onCall, onVideoCall, onOr
       status: 'sent'
     };
 
-    setMessages(prev => [...prev, newMessage]);
+    setLocalMessages(prev => [...prev, newMessage]);
     setInputValue('');
 
     // Simulate shop typing and response
@@ -223,7 +254,7 @@ export function ShopChatScreen({ user, shopId, onBack, onCall, onVideoCall, onOr
         status: 'sent'
       };
       
-      setMessages(prev => [...prev, shopResponse]);
+      setLocalMessages(prev => [...prev, shopResponse]);
     }, 2000);
   };
 
@@ -245,7 +276,7 @@ export function ShopChatScreen({ user, shopId, onBack, onCall, onVideoCall, onOr
       status: 'sent'
     };
 
-    setMessages(prev => [...prev, newMessage]);
+    setLocalMessages(prev => [...prev, newMessage]);
     
     // Quick responses for different actions
     setTimeout(() => {
@@ -270,7 +301,7 @@ export function ShopChatScreen({ user, shopId, onBack, onCall, onVideoCall, onOr
         status: 'sent'
       };
       
-      setMessages(prev => [...prev, shopResponse]);
+      setLocalMessages(prev => [...prev, shopResponse]);
     }, 1000);
   };
 
@@ -509,7 +540,7 @@ export function ShopChatScreen({ user, shopId, onBack, onCall, onVideoCall, onOr
       <ScrollArea className="flex-1 px-4" ref={scrollAreaRef}>
         <div className="py-4">
           <AnimatePresence>
-            {messages.map(renderMessage)}
+            {allMessages.map(renderMessage)}
             
             {/* Typing Indicator */}
             {isTyping && (

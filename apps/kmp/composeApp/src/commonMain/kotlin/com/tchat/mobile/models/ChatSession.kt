@@ -75,35 +75,13 @@ data class MessagePreview(
     val senderId: String,
     val senderName: String,
     val timestamp: String,
-    val type: ChatMessageType = ChatMessageType.TEXT,
+    val type: MessageType = MessageType.TEXT,
     val isEdited: Boolean = false,
     val reactions: List<String> = emptyList(), // Emoji reactions
     val attachmentCount: Int = 0,
     val replyToId: String? = null
 )
 
-enum class ChatMessageType {
-    TEXT,
-    IMAGE,
-    VIDEO,
-    AUDIO,
-    FILE,
-    LOCATION,
-    CONTACT,
-    STICKER,
-    GIF,
-    POLL,
-    EVENT,
-    SYSTEM,
-    DELETED,
-    // Extended message types (Phase D: T036-T041)
-    EMBED,           // T036: Rich embeds with media previews and link cards
-    EVENT_MESSAGE,   // T037: Advanced calendar events with RSVP and reminders
-    FORM,            // T038: Interactive forms, surveys, and data collection
-    LOCATION_MESSAGE,// T039: Enhanced location with maps, places, check-ins
-    PAYMENT,         // T040: Transactions, invoices, and receipts
-    FILE_MESSAGE     // T041: Advanced document sharing with version control
-}
 
 @Serializable
 data class ChatMetadata(

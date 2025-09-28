@@ -35,7 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import coil.compose.AsyncImage
+import com.tchat.mobile.components.AsyncImage
 import com.tchat.mobile.components.TchatButton
 import com.tchat.mobile.components.TchatButtonVariant
 import com.tchat.mobile.components.ShareContent
@@ -66,14 +66,14 @@ enum class VideoTabType {
 
 // Category configuration
 data class CategoryConfig(
-    val id: VideoCategory,
+    val id: VVVideoCategory,
     val name: String,
     val icon: @Composable () -> Unit
 )
 
 // Helper functions
-fun formatViewCount(views: Long): String = VideoMockData.formatViews(views)
-fun formatSubscriberCount(subs: Long): String = VideoMockData.formatSubscribers(subs)
+fun formatViewCount(views: Long): String = VVideoMockData.formatViews(views)
+fun formatSubscriberCount(subs: Long): String = VVideoMockData.formatSubscribers(subs)
 
 // Optimized Video Screen with YouTube-like single video playback
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,11 +86,11 @@ fun VideoScreen(
 ) {
     var selectedVideoTab by remember { mutableStateOf(VideoTabType.SHORTS) }
     var currentShortIndex by remember { mutableStateOf(0) }
-    var selectedCategory by remember { mutableStateOf(VideoCategory.ALL) }
+    var selectedCategory by remember { mutableStateOf(VVVideoCategory.ALL) }
     var likedVideos by remember { mutableStateOf(setOf<String>()) }
     var subscribedChannels by remember { mutableStateOf(setOf<String>()) }
     var showShareModal by remember { mutableStateOf(false) }
-    var selectedVideoForShare by remember { mutableStateOf<VideoContent?>(null) }
+    var selectedVideoForShare by remember { mutableStateOf<VVVideoContent?>(null) }
 
     // Optimized UI state management - Always show tabs for better UX
     var isUIVisible by remember { mutableStateOf(true) }
@@ -102,9 +102,9 @@ fun VideoScreen(
 
     // Repository and data loading
     val videoRepository = remember { MockVideoRepository() }
-    var shortVideos by remember { mutableStateOf<List<VideoContent>>(emptyList()) }
-    var longVideos by remember { mutableStateOf<List<VideoContent>>(emptyList()) }
-    var channels by remember { mutableStateOf<List<ChannelInfo>>(emptyList()) }
+    var shortVideos by remember { mutableStateOf<List<VVVideoContent>>(emptyList()) }
+    var longVideos by remember { mutableStateOf<List<VVVideoContent>>(emptyList()) }
+    var channels by remember { mutableStateOf<List<VVChannelInfo>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
     // Load data based on selected category
@@ -151,20 +151,20 @@ fun VideoScreen(
     // Category configuration
     val categories = remember {
         listOf(
-            CategoryConfig(VideoCategory.ALL, "All") { Icon(Icons.Default.Home, null) },
-            CategoryConfig(VideoCategory.TRENDING, "Trending") { Icon(Icons.Default.TrendingUp, null) },
-            CategoryConfig(VideoCategory.FOOD, "Food") { Icon(Icons.Default.Restaurant, null) },
-            CategoryConfig(VideoCategory.MUSIC, "Music") { Icon(Icons.Default.MusicNote, null) },
-            CategoryConfig(VideoCategory.ENTERTAINMENT, "Fun") { Icon(Icons.Default.Star, null) },
-            CategoryConfig(VideoCategory.EDUCATION, "Learn") { Icon(Icons.Default.School, null) },
-            CategoryConfig(VideoCategory.TRAVEL, "Travel") { Icon(Icons.Default.Flight, null) }
+            CategoryConfig(VVVideoCategory.ALL, "All") { Icon(Icons.Default.Home, null) },
+            CategoryConfig(VVVideoCategory.TRENDING, "Trending") { Icon(Icons.Default.TrendingUp, null) },
+            CategoryConfig(VVVideoCategory.FOOD, "Food") { Icon(Icons.Default.Restaurant, null) },
+            CategoryConfig(VVVideoCategory.MUSIC, "Music") { Icon(Icons.Default.MusicNote, null) },
+            CategoryConfig(VVVideoCategory.ENTERTAINMENT, "Fun") { Icon(Icons.Default.Star, null) },
+            CategoryConfig(VVVideoCategory.EDUCATION, "Learn") { Icon(Icons.Default.School, null) },
+            CategoryConfig(VVVideoCategory.TRAVEL, "Travel") { Icon(Icons.Default.Flight, null) }
         )
     }
 
     // Filter content by category
-    val filteredShorts = if (selectedCategory == VideoCategory.ALL) shortVideos else shortVideos.filter { it.category == selectedCategory }
-    val filteredLongs = if (selectedCategory == VideoCategory.ALL) longVideos else longVideos.filter { it.category == selectedCategory }
-    val filteredChannels = if (selectedCategory == VideoCategory.ALL) channels else channels.filter { it.category == selectedCategory }
+    val filteredShorts = if (selectedCategory == VVVideoCategory.ALL) shortVideos else shortVideos.filter { it.category == selectedCategory }
+    val filteredLongs = if (selectedCategory == VVVideoCategory.ALL) longVideos else longVideos.filter { it.category == selectedCategory }
+    val filteredChannels = if (selectedCategory == VVVideoCategory.ALL) channels else channels.filter { it.category == selectedCategory }
 
     Column(modifier = modifier.fillMaxSize().background(TchatColors.background)) {
         // Top App Bar
@@ -419,11 +419,11 @@ fun VideoScreen(
 // TikTok-Style Shorts Player with Vertical Scroll Navigation
 @Composable
 private fun TikTokStyleShortsPlayer(
-    videos: List<VideoContent>,
+    videos: List<VVVideoContent>,
     currentIndex: Int,
     onIndexChange: (Int) -> Unit,
     onLike: (String) -> Unit,
-    onShare: (VideoContent) -> Unit,
+    onShare: (VVVideoContent) -> Unit,
     onSubscribe: (String) -> Unit,
     onVideoTap: () -> Unit = {},
     isUIVisible: Boolean = true,
@@ -858,13 +858,13 @@ private fun TikTokStyleShortsPlayer(
 
 @Composable
 private fun OptimizedShortsPlayer(
-    videos: List<VideoContent>,
+    videos: List<VVVideoContent>,
     currentIndex: Int,
     onIndexChange: (Int) -> Unit,
     currentPlayingVideoId: String?,
     onVideoPlayStateChange: (String, Boolean) -> Unit,
     onLike: (String) -> Unit,
-    onShare: (VideoContent) -> Unit,
+    onShare: (VVVideoContent) -> Unit,
     onSubscribe: (String) -> Unit,
     onVideoTap: () -> Unit = {},
     isUIVisible: Boolean = true,
@@ -1199,13 +1199,13 @@ private fun OptimizedShortsPlayer(
 // YouTube-Style Video Feed
 @Composable
 private fun YouTubeStyleVideoFeed(
-    videos: List<VideoContent>,
+    videos: List<VVVideoContent>,
     likedVideos: Set<String>,
     subscribedChannels: Set<String>,
     onVideoClick: (String) -> Unit,
     onLike: (String) -> Unit,
     onSubscribe: (String) -> Unit,
-    onShare: (VideoContent) -> Unit,
+    onShare: (VVVideoContent) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -1233,7 +1233,7 @@ private fun YouTubeStyleVideoFeed(
 
 @Composable
 private fun OptimizedYouTubeStyleVideoFeed(
-    videos: List<VideoContent>,
+    videos: List<VVVideoContent>,
     likedVideos: Set<String>,
     subscribedChannels: Set<String>,
     currentPlayingVideoId: String?,
@@ -1241,7 +1241,7 @@ private fun OptimizedYouTubeStyleVideoFeed(
     onVideoPlayStateChange: (String, Boolean) -> Unit,
     onLike: (String) -> Unit,
     onSubscribe: (String) -> Unit,
-    onShare: (VideoContent) -> Unit,
+    onShare: (VVVideoContent) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -1271,7 +1271,7 @@ private fun OptimizedYouTubeStyleVideoFeed(
 
 @Composable
 private fun OptimizedYouTubeVideoCard(
-    video: VideoContent,
+    video: VVVideoContent,
     isLiked: Boolean,
     isSubscribed: Boolean,
     isPlaying: Boolean,
@@ -1504,7 +1504,7 @@ private fun OptimizedYouTubeVideoCard(
 
 @Composable
 private fun YouTubeVideoCard(
-    video: VideoContent,
+    video: VVVideoContent,
     isLiked: Boolean,
     isSubscribed: Boolean,
     onVideoClick: () -> Unit,
@@ -1691,7 +1691,7 @@ private fun YouTubeVideoCard(
 // Channels Explore Tab
 @Composable
 private fun ChannelsExplore(
-    channels: List<ChannelInfo>,
+    channels: List<VVChannelInfo>,
     subscribedChannels: Set<String>,
     onSubscribe: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -1728,7 +1728,7 @@ private fun ChannelsExplore(
 
 @Composable
 private fun ChannelCard(
-    channel: ChannelInfo,
+    channel: VVChannelInfo,
     isSubscribed: Boolean,
     onSubscribe: () -> Unit,
     modifier: Modifier = Modifier
@@ -1791,7 +1791,7 @@ private fun ChannelCard(
 
             // Videos Count (using mock data)
             Text(
-                text = "25 videos", // TODO: Add videoCount to ChannelInfo model
+                text = "25 videos", // TODO: Add videoCount to VVChannelInfo model
                 style = MaterialTheme.typography.bodySmall,
                 color = TchatColors.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -1820,8 +1820,8 @@ private fun ChannelCard(
 // Subscriptions Tab
 @Composable
 private fun SubscriptionsTab(
-    channels: List<ChannelInfo>,
-    videos: List<VideoContent>,
+    channels: List<VVChannelInfo>,
+    videos: List<VVVideoContent>,
     onVideoClick: (String) -> Unit,
     onSubscribe: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -1942,7 +1942,7 @@ private fun SubscriptionsTab(
 
 @Composable
 fun HistoryTab(
-    watchedVideos: List<VideoContent>,
+    watchedVideos: List<VVVideoContent>,
     onVideoClick: (String) -> Unit,
     onRemoveFromHistory: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -1990,7 +1990,7 @@ fun HistoryTab(
 
 @Composable
 fun HistoryVideoCard(
-    video: VideoContent,
+    video: VVVideoContent,
     onVideoClick: () -> Unit,
     onRemoveFromHistory: () -> Unit,
     modifier: Modifier = Modifier

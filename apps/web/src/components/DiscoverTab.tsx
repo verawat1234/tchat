@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Heart, MessageCircle, Share, MoreVertical, Plus, Camera, MapPin, Clock, Users, Zap, Star, Play, Send, Bookmark, UserPlus, UserCheck, Hash, Copy, ChevronDown, ChevronUp, TrendingUp, Search, Eye, Filter, X, Globe, Utensils, Building, Calendar, Bell, ArrowRight, Navigation, Music, Flame, Sparkles, Repeat2, BarChart3 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Heart, MessageCircle, Share, MoreVertical, Plus, Camera, MapPin, Clock, Users, Zap, Star, Play, Send, Bookmark, UserPlus, UserCheck, Hash, Copy, ChevronDown, ChevronUp, TrendingUp, Search, Eye, Filter, X, Globe, Utensils, Building, Calendar, Bell, ArrowRight, Navigation, Music, Flame, Sparkles, Repeat2, BarChart3, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Card, CardContent, CardHeader } from './ui/card';
@@ -9,6 +9,12 @@ import { Input } from './ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { toast } from "sonner";
+import {
+  useGetTrendingPostsQuery,
+  useGetTrendingTopicsQuery,
+  useGetSuggestedUsersQuery,
+  useSearchDiscoverQuery
+} from '../services/microservicesApi';
 
 interface TrendingPost {
   id: string;
@@ -74,9 +80,36 @@ export function DiscoverTab({ user, onPostShare }: DiscoverTabProps) {
   const [likedPosts, setLikedPosts] = useState<string[]>([]);
   const [repostedPosts, setRepostedPosts] = useState<string[]>([]);
   const [bookmarkedPosts, setBookmarkedPosts] = useState<string[]>([]);
+  const [isMounted, setIsMounted] = useState(false);
 
-  // Trending posts data - Twitter-style
-  const trendingPosts: TrendingPost[] = [
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // RTK Query hooks for discover data
+  const { data: postsData, isLoading: postsLoading, error: postsError } = useGetTrendingPostsQuery({
+    category: discoverCategory,
+    limit: 20
+  }, {
+    skip: !isMounted
+  });
+
+  const { data: topicsData, isLoading: topicsLoading, error: topicsError } = useGetTrendingTopicsQuery({
+    timeframe: '24h',
+    limit: 10
+  }, {
+    skip: !isMounted
+  });
+
+  const { data: usersData, isLoading: usersLoading, error: usersError } = useGetSuggestedUsersQuery({
+    category: 'all',
+    limit: 8
+  }, {
+    skip: !isMounted
+  });
+
+  // Fallback trending posts data
+  const fallbackPostsData: TrendingPost[] = [
     {
       id: '1',
       author: {
@@ -108,7 +141,7 @@ export function DiscoverTab({ user, onPostShare }: DiscoverTabProps) {
         verified: true,
         type: 'channel'
       },
-      content: 'Early morning at Chatuchak Market is pure magic ✨ The energy, the colors, the smells... This is Thailand! Watch vendors setting up for the day while sipping fresh coconut water 🥥 #ChatuchakMarket #BangkokLife #Thailand',
+      content: 'Early morning at Chatuchak Market is pure magic ✨ The energy, the colors, the smells... This is Thailand! Watch vendors setting up for day while sipping fresh coconut water 🥥',
       images: ['https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=600&h=400&fit=crop'],
       timestamp: '4h ago',
       likes: 1923,
@@ -120,54 +153,42 @@ export function DiscoverTab({ user, onPostShare }: DiscoverTabProps) {
       type: 'image',
       engagementRate: 6.8,
       trendingRank: 2
-    },
-    {
-      id: '3',
-      author: {
-        name: 'Cultural Thailand',
-        username: '@culturalthailand',
-        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face',
-        verified: true,
-        type: 'channel'
-      },
-      content: 'Did you know floating markets have been Thailand\'s trading centers for over 150 years? 🛶 These waterways connected communities, creating a unique culture of commerce on water. Today they\'re living museums of our heritage! #FloatingMarkets #ThaiCulture #History',
-      images: ['https://images.unsplash.com/photo-1743485753872-3b24372fcd24?w=600&h=400&fit=crop'],
-      timestamp: '6h ago',
-      likes: 3421,
-      reposts: 1234,
-      comments: 678,
-      shares: 445,
-      location: 'Damnoen Saduak',
-      tags: ['#FloatingMarkets', '#ThaiCulture', '#History'],
-      type: 'image',
-      engagementRate: 12.5,
-      trendingRank: 3
-    },
-    {
-      id: '4',
-      author: {
-        name: 'Sarah Bangkok',
-        username: '@sarahbkk',
-        avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b820?w=150&h=150&fit=crop&crop=face',
-        verified: false,
-        type: 'user'
-      },
-      content: 'Just discovered this incredible Pad Thai spot! 🍜 The vendor taught me his secret - tamarind paste mixed with palm sugar creates that perfect sweet-sour balance. 30 baht for this masterpiece! #PadThai #StreetFood #BangkokEats',
-      images: ['https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?w=600&h=400&fit=crop'],
-      timestamp: '8h ago',
-      likes: 847,
-      reposts: 234,
-      comments: 156,
-      shares: 89,
-      location: 'Bangkok',
-      tags: ['#PadThai', '#StreetFood', '#BangkokEats'],
-      type: 'image',
-      engagementRate: 4.2
     }
   ];
 
-  // Trending hashtags and topics - Twitter-style
-  const trendingTopics: TrendingTopic[] = [
+  // Transform RTK Query posts data to local format
+  const trendingPosts = useMemo(() => {
+    if (!postsData || postsLoading || postsError) {
+      return fallbackPostsData;
+    }
+    return postsData.map(post => ({
+      id: post.id,
+      author: {
+        name: post.author?.name || 'Unknown User',
+        username: post.author?.username || '@unknown',
+        avatar: post.author?.avatar,
+        verified: post.author?.verified || false,
+        type: post.author?.type || 'user'
+      },
+      content: post.content || 'No content available',
+      images: post.images || [],
+      timestamp: post.timestamp || 'Unknown time',
+      likes: post.likes || 0,
+      reposts: post.reposts || 0,
+      comments: post.comments || 0,
+      shares: post.shares || 0,
+      isLiked: post.isLiked || false,
+      isReposted: post.isReposted || false,
+      location: post.location,
+      tags: post.tags || [],
+      type: post.type || 'text',
+      engagementRate: post.engagementRate || 0,
+      trendingRank: post.trendingRank
+    }));
+  }, [postsData, postsLoading, postsError]);
+
+  // Fallback trending topics data
+  const fallbackTopicsData: TrendingTopic[] = [
     {
       id: '1',
       title: '#SongkranFestival',
@@ -200,44 +221,30 @@ export function DiscoverTab({ user, onPostShare }: DiscoverTabProps) {
       description: 'Traditional culture and modern Thailand',
       engagementRate: 9.4,
       timeframe: '7d'
-    },
-    {
-      id: '4',
-      title: 'Chatuchak Market',
-      category: 'place',
-      posts: 34567,
-      trending: true,
-      trendingRank: 4,
-      description: 'Weekend market discussions',
-      engagementRate: 8.1,
-      timeframe: '24h'
-    },
-    {
-      id: '5',
-      title: '#StreetFood',
-      category: 'hashtag',
-      posts: 78901,
-      trending: true,
-      trendingRank: 5,
-      description: 'Best street food discoveries',
-      engagementRate: 11.2,
-      timeframe: '7d'
-    },
-    {
-      id: '6',
-      title: 'Thai Chef',
-      category: 'person',
-      posts: 23456,
-      trending: true,
-      trendingRank: 6,
-      description: 'Celebrity chef trending',
-      engagementRate: 7.3,
-      timeframe: '24h'
     }
   ];
 
-  // Suggested users to follow
-  const suggestedUsers: SuggestedUser[] = [
+  // Transform RTK Query topics data to local format
+  const trendingTopics = useMemo(() => {
+    if (!topicsData || topicsLoading || topicsError) {
+      return fallbackTopicsData;
+    }
+    return topicsData.map(topic => ({
+      id: topic.id,
+      title: topic.title || 'Unknown Topic',
+      category: topic.category || 'hashtag',
+      posts: topic.posts || 0,
+      trending: topic.trending || false,
+      trendingRank: topic.trendingRank,
+      description: topic.description,
+      image: topic.image,
+      engagementRate: topic.engagementRate || 0,
+      timeframe: topic.timeframe || '24h'
+    }));
+  }, [topicsData, topicsLoading, topicsError]);
+
+  // Fallback suggested users data
+  const fallbackUsersData: SuggestedUser[] = [
     {
       id: '1',
       name: 'Chef Siriporn',
@@ -259,19 +266,26 @@ export function DiscoverTab({ user, onPostShare }: DiscoverTabProps) {
       followers: 89000,
       mutualFollows: 8,
       category: 'local'
-    },
-    {
-      id: '3',
-      name: 'Thai Art & Culture',
-      username: '@thaiartculture',
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face',
-      verified: true,
-      bio: 'Preserving and sharing Thai cultural heritage',
-      followers: 156000,
-      mutualFollows: 15,
-      category: 'culture'
     }
   ];
+
+  // Transform RTK Query users data to local format
+  const suggestedUsers = useMemo(() => {
+    if (!usersData || usersLoading || usersError) {
+      return fallbackUsersData;
+    }
+    return usersData.map(user => ({
+      id: user.id,
+      name: user.name || 'Unknown User',
+      username: user.username || '@unknown',
+      avatar: user.avatar,
+      verified: user.verified || false,
+      bio: user.bio,
+      followers: user.followers || 0,
+      mutualFollows: user.mutualFollows || 0,
+      category: user.category || 'influencer'
+    }));
+  }, [usersData, usersLoading, usersError]);
 
   // Event handlers
   const handleFollowTopic = (topicId: string, topicTitle: string) => {
@@ -651,7 +665,22 @@ export function DiscoverTab({ user, onPostShare }: DiscoverTabProps) {
                 </Badge>
               </div>
 
-              {filteredPosts.length === 0 ? (
+              {postsLoading ? (
+                <Card>
+                  <CardContent className="p-8 text-center">
+                    <Loader2 className="w-8 h-8 text-primary mx-auto mb-4 animate-spin" />
+                    <p className="text-muted-foreground">Loading trending posts...</p>
+                  </CardContent>
+                </Card>
+              ) : postsError ? (
+                <Card>
+                  <CardContent className="p-8 text-center">
+                    <AlertTriangle className="w-8 h-8 text-destructive mx-auto mb-4" />
+                    <p className="text-destructive mb-2">Failed to load trending posts</p>
+                    <p className="text-muted-foreground text-sm">Using cached content</p>
+                  </CardContent>
+                </Card>
+              ) : filteredPosts.length === 0 ? (
                 <Card>
                   <CardContent className="p-8 text-center">
                     <MessageCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
@@ -695,7 +724,30 @@ export function DiscoverTab({ user, onPostShare }: DiscoverTabProps) {
 
               {discoverCategory === 'people' ? (
                 <div className="space-y-3">
-                  {suggestedUsers.map((suggestedUser) => (
+                  {usersLoading ? (
+                    <Card>
+                      <CardContent className="p-8 text-center">
+                        <Loader2 className="w-8 h-8 text-primary mx-auto mb-4 animate-spin" />
+                        <p className="text-muted-foreground">Loading suggested users...</p>
+                      </CardContent>
+                    </Card>
+                  ) : usersError ? (
+                    <Card>
+                      <CardContent className="p-8 text-center">
+                        <AlertTriangle className="w-8 h-8 text-destructive mx-auto mb-4" />
+                        <p className="text-destructive mb-2">Failed to load suggested users</p>
+                        <p className="text-muted-foreground text-sm">Using cached content</p>
+                      </CardContent>
+                    </Card>
+                  ) : suggestedUsers.length === 0 ? (
+                    <Card>
+                      <CardContent className="p-8 text-center">
+                        <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-muted-foreground">No users found to suggest</p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    suggestedUsers.map((suggestedUser) => (
                     <Card key={suggestedUser.id} className="hover:shadow-md transition-shadow">
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
@@ -739,11 +791,35 @@ export function DiscoverTab({ user, onPostShare }: DiscoverTabProps) {
                         </div>
                       </CardContent>
                     </Card>
-                  ))}
+                    ))
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {filteredTopics.map((topic) => (
+                  {topicsLoading ? (
+                    <Card>
+                      <CardContent className="p-8 text-center">
+                        <Loader2 className="w-8 h-8 text-primary mx-auto mb-4 animate-spin" />
+                        <p className="text-muted-foreground">Loading trending topics...</p>
+                      </CardContent>
+                    </Card>
+                  ) : topicsError ? (
+                    <Card>
+                      <CardContent className="p-8 text-center">
+                        <AlertTriangle className="w-8 h-8 text-destructive mx-auto mb-4" />
+                        <p className="text-destructive mb-2">Failed to load trending topics</p>
+                        <p className="text-muted-foreground text-sm">Using cached content</p>
+                      </CardContent>
+                    </Card>
+                  ) : filteredTopics.length === 0 ? (
+                    <Card>
+                      <CardContent className="p-8 text-center">
+                        <Hash className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-muted-foreground">No topics found matching your search</p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    filteredTopics.map((topic) => (
                     <Card key={topic.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleTopicClick(topic)}>
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
@@ -791,7 +867,8 @@ export function DiscoverTab({ user, onPostShare }: DiscoverTabProps) {
                         </div>
                       </CardContent>
                     </Card>
-                  ))}
+                    ))
+                  )}
                 </div>
               )}
             </div>

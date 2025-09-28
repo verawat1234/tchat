@@ -18,7 +18,10 @@ interface AuthScreenProps {
  * Custom hook for getting authentication content with fallback support
  */
 const useAuthContentWithFallback = (contentId: string, defaultText: string = '') => {
-  const { data: contentData, isLoading, error } = useGetContentItemQuery(contentId);
+  const { data: contentData, isLoading, error } = useGetContentItemQuery(contentId, {
+    // Skip if contentId is not valid
+    skip: !contentId,
+  });
   const fallbackSelector = selectFallbackContentById(contentId);
   const fallbackContent = useSelector(fallbackSelector);
 
@@ -151,7 +154,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
             </CardTitle>
             <CardDescription>
               {isContentLoading ? (
-                <div className="h-4 bg-gray-200 rounded animate-pulse mt-2" />
+                <span className="block h-4 bg-gray-200 rounded animate-pulse mt-2" />
               ) : authMethod === 'phone' ? (
                 verifyPhoneDescription.content.replace('{phoneNumber}', phoneNumber)
               ) : (
@@ -231,7 +234,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
           </div>
           <p className="text-muted-foreground text-lg mb-6">
             {isMainContentLoading ? (
-              <div className="h-6 w-96 bg-gray-200 rounded animate-pulse mx-auto" />
+              <span className="block h-6 w-96 bg-gray-200 rounded animate-pulse mx-auto" />
             ) : (
               appDescription.content
             )}
@@ -243,7 +246,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
               <Shield className="w-6 h-6 text-chart-1 mb-2 mx-auto" />
               <p className="text-sm">
                 {featureEncrypted.isLoading ? (
-                  <div className="h-4 w-20 bg-gray-200 rounded animate-pulse mx-auto" />
+                  <span className="block h-4 w-20 bg-gray-200 rounded animate-pulse mx-auto" />
                 ) : (
                   featureEncrypted.content
                 )}
@@ -253,7 +256,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
               <Zap className="w-6 h-6 text-chart-2 mb-2 mx-auto" />
               <p className="text-sm">
                 {featureLowData.isLoading ? (
-                  <div className="h-4 w-20 bg-gray-200 rounded animate-pulse mx-auto" />
+                  <span className="block h-4 w-20 bg-gray-200 rounded animate-pulse mx-auto" />
                 ) : (
                   featureLowData.content
                 )}
@@ -263,7 +266,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
               <Wallet className="w-6 h-6 text-chart-3 mb-2 mx-auto" />
               <p className="text-sm">
                 {featurePayments.isLoading ? (
-                  <div className="h-4 w-20 bg-gray-200 rounded animate-pulse mx-auto" />
+                  <span className="block h-4 w-20 bg-gray-200 rounded animate-pulse mx-auto" />
                 ) : (
                   featurePayments.content
                 )}
@@ -273,7 +276,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
               <Globe className="w-6 h-6 text-chart-4 mb-2 mx-auto" />
               <p className="text-sm">
                 {featureLanguages.isLoading ? (
-                  <div className="h-4 w-20 bg-gray-200 rounded animate-pulse mx-auto" />
+                  <span className="block h-4 w-20 bg-gray-200 rounded animate-pulse mx-auto" />
                 ) : (
                   featureLanguages.content
                 )}
@@ -294,7 +297,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
             </CardTitle>
             <CardDescription>
               {isMainContentLoading ? (
-                <div className="h-4 w-48 bg-gray-200 rounded animate-pulse" />
+                <span className="block h-4 w-48 bg-gray-200 rounded animate-pulse" />
               ) : (
                 signInDescription.content
               )}

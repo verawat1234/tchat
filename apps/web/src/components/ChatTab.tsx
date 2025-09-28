@@ -688,7 +688,28 @@ export function ChatTab({
 
   const renderDialogList = (dialogs: Dialog[], isWork = false) => (
     <div className="p-2">
-      {dialogs.map((dialog) => (
+      {/* Loading State */}
+      {chatsLoading && (
+        <div className="flex items-center justify-center py-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-sm text-muted-foreground">Loading chats...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Error State */}
+      {chatsError && (
+        <div className="flex items-center justify-center py-8">
+          <div className="text-center">
+            <AlertTriangle className="w-8 h-8 text-destructive mx-auto mb-4" />
+            <p className="text-sm text-muted-foreground">Failed to load chats</p>
+          </div>
+        </div>
+      )}
+
+      {/* Chat List */}
+      {!chatsLoading && !chatsError && dialogs.map((dialog) => (
         <button
           key={dialog.id}
           onClick={() => setSelectedDialog(dialog.id)}

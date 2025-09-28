@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ArrowLeft, Search, Filter, Clock, TrendingUp, Hash, User, Store, MessageCircle, X } from 'lucide-react';
+import { useSearchShopsQuery, useSearchProductsQuery, useSearchDiscoverQuery } from '../services/microservicesApi';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
@@ -35,45 +36,112 @@ export function SearchScreen({ user, onBack }: SearchScreenProps) {
     'Family Group'
   ]);
 
-  // Mock search results
-  const searchResults: SearchResult[] = [
-    {
-      id: '1',
-      type: 'chat',
-      title: 'Family Group',
-      subtitle: 'Mom: Dinner at 7pm! 🍽️',
-      avatar: '',
-      timestamp: '5 min ago'
-    },
-    {
-      id: '2',
-      type: 'merchant',
-      title: 'Somtam Vendor',
-      subtitle: 'Thai Street Food • 0.5 km away',
-      avatar: 'https://images.unsplash.com/photo-1743485753872-3b24372fcd24?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzb3V0aGVhc3QlMjBhc2lhJTIwbWFya2V0JTIwdmVuZG9yfGVufDF8fHx8MTc1ODM5NDUxNXww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral'
-    },
-    {
-      id: '3',
-      type: 'product',
-      title: 'Pad Thai Goong',
-      subtitle: '฿45 • Bangkok Street Food',
-      avatar: 'https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0aGFpJTIwc3RyZWV0JTIwZm9vZCUyMGNvb2tpbmd8ZW58MXx8fHwxNzU4Mzk0NTE3fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral'
-    },
-    {
-      id: '4',
-      type: 'message',
-      title: 'AI Assistant',
-      subtitle: 'Welcome to Telegram SEA! Let me help you get started',
-      highlight: 'SEA',
-      timestamp: '10:30 AM'
-    },
-    {
-      id: '5',
-      type: 'hashtag',
-      title: '#ThaiStreetFood',
-      subtitle: '234 posts • Trending in Thailand'
+  // RTK Query search - only trigger when there's a query
+  const shouldSearch = searchQuery.length >= 2;
+
+  const {
+    data: shopsData,
+    isLoading: shopsLoading,
+    error: shopsError
+  } = useSearchShopsQuery(
+    { query: searchQuery, limit: 5 },
+    { skip: !shouldSearch }
+  );
+
+  const {
+    data: productsData,
+    isLoading: productsLoading,
+    error: productsError
+  } = useSearchProductsQuery(
+    { query: searchQuery, limit: 5 },
+    { skip: !shouldSearch }
+  );
+
+  const {
+    data: discoverData,
+    isLoading: discoverLoading,
+    error: discoverError
+  } = useSearchDiscoverQuery(
+    { query: searchQuery, limit: 5 },
+    { skip: !shouldSearch }
+  );
+
+  const searchResults: SearchResult[] = useMemo(() => {
+    if (!shouldSearch) {
+      // Return empty array when no search query
+      return [];
     }
-  ];
+
+    if (shopsLoading || productsLoading || discoverLoading) {
+      // Fallback data while loading
+      return [
+        {
+          id: '1',
+          type: 'chat',
+          title: 'Family Group',
+          subtitle: 'Mom: Dinner at 7pm! 🍽️',
+          avatar: '',
+          timestamp: '5 min ago'
+        },
+        {
+          id: '2',
+          type: 'merchant',
+          title: 'Somtam Vendor',
+          subtitle: 'Thai Street Food • 0.5 km away',
+          avatar: 'https://images.unsplash.com/photo-1743485753872-3b24372fcd24?w=150'
+        }
+      ];
+    }
+
+    const results: SearchResult[] = [];
+
+    // Add shop results
+    if (shopsData) {
+      shopsData.forEach((shop: any) => {
+        results.push({
+          id: shop.id || shop.shop_id || `shop-${Math.random()}`,
+          type: 'merchant',
+          title: shop.name || shop.shop_name || 'Shop',
+          subtitle: `${shop.category || 'Store'} • ${shop.distance || '0.5 km away'}`,
+          avatar: shop.image || shop.logo || shop.avatar || undefined,
+          metadata: shop
+        });
+      });
+    }
+
+    // Add product results
+    if (productsData?.data) {
+      productsData.data.forEach((product: any) => {
+        results.push({
+          id: product.id || product.product_id || `product-${Math.random()}`,
+          type: 'product',
+          title: product.name || product.title || 'Product',
+          subtitle: `${product.currency || '฿'}${product.price || 0} • ${product.shop_name || 'Store'}`,
+          avatar: product.image || product.image_url || product.thumbnail || undefined,
+          metadata: product
+        });
+      });
+    }
+
+    // Add discover results (hashtags, posts, etc.)
+    if (discoverData) {
+      const discoverResults = Array.isArray(discoverData) ? discoverData : [discoverData];
+      discoverResults.forEach((item: any) => {
+        results.push({
+          id: item.id || item.content_id || `discover-${Math.random()}`,
+          type: item.type === 'hashtag' ? 'hashtag' : 'message',
+          title: item.title || item.content || item.hashtag || 'Content',
+          subtitle: item.subtitle || item.description || `${item.engagement_count || 0} interactions`,
+          avatar: item.image || item.thumbnail || undefined,
+          highlight: searchQuery,
+          timestamp: item.timestamp || item.created_at || undefined,
+          metadata: item
+        });
+      });
+    }
+
+    return results;
+  }, [searchQuery, shopsData, productsData, discoverData, shopsLoading, productsLoading, discoverLoading, shouldSearch]);
 
   const trendingSearches = [
     { query: 'Songkran Festival', count: '1.2k' },

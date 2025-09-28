@@ -46,22 +46,38 @@ import kotlinx.coroutines.launch
 import com.tchat.mobile.utils.PlatformUtils
 import com.tchat.mobile.models.Post
 import com.tchat.mobile.models.PostType as UnifiedPostType
-import com.tchat.mobile.repositories.MockPostRepository
+import com.tchat.mobile.models.PostType
+import com.tchat.mobile.models.PostUser
+import com.tchat.mobile.models.PostContent
+import com.tchat.mobile.models.PostContentType
+import com.tchat.mobile.models.PostInteractions
 import com.tchat.mobile.components.posts.PostRenderer
 import com.tchat.mobile.services.NavigationService
 import com.tchat.mobile.services.NavigationAction
 import com.tchat.mobile.services.SharingService
 import com.tchat.mobile.services.SharingPlatform
 import com.tchat.mobile.services.ShareResult
+import com.tchat.mobile.services.SocialContentService
+import com.tchat.mobile.services.ContentApiService
+import com.tchat.mobile.repositories.MockPostRepository
+import com.tchat.mobile.repositories.EventRepository
+import com.tchat.mobile.services.MockSharingService
+import com.tchat.mobile.services.MockNavigationService
 import com.tchat.mobile.models.*
+import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SocialScreen(
     onUserClick: (userId: String) -> Unit = {},
     onMoreClick: () -> Unit = {},
+    socialContentService: SocialContentService? = null,
+    contentApiService: ContentApiService? = null,
     modifier: Modifier = Modifier
 ) {
+    // Inject EventRepository
+    val eventRepository: EventRepository = koinInject()
+
     // Tab and UI state
     var selectedTabIndex by remember { mutableStateOf(0) }
     var showShareModal by remember { mutableStateOf(false) }
@@ -91,19 +107,185 @@ fun SocialScreen(
     var storyText by remember { mutableStateOf("") }
 
     val tabs = listOf("Friends", "Feed", "All Posts", "Discover", "Events")
-    // Use the unified post repository with all 42 post types
-    val postRepository = remember { MockPostRepository() }
-    var allPosts by remember { mutableStateOf<List<Post>>(emptyList()) }
 
-    // Load posts from repository
-    LaunchedEffect(Unit) {
-        postRepository.getPosts().onSuccess { posts ->
-            allPosts = posts
+    // Real social data state
+    var realStories by remember { mutableStateOf<List<Story>>(emptyList()) }
+    var realFriends by remember { mutableStateOf<List<Friend>>(emptyList()) }
+    var realEvents by remember { mutableStateOf<List<Event>>(emptyList()) }
+    var socialDataLoading by remember { mutableStateOf(false) }
+
+    // Content API data state
+    var apiPosts by remember { mutableStateOf<List<Post>>(emptyList()) }
+    var apiStories by remember { mutableStateOf<List<StoryItem>>(emptyList()) }
+    var contentApiLoading by remember { mutableStateOf(false) }
+
+    // Event repository data state
+    var eventDataLoading by remember { mutableStateOf(false) }
+    var eventCategories by remember { mutableStateOf<List<Pair<String, Int>>>(emptyList()) }
+    var eventPosts by remember { mutableStateOf<List<PostItem>>(emptyList()) }
+
+    // Load real social data if service is available
+    LaunchedEffect(socialContentService) {
+        socialContentService?.let { service ->
+            socialDataLoading = true
+            try {
+                // Load stories
+                service.getPersonalizedStories().onSuccess { stories ->
+                    realStories = stories
+                }
+
+                // Load friends
+                service.getFriendsWithStatus().onSuccess { friends ->
+                    realFriends = friends
+                }
+
+                // Load events
+                service.getUpcomingEvents().onSuccess { events ->
+                    realEvents = events
+                }
+            } catch (e: Exception) {
+                println("Error loading social data: ${e.message}")
+            } finally {
+                socialDataLoading = false
+            }
         }
     }
-    val stories = remember { SocialMockData.getDummyStories() }
-    val friends = remember { SocialMockData.getDummyFriends() }
-    val events = remember { SocialMockData.getDummyEvents() }
+
+    // Initialize event repository with seed data and load categories/posts
+    LaunchedEffect(eventRepository) {
+        eventDataLoading = true
+        try {
+            // Initialize with seed data (creates categories and posts if they don't exist)
+            eventRepository.initializeWithSeedData()
+
+            // Load event categories for browse section
+            eventCategories = eventRepository.getEventCategoriesForUI()
+
+            // Load event posts for event posts section
+            eventPosts = eventRepository.getEventPostsForUI()
+
+            println("✅ Loaded ${eventCategories.size} event categories and ${eventPosts.size} event posts")
+        } catch (e: Exception) {
+            println("Error loading event data: ${e.message}")
+            // Fallback to hardcoded data
+            eventCategories = listOf(
+                "Music" to 15,
+                "Food" to 23,
+                "Technology" to 8,
+                "Arts & Culture" to 12
+            )
+            eventPosts = emptyList()
+        } finally {
+            eventDataLoading = false
+        }
+    }
+
+    // Load content from content service API
+    LaunchedEffect(contentApiService) {
+        contentApiService?.let { service ->
+            contentApiLoading = true
+            try {
+                // Load posts from content service
+                service.getSocialPosts().onSuccess { posts ->
+                    apiPosts = posts
+                    println("✅ Loaded ${posts.size} posts from content service")
+                }
+
+                // Load stories from content service
+                service.getSocialStories().onSuccess { stories ->
+                    apiStories = stories.map { story ->
+                        StoryItem(
+                            id = story.id,
+                            author = UserItem(
+                                id = story.authorId,
+                                name = story.authorId, // Use authorId as name for now
+                                username = story.authorId,
+                                avatar = "",
+                                isVerified = false,
+                                isOnline = false,
+                                lastSeen = "",
+                                mutualFriends = 0,
+                                status = ""
+                            ),
+                            preview = story.preview,
+                            content = story.content,
+                            timestamp = story.createdAt.toString(),
+                            isViewed = story.isViewed,
+                            isLive = story.isLive,
+                            expiresAt = story.expiresAt.toString()
+                        )
+                    }
+                    println("✅ Loaded ${stories.size} stories from content service")
+                }
+            } catch (e: Exception) {
+                println("❌ Error loading content from API: ${e.message}")
+            } finally {
+                contentApiLoading = false
+            }
+        }
+    }
+
+    // Use real data only, fallback to content API or empty list
+    val stories = if (realStories.isNotEmpty()) {
+        realStories.map { story ->
+            StoryItem(
+                id = story.id,
+                author = UserItem(story.authorId, "User ${story.authorId}", story.authorId),
+                content = story.content,
+                timestamp = "2h",
+                isViewed = story.isViewed,
+                isLive = story.isLive
+            )
+        }
+    } else if (apiStories.isNotEmpty()) {
+        apiStories
+    } else {
+        emptyList()
+    }
+
+    val friends = if (realFriends.isNotEmpty()) {
+        realFriends.map { friend ->
+            FriendItem(
+                id = friend.id,
+                name = friend.profile?.displayName ?: "Unknown",
+                username = friend.profile?.username ?: "unknown",
+                avatar = friend.profile?.avatarUrl ?: "",
+                isOnline = friend.profile?.isOnline ?: false,
+                isFollowing = true, // TODO: Check actual follow status
+                mutualFriends = friend.mutualFriendsCount,
+                status = friend.profile?.statusMessage ?: ""
+            )
+        }
+    } else {
+        emptyList()
+    }
+
+    val events = if (realEvents.isNotEmpty()) {
+        realEvents.map { event ->
+            EventItem(
+                id = event.id,
+                title = event.title,
+                description = event.description,
+                date = "Dec ${(event.eventDate % 31) + 1}",
+                location = event.location,
+                price = event.price,
+                imageUrl = event.imageUrl ?: "",
+                attendeesCount = event.attendeesCount,
+                category = event.category,
+                isAttending = false // TODO: Check user's RSVP status
+            )
+        }
+    } else {
+        // Fallback to dummy events when real events are empty
+        SocialMockData.getDummyEvents()
+    }
+
+    // Use real posts from content API or empty list
+    val allPosts = if (apiPosts.isNotEmpty()) {
+        apiPosts
+    } else {
+        emptyList()
+    }
 
     val keyboardController = LocalSoftwareKeyboardController.current
     val scope = rememberCoroutineScope()
@@ -244,119 +426,44 @@ fun SocialScreen(
             )
         )
 
-        Column(
-            modifier = Modifier.weight(1f)
+        // Tab Navigation at the top
+        TabRow(
+            selectedTabIndex = selectedTabIndex,
+            containerColor = TchatColors.surface,
+            contentColor = TchatColors.primary
         ) {
-            // Stories Row - matching web UI
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(TchatSpacing.sm),
-                contentPadding = PaddingValues(horizontal = TchatSpacing.md),
-                modifier = Modifier.padding(vertical = TchatSpacing.sm)
-            ) {
-                items(stories) { story ->
-                    StoryItemCard(
-                        story = story,
-                        onClick = { handleStoryClick(story) }
-                    )
-                }
-            }
-
-            // Create Post Section - enhanced like web
-            CreatePostSection(
-                showDialog = showCreatePost,
-                onDismiss = { showCreatePost = false },
-                onCreatePost = handleCreatePost,
-                newPostText = newPostText,
-                onTextChange = { newPostText = it },
-                postLocation = postLocation,
-                onLocationChange = { postLocation = it },
-                selectedImages = selectedImages
-            )
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = TchatSpacing.md)
-                    .clickable { showCreatePost = true },
-                colors = CardDefaults.cardColors(containerColor = TchatColors.surface)
-            ) {
-                Row(
-                    modifier = Modifier.padding(TchatSpacing.md),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(TchatColors.primary),
-                        contentAlignment = Alignment.Center
-                    ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTabIndex == index,
+                    onClick = { selectedTabIndex = index },
+                    text = {
                         Text(
-                            "Y",
-                            color = TchatColors.onPrimary,
-                            fontWeight = FontWeight.Bold
+                            text = title,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = if (selectedTabIndex == index) FontWeight.SemiBold else FontWeight.Normal
+                        )
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = when (index) {
+                                0 -> Icons.Default.People
+                                1 -> Icons.Default.Star
+                                2 -> Icons.Default.Explore
+                                3 -> Icons.Default.PlayArrow
+                                4 -> Icons.Default.Explore
+                                5 -> Icons.Default.Event
+                                else -> Icons.Default.Home
+                            },
+                            contentDescription = title,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
-
-                    Spacer(modifier = Modifier.width(TchatSpacing.md))
-
-                    Text(
-                        "What's on your mind?",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = TchatColors.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    Row {
-                        IconButton(onClick = { showCreatePost = true }) {
-                            Icon(Icons.Default.PhotoCamera, "Photo", tint = TchatColors.primary)
-                        }
-                        IconButton(onClick = { showCreatePost = true }) {
-                            Icon(Icons.Default.LocationOn, "Location", tint = TchatColors.primary)
-                        }
-                    }
-                }
+                )
             }
+        }
 
-            Spacer(modifier = Modifier.height(TchatSpacing.sm))
-
-            // Tab Navigation
-            TabRow(
-                selectedTabIndex = selectedTabIndex,
-                containerColor = TchatColors.surface,
-                contentColor = TchatColors.primary
-            ) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTabIndex == index,
-                        onClick = { selectedTabIndex = index },
-                        text = {
-                            Text(
-                                text = title,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = if (selectedTabIndex == index) FontWeight.SemiBold else FontWeight.Normal
-                            )
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = when (index) {
-                                    0 -> Icons.Default.People
-                                    1 -> Icons.Default.Star
-                                    2 -> Icons.Default.Explore
-                                    3 -> Icons.Default.PlayArrow
-                                    4 -> Icons.Default.Explore
-                                    5 -> Icons.Default.Event
-                                    else -> Icons.Default.Home
-                                },
-                                contentDescription = title,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    )
-                }
-            }
-
-            // Tab content based on selectedTabIndex
+        // Tab content based on selectedTabIndex (with full height)
+        Box(modifier = Modifier.weight(1f)) {
             when (selectedTabIndex) {
                 0 -> FriendsTab(
                     posts = allPosts.take(10), // Show first 10 unified posts
@@ -374,7 +481,10 @@ fun SocialScreen(
                     onShare = onShare,
                     onHashtagClick = handleHashtagClick,
                     onCommentTextChange = { newComment = it },
-                    onAddComment = handleAddComment
+                    onAddComment = handleAddComment,
+                    stories = stories,
+                    onStoryClick = handleStoryClick,
+                    onCreatePostClick = { showCreatePost = true }
                 )
                 1 -> FeedTab(
                     posts = allPosts, // All 42 post types
@@ -391,7 +501,10 @@ fun SocialScreen(
                     onShare = onShare,
                     onHashtagClick = handleHashtagClick,
                     onCommentTextChange = { newComment = it },
-                    onAddComment = handleAddComment
+                    onAddComment = handleAddComment,
+                    stories = stories,
+                    onStoryClick = handleStoryClick,
+                    onCreatePostClick = { showCreatePost = true }
                 )
                 2 -> UnifiedPostsTab(
                     posts = allPosts,
@@ -417,6 +530,8 @@ fun SocialScreen(
                 4 -> EventsTab(
                     events = events,
                     posts = allPosts.filter { it.content.text?.contains("event") == true },
+                    eventCategories = eventCategories,
+                    eventPosts = eventPosts,
                     likedPosts = likedPosts,
                     bookmarkedPosts = bookmarkedPosts,
                     followingUsers = followingUsers,
@@ -840,79 +955,11 @@ private fun UnifiedPostsTab(
             }
 
             items(posts) { post ->
-                val mockServices = remember {
-                    object {
-                        val navigationService = object : NavigationService {
-                            override suspend fun navigateTo(action: NavigationAction) {
-                                println("Mock navigation to ${action.destination}")
-                            }
-                            override suspend fun navigateBack() {
-                                println("Mock navigate back")
-                            }
-                            override suspend fun navigateToComments(postId: String) {
-                                println("Mock navigate to comments for post: $postId")
-                            }
-                            override suspend fun navigateToHashtagFeed(hashtag: String) {
-                                println("Mock navigate to hashtag: $hashtag")
-                            }
-                            override suspend fun navigateToUserProfile(userId: String) {
-                                println("Mock navigate to user profile: $userId")
-                            }
-                            override suspend fun navigateToProductDetail(productId: String) {
-                                println("Mock navigate to product: $productId")
-                            }
-                            override suspend fun navigateToShopDetail(shopId: String) {
-                                println("Mock navigate to shop: $shopId")
-                            }
-                            override suspend fun navigateToImageViewer(imageUrl: String, postId: String?) {
-                                println("Mock navigate to image viewer: $imageUrl")
-                            }
-                            override suspend fun navigateToVideoPlayer(videoUrl: String, postId: String?) {
-                                println("Mock navigate to video player: $videoUrl")
-                            }
-                            override suspend fun openHashtagSearch(initialQuery: String?) {
-                                println("Mock open hashtag search: $initialQuery")
-                            }
-                            override suspend fun openShareSheet(postId: String) {
-                                println("Mock open share sheet for post: $postId")
-                            }
-                            override suspend fun handleDeepLink(url: String): Boolean {
-                                println("Mock handle deep link: $url")
-                                return true
-                            }
-                        }
-                        val sharingService = object : SharingService {
-                            override suspend fun sharePost(post: Post, platform: SharingPlatform): ShareResult {
-                                return ShareResult(true, platform.displayName, "Mock shared to ${platform.displayName}")
-                            }
-                            override suspend fun shareText(text: String, platform: SharingPlatform): ShareResult {
-                                return ShareResult(true, platform.displayName, "Mock shared text to ${platform.displayName}")
-                            }
-                            override suspend fun shareImage(imageUrl: String, caption: String?, platform: SharingPlatform): ShareResult {
-                                return ShareResult(true, platform.displayName, "Mock shared image to ${platform.displayName}")
-                            }
-                            override suspend fun shareVideo(videoUrl: String, caption: String?, platform: SharingPlatform): ShareResult {
-                                return ShareResult(true, platform.displayName, "Mock shared video to ${platform.displayName}")
-                            }
-                            override suspend fun getAvailablePlatforms(): List<SharingPlatform> {
-                                return listOf(
-                                    SharingPlatform.WHATSAPP,
-                                    SharingPlatform.TWITTER,
-                                    SharingPlatform.FACEBOOK
-                                )
-                            }
-                            override suspend fun isPlatformAvailable(platform: SharingPlatform): Boolean {
-                                return true
-                            }
-                        }
-                    }
-                }
-
                 PostRenderer(
                     post = post,
-                    postRepository = remember { MockPostRepository() },
-                    sharingService = mockServices.sharingService,
-                    navigationService = mockServices.navigationService,
+                    postRepository = MockPostRepository(),
+                    sharingService = MockSharingService(),
+                    navigationService = MockNavigationService(),
                     onPostClick = { },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -941,6 +988,9 @@ private fun FriendsTab(
     onHashtagClick: (String) -> Unit,
     onCommentTextChange: (String) -> Unit,
     onAddComment: (String) -> Unit,
+    stories: List<StoryItem> = emptyList(),
+    onStoryClick: (StoryItem) -> Unit = {},
+    onCreatePostClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -948,6 +998,68 @@ private fun FriendsTab(
         verticalArrangement = Arrangement.spacedBy(TchatSpacing.sm),
         contentPadding = PaddingValues(TchatSpacing.md)
     ) {
+        // Stories Row at the top
+        item {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(TchatSpacing.sm),
+                contentPadding = PaddingValues(horizontal = TchatSpacing.sm),
+                modifier = Modifier.padding(vertical = TchatSpacing.sm)
+            ) {
+                items(stories) { story ->
+                    StoryItemCard(
+                        story = story,
+                        onClick = { onStoryClick(story) }
+                    )
+                }
+            }
+        }
+
+        // Create Post Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onCreatePostClick() },
+                colors = CardDefaults.cardColors(containerColor = TchatColors.surface)
+            ) {
+                Row(
+                    modifier = Modifier.padding(TchatSpacing.md),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(TchatColors.primary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "Y",
+                            color = TchatColors.onPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(TchatSpacing.md))
+
+                    Text(
+                        "What's on your mind?",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = TchatColors.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Row {
+                        IconButton(onClick = { onCreatePostClick() }) {
+                            Icon(Icons.Default.PhotoCamera, "Photo", tint = TchatColors.primary)
+                        }
+                        IconButton(onClick = { onCreatePostClick() }) {
+                            Icon(Icons.Default.LocationOn, "Location", tint = TchatColors.primary)
+                        }
+                    }
+                }
+            }
+        }
         // Friends Activity Header
         item {
             Card(
@@ -993,12 +1105,11 @@ private fun FriendsTab(
 
         // Friends' Posts
         items(posts) { post ->
-            val mockServices = SocialMockData.rememberMockServices()
             PostRenderer(
                 post = post,
                 postRepository = MockPostRepository(),
-                sharingService = mockServices.sharingService,
-                navigationService = mockServices.navigationService,
+                sharingService = MockSharingService(),
+                navigationService = MockNavigationService(),
                 onPostClick = { },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -1023,6 +1134,9 @@ private fun FeedTab(
     onHashtagClick: (String) -> Unit,
     onCommentTextChange: (String) -> Unit,
     onAddComment: (String) -> Unit,
+    stories: List<StoryItem> = emptyList(),
+    onStoryClick: (StoryItem) -> Unit = {},
+    onCreatePostClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -1030,6 +1144,68 @@ private fun FeedTab(
         verticalArrangement = Arrangement.spacedBy(TchatSpacing.sm),
         contentPadding = PaddingValues(TchatSpacing.md)
     ) {
+        // Stories Row at the top
+        item {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(TchatSpacing.sm),
+                contentPadding = PaddingValues(horizontal = TchatSpacing.sm),
+                modifier = Modifier.padding(vertical = TchatSpacing.sm)
+            ) {
+                items(stories) { story ->
+                    StoryItemCard(
+                        story = story,
+                        onClick = { onStoryClick(story) }
+                    )
+                }
+            }
+        }
+
+        // Create Post Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onCreatePostClick() },
+                colors = CardDefaults.cardColors(containerColor = TchatColors.surface)
+            ) {
+                Row(
+                    modifier = Modifier.padding(TchatSpacing.md),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(TchatColors.primary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "Y",
+                            color = TchatColors.onPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(TchatSpacing.md))
+
+                    Text(
+                        "What's on your mind?",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = TchatColors.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Row {
+                        IconButton(onClick = { onCreatePostClick() }) {
+                            Icon(Icons.Default.PhotoCamera, "Photo", tint = TchatColors.primary)
+                        }
+                        IconButton(onClick = { onCreatePostClick() }) {
+                            Icon(Icons.Default.LocationOn, "Location", tint = TchatColors.primary)
+                        }
+                    }
+                }
+            }
+        }
         // Feed Header with interests
         item {
             Card(
@@ -1070,12 +1246,11 @@ private fun FeedTab(
 
         // All Posts
         items(posts) { post ->
-            val mockServices = SocialMockData.rememberMockServices()
             PostRenderer(
                 post = post,
                 postRepository = MockPostRepository(),
-                sharingService = mockServices.sharingService,
-                navigationService = mockServices.navigationService,
+                sharingService = MockSharingService(),
+                navigationService = MockNavigationService(),
                 onPostClick = { },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -1153,12 +1328,11 @@ private fun DiscoverTab(
 
         // Trending Posts
         items(posts) { post ->
-            val mockServices = SocialMockData.rememberMockServices()
             PostRenderer(
                 post = post,
                 postRepository = MockPostRepository(),
-                sharingService = mockServices.sharingService,
-                navigationService = mockServices.navigationService,
+                sharingService = MockSharingService(),
+                navigationService = MockNavigationService(),
                 onPostClick = { },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -1170,6 +1344,8 @@ private fun DiscoverTab(
 private fun EventsTab(
     events: List<EventItem>,
     posts: List<Post>,
+    eventCategories: List<Pair<String, Int>>,
+    eventPosts: List<PostItem>,
     likedPosts: Set<String>,
     bookmarkedPosts: Set<String>,
     followingUsers: Set<String>,
@@ -1254,7 +1430,7 @@ private fun EventsTab(
 
         // Event Categories
         item {
-            EventCategoriesCard()
+            EventCategoriesCard(eventCategories = eventCategories)
         }
 
         // Event-related Posts
@@ -1267,13 +1443,41 @@ private fun EventsTab(
             )
         }
 
-        items(posts) { post ->
-            val mockServices = SocialMockData.rememberMockServices()
+        items(eventPosts) { postItem ->
+            // Convert PostItem to Post for PostRenderer
+            val post = Post(
+                id = postItem.id,
+                type = PostType.TEXT,
+                user = PostUser(
+                    id = postItem.author.id,
+                    username = postItem.author.username,
+                    displayName = postItem.author.name,
+                    avatarUrl = postItem.author.avatar,
+                    isVerified = postItem.author.isVerified
+                ),
+                content = PostContent(
+                    type = PostContentType.TEXT,
+                    text = postItem.content,
+                    hashtags = postItem.tags ?: emptyList(),
+                    mentions = emptyList(),
+                    location = postItem.location
+                ),
+                interactions = PostInteractions(
+                    reactions = emptyList(),
+                    comments = emptyList(),
+                    shares = emptyList(),
+                    views = 0,
+                    isLiked = postItem.isLiked ?: false,
+                    isBookmarked = false
+                ),
+                createdAt = postItem.timestamp
+            )
+
             PostRenderer(
                 post = post,
                 postRepository = MockPostRepository(),
-                sharingService = mockServices.sharingService,
-                navigationService = mockServices.navigationService,
+                sharingService = MockSharingService(),
+                navigationService = MockNavigationService(),
                 onPostClick = { },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -2030,6 +2234,7 @@ private fun EventCard(
 
 @Composable
 private fun EventCategoriesCard(
+    eventCategories: List<Pair<String, Int>>,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -2051,10 +2256,28 @@ private fun EventCategoriesCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(TchatSpacing.sm)
             ) {
-                listOf(
-                    Triple("Music", Icons.Default.LibraryMusic, "15 events"),
-                    Triple("Food", Icons.Default.Restaurant, "23 events")
-                ).forEach { (category, icon, count) ->
+                // Use loaded event categories or fallback to default
+                val categoriesToShow = remember(eventCategories) {
+                    if (eventCategories.isNotEmpty()) {
+                        eventCategories.take(2).map { (name, count) ->
+                            val icon = when (name) {
+                                "Music" -> Icons.Default.LibraryMusic
+                                "Food" -> Icons.Default.Restaurant
+                                "Technology" -> Icons.Default.Computer
+                                "Arts & Culture" -> Icons.Default.Palette
+                                else -> Icons.Default.Category
+                            }
+                            Triple(name, icon, "$count events")
+                        }
+                    } else {
+                        listOf(
+                            Triple("Music", Icons.Default.LibraryMusic, "15 events"),
+                            Triple("Food", Icons.Default.Restaurant, "23 events")
+                        )
+                    }
+                }
+
+                categoriesToShow.forEach { (category, icon, count) ->
                     Card(
                         modifier = Modifier.weight(1f),
                         colors = CardDefaults.cardColors(

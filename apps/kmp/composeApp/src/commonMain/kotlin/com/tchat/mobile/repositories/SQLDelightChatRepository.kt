@@ -686,7 +686,7 @@ class SQLDelightChatRepository(
                     senderId = message.senderId,
                     senderName = message.senderName,
                     timestamp = message.createdAt,
-                    type = ChatMessageType.valueOf(message.type),
+                    type = MessageType.valueOf(message.type),
                     isEdited = message.isEdited == 1L,
                     attachmentCount = message.attachmentCount.toInt()
                 )
@@ -733,7 +733,7 @@ class SQLDelightChatRepository(
         return Result.success(true) // Mock implementation
     }
 
-    override suspend fun updateMessageDeliveryStatus(messageId: String, status: MessageDeliveryStatus): Result<Boolean> {
+    override suspend fun updateDeliveryStatus(messageId: String, status: DeliveryStatus): Result<Boolean> {
         return Result.success(true) // Mock implementation
     }
 

@@ -1,42 +1,95 @@
 import { createApi, fetchBaseQuery, BaseQueryFn, FetchArgs, FetchBaseQueryError, retry } from '@reduxjs/toolkit/query/react';
 import type { RootState } from '../store';
 import { RefreshTokenResponse } from '../types/api';
+import { buildServiceUrl, getServiceConfig } from './serviceConfig';
+import { fallbackDataService } from './fallbackData';
 
-const baseQuery = fetchBaseQuery({
-  baseUrl: import.meta.env.VITE_API_URL || 'http://localhost:3001/api',
-  prepareHeaders: (headers, { getState }) => {
-    const token = (getState() as RootState).auth?.accessToken;
-    if (token) {
-      headers.set('authorization', `Bearer ${token}`);
-    }
-    headers.set('Content-Type', 'application/json');
-    return headers;
-  },
-  credentials: 'include',
-  timeout: 10000, // 10 second timeout
-});
+// Service-aware base query that routes to appropriate microservices
+const createServiceAwareBaseQuery = () => {
+  const serviceConfig = getServiceConfig();
+
+  return fetchBaseQuery({
+    baseUrl: '', // Will be set dynamically per request
+    prepareHeaders: (headers, { getState }) => {
+      const token = (getState() as RootState).auth?.accessToken;
+      if (token) {
+        headers.set('authorization', `Bearer ${token}`);
+      }
+      headers.set('Content-Type', 'application/json');
+      return headers;
+    },
+    credentials: 'include',
+    timeout: 10000, // 10 second timeout
+  });
+};
+
+// Enhanced base query with service routing
+const baseQuery: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError> = async (
+  args,
+  api,
+  extraOptions
+) => {
+  const serviceConfig = getServiceConfig();
+  const baseQueryFn = createServiceAwareBaseQuery();
+
+  // Handle URL routing for service-aware requests
+  if (typeof args === 'string') {
+    const fullUrl = serviceConfig.useDirect ? buildServiceUrl(args) : `${import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'}${args}`;
+    return baseQueryFn(fullUrl, api, extraOptions);
+  } else {
+    // For FetchArgs objects
+    const endpoint = args.url;
+    const fullUrl = serviceConfig.useDirect ? buildServiceUrl(endpoint) : `${import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'}${endpoint}`;
+
+    return baseQueryFn({
+      ...args,
+      url: fullUrl
+    }, api, extraOptions);
+  }
+};
 
 // Enhanced retry logic with exponential backoff
 const baseQueryWithRetry = retry(
   async (args, api, extraOptions) => {
     const result = await baseQuery(args, api, extraOptions);
 
-    // Retry on network errors, timeouts, and 5xx errors
+    // Only retry on network errors, timeouts, and 5xx server errors
+    // Don't retry on CORS, 4xx client errors, or parsing errors
     if (result.error) {
       const { status } = result.error as FetchBaseQueryError;
+      const errorDetails = result.error as FetchBaseQueryError & { error?: string };
+      const errorMessage = typeof errorDetails.error === 'string' ? errorDetails.error : '';
+      const isLikelyCorsError = status === 'FETCH_ERROR' && /cors|failed to fetch/i.test(errorMessage);
+
+      // Log CORS and client errors but don't retry
+      if (
+        status === 'PARSING_ERROR' ||
+        status === 'CUSTOM_ERROR' ||
+        (typeof status === 'number' && status >= 400 && status < 500)
+      ) {
+        console.warn(`API error (${status}) - not retrying:`, result.error);
+        return result; // Return error result without retrying
+      }
+
+      if (isLikelyCorsError) {
+        console.warn('CORS or fetch error detected - not retrying:', result.error);
+        return result;
+      }
+
+      // Only retry on network/server errors
       if (
         status === 'FETCH_ERROR' ||
         status === 'TIMEOUT_ERROR' ||
         (typeof status === 'number' && status >= 500)
       ) {
-        throw result.error;
+        throw result.error; // This triggers retry
       }
     }
 
     return result;
   },
   {
-    maxRetries: 3,
+    maxRetries: 2, // Reduced retries
     backoff: (attempt) => {
       // Exponential backoff: 1s, 2s, 4s
       return Math.min(1000 * Math.pow(2, attempt), 10000);
@@ -50,6 +103,29 @@ const baseQueryWithReauth: BaseQueryFn<
   FetchBaseQueryError
 > = async (args, api, extraOptions) => {
   let result = await baseQueryWithRetry(args, api, extraOptions);
+
+  // Handle fallback data for development when endpoints are not available
+  if (result.error && import.meta.env.DEV) {
+    const endpoint = typeof args === 'string' ? args : args.url;
+    const method = typeof args === 'string' ? 'GET' : (args.method || 'GET');
+
+    // Only use fallback for GET requests to avoid unintended side effects
+    if (method === 'GET' && fallbackDataService.shouldUseFallback(endpoint, result.error)) {
+      console.log(`🔄 API endpoint ${endpoint} not available, using fallback data`);
+
+      const fallbackResponse = fallbackDataService.createFallbackResponse(endpoint);
+
+      // Return fallback data with success status
+      return {
+        data: fallbackResponse,
+        meta: {
+          request: args,
+          response: { status: 200 },
+          fallback: true
+        }
+      };
+    }
+  }
 
   if (result.error && result.error.status === 401) {
     // Try to get a new token
@@ -137,12 +213,19 @@ export const api = createApi({
     'Content',
     'ContentItem',
     'ContentCategory',
-    'ContentVersion'
+    'ContentVersion',
+    'Video',
+    'Channel',
+    'Comment',
+    'Playlist',
+    'LiveStream',
+    'Search',
+    'Analytics'
   ],
   endpoints: () => ({}),
-  refetchOnMountOrArgChange: 30,
-  refetchOnFocus: true,
-  refetchOnReconnect: true,
+  refetchOnMountOrArgChange: false, // Disable automatic refetch
+  refetchOnFocus: false, // Disable refetch on focus
+  refetchOnReconnect: false, // Disable refetch on reconnect
   keepUnusedDataFor: 60, // 60 seconds cache
   extractRehydrationInfo(action, { reducerPath }) {
     if (action.type === 'persist/REHYDRATE') {

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Heart, MessageCircle, Share, MoreVertical, MapPin, Clock, Users, Calendar, Bell, ArrowRight, Navigation, Music, Flame, Sparkles, Star, Play, Camera, ShoppingCart, Ticket, TrendingUp, Eye, Bookmark, UserPlus, ChevronRight, Volume2, CheckCircle, Award, Image as ImageIcon, Video } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Heart, MessageCircle, Share, MoreVertical, MapPin, Clock, Users, Calendar, Bell, ArrowRight, Navigation, Music, Flame, Sparkles, Star, Play, Camera, ShoppingCart, Ticket, TrendingUp, Eye, Bookmark, UserPlus, ChevronRight, Volume2, CheckCircle, Award, Image as ImageIcon, Video, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Card, CardContent, CardHeader } from './ui/card';
@@ -11,6 +11,14 @@ import { ImageWithFallback } from './figma/ImageWithFallback';
 import { Progress } from './ui/progress';
 import { Separator } from './ui/separator';
 import { toast } from "sonner";
+import {
+  useGetUpcomingEventsQuery,
+  useGetHistoricalEventsQuery,
+  useGetEventDetailsQuery,
+  useRegisterEventInterestMutation,
+  useRsvpToEventMutation,
+  useBookEventTicketsMutation
+} from '../services/microservicesApi';
 
 interface EventsTabProps {
   user: any;
@@ -149,9 +157,34 @@ export function EventsTab({ user, onBack }: EventsTabProps) {
   const [interestedEvents, setInterestedEvents] = useState<string[]>(['upcoming-1', 'upcoming-3']);
   const [attendingEvents, setAttendingEvents] = useState<string[]>(['upcoming-2']);
   const [followedOrganizers, setFollowedOrganizers] = useState<string[]>(['bangkok-festivals', 'thai-music-co']);
+  const [isMounted, setIsMounted] = useState(false);
 
-  // Historical Events Data
-  const historicalEvents: HistoricalEvent[] = [
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // RTK Query hooks for events data
+  const { data: historicalEventsData, isLoading: historicalLoading, error: historicalError } = useGetHistoricalEventsQuery({
+    limit: 10,
+    category: 'all'
+  }, {
+    skip: !isMounted
+  });
+
+  const { data: upcomingEventsData, isLoading: upcomingLoading, error: upcomingError } = useGetUpcomingEventsQuery({
+    limit: 10,
+    timeframe: 'upcoming'
+  }, {
+    skip: !isMounted
+  });
+
+  // RTK Query mutations for event interactions
+  const [registerInterest] = useRegisterEventInterestMutation();
+  const [rsvpToEvent] = useRsvpToEventMutation();
+  const [bookTickets] = useBookEventTicketsMutation();
+
+  // Fallback historical events data
+  const fallbackHistoricalData: HistoricalEvent[] = [
     {
       id: 'hist-1',
       title: 'Songkran Music Festival 2024',
@@ -246,8 +279,31 @@ export function EventsTab({ user, onBack }: EventsTabProps) {
     }
   ];
 
-  // Upcoming Events Data
-  const upcomingEvents: UpcomingEvent[] = [
+  // Transform RTK Query historical events data to local format
+  const historicalEvents = useMemo(() => {
+    if (!historicalEventsData || historicalLoading || historicalError) {
+      return fallbackHistoricalData;
+    }
+    return historicalEventsData.map(event => ({
+      id: event.id,
+      title: event.title || 'Unknown Event',
+      date: event.date || 'TBD',
+      location: event.location || 'Unknown Location',
+      category: event.category || 'cultural',
+      mainImage: event.mainImage || 'https://images.unsplash.com/photo-1523050854058-8df90110c9d1?w=800&h=600&fit=crop',
+      galleryImages: event.galleryImages || [],
+      highlights: event.highlights || [],
+      attendeeCount: event.attendeeCount || 0,
+      rating: event.rating || 0,
+      reviews: event.reviews || [],
+      organizer: event.organizer || { name: 'Unknown Organizer', verified: false },
+      tags: event.tags || [],
+      socialStats: event.socialStats || { photos: 0, videos: 0, mentions: 0 }
+    }));
+  }, [historicalEventsData, historicalLoading, historicalError]);
+
+  // Fallback upcoming events data
+  const fallbackUpcomingData: UpcomingEvent[] = [
     {
       id: 'upcoming-1',
       title: 'Bangkok Electronic Music Festival 2025',
@@ -443,24 +499,66 @@ export function EventsTab({ user, onBack }: EventsTabProps) {
     }
   ];
 
-  const handleEventInterest = (eventId: string) => {
-    if (interestedEvents.includes(eventId)) {
-      setInterestedEvents(prev => prev.filter(id => id !== eventId));
-      toast.success('Removed from interested');
-    } else {
-      setInterestedEvents(prev => [...prev, eventId]);
-      toast.success('Added to interested events');
+  // Transform RTK Query upcoming events data to local format
+  const upcomingEvents = useMemo(() => {
+    if (!upcomingEventsData || upcomingLoading || upcomingError) {
+      return fallbackUpcomingData;
+    }
+    return upcomingEventsData.map(event => ({
+      id: event.id,
+      title: event.title || 'Unknown Event',
+      description: event.description || 'No description available',
+      startDate: event.startDate || 'TBD',
+      endDate: event.endDate || 'TBD',
+      location: event.location || 'Unknown Location',
+      category: event.category || 'cultural',
+      mainImage: event.mainImage || 'https://images.unsplash.com/photo-1523050854058-8df90110c9d1?w=800&h=600&fit=crop',
+      organizer: event.organizer || { name: 'Unknown Organizer', verified: false },
+      lineup: event.lineup || [],
+      ticketTypes: event.ticketTypes || [],
+      amenities: event.amenities || [],
+      tags: event.tags || [],
+      socialProof: event.socialProof || { attending: 0, interested: 0 },
+      ageRestriction: event.ageRestriction,
+      weather: event.weather
+    }));
+  }, [upcomingEventsData, upcomingLoading, upcomingError]);
+
+  const handleEventInterest = async (eventId: string) => {
+    try {
+      if (interestedEvents.includes(eventId)) {
+        setInterestedEvents(prev => prev.filter(id => id !== eventId));
+        await registerInterest({ eventId, interested: false });
+        toast.success('Removed from interested');
+      } else {
+        setInterestedEvents(prev => [...prev, eventId]);
+        await registerInterest({ eventId, interested: true });
+        toast.success('Added to interested events');
+      }
+    } catch (error) {
+      toast.error('Failed to update interest status');
     }
   };
 
-  const handleEventAttend = (eventId: string) => {
-    if (attendingEvents.includes(eventId)) {
-      setAttendingEvents(prev => prev.filter(id => id !== eventId));
-      toast.success('No longer attending');
-    } else {
-      setAttendingEvents(prev => [...prev, eventId]);
-      toast.success('You\'re attending this event!');
+  const handleEventRsvp = async (eventId: string) => {
+    try {
+      if (attendingEvents.includes(eventId)) {
+        setAttendingEvents(prev => prev.filter(id => id !== eventId));
+        await rsvpToEvent({ eventId, attending: false });
+        toast.success('No longer attending');
+      } else {
+        setAttendingEvents(prev => [...prev, eventId]);
+        await rsvpToEvent({ eventId, attending: true });
+        toast.success('You\'re attending this event!');
+      }
+    } catch (error) {
+      toast.error('Failed to update RSVP status');
     }
+  };
+
+  const handleEventAttend = async (eventId: string) => {
+    // This is a duplicate of handleEventRsvp - calling the same function
+    await handleEventRsvp(eventId);
   };
 
   const handleFollowOrganizer = (organizerId: string, organizerName: string) => {
@@ -1100,7 +1198,31 @@ export function EventsTab({ user, onBack }: EventsTabProps) {
         <TabsContent value="upcoming" className="flex-1 m-0">
           <ScrollArea className="h-full">
             <div className="p-4 space-y-6">
-              {upcomingEvents.map(renderUpcomingEvent)}
+              {upcomingLoading ? (
+                <Card>
+                  <CardContent className="p-8 text-center">
+                    <Loader2 className="w-8 h-8 text-primary mx-auto mb-4 animate-spin" />
+                    <p className="text-muted-foreground">Loading upcoming events...</p>
+                  </CardContent>
+                </Card>
+              ) : upcomingError ? (
+                <Card>
+                  <CardContent className="p-8 text-center">
+                    <AlertTriangle className="w-8 h-8 text-destructive mx-auto mb-4" />
+                    <p className="text-destructive mb-2">Failed to load upcoming events</p>
+                    <p className="text-muted-foreground text-sm">Using cached content</p>
+                  </CardContent>
+                </Card>
+              ) : upcomingEvents.length === 0 ? (
+                <Card>
+                  <CardContent className="p-8 text-center">
+                    <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">No upcoming events found</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                upcomingEvents.map(renderUpcomingEvent)
+              )}
             </div>
           </ScrollArea>
         </TabsContent>
@@ -1115,7 +1237,31 @@ export function EventsTab({ user, onBack }: EventsTabProps) {
                 </p>
               </div>
               <div className="space-y-4 sm:space-y-6">
-                {historicalEvents.map(renderHistoricalEvent)}
+                {historicalLoading ? (
+                  <Card>
+                    <CardContent className="p-8 text-center">
+                      <Loader2 className="w-8 h-8 text-primary mx-auto mb-4 animate-spin" />
+                      <p className="text-muted-foreground">Loading historical events...</p>
+                    </CardContent>
+                  </Card>
+                ) : historicalError ? (
+                  <Card>
+                    <CardContent className="p-8 text-center">
+                      <AlertTriangle className="w-8 h-8 text-destructive mx-auto mb-4" />
+                      <p className="text-destructive mb-2">Failed to load historical events</p>
+                      <p className="text-muted-foreground text-sm">Using cached content</p>
+                    </CardContent>
+                  </Card>
+                ) : historicalEvents.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-8 text-center">
+                      <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-muted-foreground">No historical events found</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  historicalEvents.map(renderHistoricalEvent)
+                )}
               </div>
             </div>
           </ScrollArea>

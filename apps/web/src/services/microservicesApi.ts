@@ -16,6 +16,7 @@
  */
 
 import { api } from './api';
+import { getServiceConfig } from './serviceConfig';
 import type {
   User,
   Message,
@@ -28,14 +29,18 @@ import type {
 // Service Configuration
 // =============================================================================
 
+// Check if we should use direct services or gateway
+const serviceConfig = getServiceConfig();
+const useDirectServices = serviceConfig.useDirect;
+
 const SERVICES = {
-  GATEWAY: import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8080/api/v1',
-  AUTH: import.meta.env.VITE_AUTH_URL || 'http://localhost:8081/api/v1',
-  CONTENT: import.meta.env.VITE_CONTENT_URL || 'http://localhost:8082/api/v1',
-  MESSAGING: import.meta.env.VITE_MESSAGING_URL || 'http://localhost:8083/api/v1',
-  COMMERCE: import.meta.env.VITE_COMMERCE_URL || 'http://localhost:8084/api/v1',
-  PAYMENT: import.meta.env.VITE_PAYMENT_URL || 'http://localhost:8085/api/v1',
-  NOTIFICATION: import.meta.env.VITE_NOTIFICATION_URL || 'http://localhost:8086/api/v1'
+  GATEWAY: import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1',
+  AUTH: useDirectServices ? (import.meta.env.VITE_AUTH_URL || 'http://localhost:8081/api/v1') : (import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'),
+  CONTENT: useDirectServices ? (import.meta.env.VITE_CONTENT_URL || 'http://localhost:8082/api/v1') : (import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'),
+  MESSAGING: useDirectServices ? (import.meta.env.VITE_MESSAGING_URL || 'http://localhost:8083/api/v1') : (import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'),
+  COMMERCE: useDirectServices ? (import.meta.env.VITE_COMMERCE_URL || 'http://localhost:8084/api/v1') : (import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'),
+  PAYMENT: useDirectServices ? (import.meta.env.VITE_PAYMENT_URL || 'http://localhost:8085/api/v1') : (import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'),
+  NOTIFICATION: useDirectServices ? (import.meta.env.VITE_NOTIFICATION_URL || 'http://localhost:8086/api/v1') : (import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1')
 };
 
 // =============================================================================
@@ -198,6 +203,49 @@ export const messagingApi = api.injectEndpoints({
 export const commerceApi = api.injectEndpoints({
   endpoints: (builder) => ({
     /**
+     * Get featured shops/merchants
+     */
+    getFeaturedShops: builder.query<any[], { country?: string; category?: string; limit?: number }>({
+      query: ({ country, category, limit = 20 }) => {
+        const params = new URLSearchParams();
+        if (country) params.append('country', country);
+        if (category) params.append('category', category);
+        params.append('limit', limit.toString());
+        return {
+          url: `/shops/featured?${params}`,
+          baseUrl: SERVICES.COMMERCE
+        };
+      },
+      providesTags: ['Shop'],
+      transformResponse: (response: ApiResponse<any[]>) => response.data,
+    }),
+
+    /**
+     * Search shops with filters
+     */
+    searchShops: builder.query<any[], {
+      query?: string;
+      category?: string;
+      country?: string;
+      isVerified?: boolean;
+      page?: number;
+      limit?: number;
+    }>({
+      query: (filters) => {
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value !== undefined) params.append(key, value.toString());
+        });
+        return {
+          url: `/shops/search?${params}`,
+          baseUrl: SERVICES.COMMERCE
+        };
+      },
+      providesTags: ['Shop'],
+      transformResponse: (response: ApiResponse<any[]>) => response.data,
+    }),
+
+    /**
      * Get featured products for Southeast Asian markets
      */
     getFeaturedProducts: builder.query<Product[], { country?: string; limit?: number }>({
@@ -296,9 +344,121 @@ export const commerceApi = api.injectEndpoints({
       }),
       invalidatesTags: (result, error, { orderId }) => [{ type: 'Order', id: orderId }],
       transformResponse: (response: ApiResponse<Order>) => response.data,
+    }),
+
+    /**
+     * Get user cart items
+     */
+    getCartItems: builder.query<any[], void>({
+      query: () => ({
+        url: '/cart',
+        baseUrl: SERVICES.COMMERCE
+      }),
+      providesTags: ['Cart'],
+      transformResponse: (response: ApiResponse<any[]>) => response.data,
+    }),
+
+    /**
+     * Add item to cart
+     */
+    addToCart: builder.mutation<any, { productId: string; quantity?: number }>({
+      query: ({ productId, quantity = 1 }) => ({
+        url: '/cart/items',
+        method: 'POST',
+        body: { productId, quantity },
+        baseUrl: SERVICES.COMMERCE
+      }),
+      invalidatesTags: ['Cart'],
+      transformResponse: (response: ApiResponse<any>) => response.data,
+    }),
+
+    /**
+     * Update cart item quantity
+     */
+    updateCartItem: builder.mutation<any, { itemId: string; quantity: number }>({
+      query: ({ itemId, quantity }) => ({
+        url: `/cart/items/${itemId}`,
+        method: 'PATCH',
+        body: { quantity },
+        baseUrl: SERVICES.COMMERCE
+      }),
+      invalidatesTags: ['Cart'],
+      transformResponse: (response: ApiResponse<any>) => response.data,
+    }),
+
+    /**
+     * Remove item from cart
+     */
+    removeFromCart: builder.mutation<void, string>({
+      query: (itemId) => ({
+        url: `/cart/items/${itemId}`,
+        method: 'DELETE',
+        baseUrl: SERVICES.COMMERCE
+      }),
+      invalidatesTags: ['Cart'],
+    }),
+
+    /**
+     * Clear cart
+     */
+    clearCart: builder.mutation<void, void>({
+      query: () => ({
+        url: '/cart',
+        method: 'DELETE',
+        baseUrl: SERVICES.COMMERCE
+      }),
+      invalidatesTags: ['Cart'],
+    }),
+
+    /**
+     * Get products by shop ID
+     */
+    getShopProducts: builder.query<Product[], {
+      shopId: string;
+      category?: string;
+      page?: number;
+      limit?: number;
+    }>({
+      query: ({ shopId, category, page = 1, limit = 20 }) => {
+        const params = new URLSearchParams();
+        if (category) params.append('category', category);
+        params.append('page', page.toString());
+        params.append('limit', limit.toString());
+        return {
+          url: `/shops/${shopId}/products?${params}`,
+          baseUrl: SERVICES.COMMERCE
+        };
+      },
+      providesTags: (result, error, { shopId }) => [
+        { type: 'Product', id: `shop-${shopId}` },
+        { type: 'Product', id: 'LIST' }
+      ],
+      transformResponse: (response: ApiResponse<Product[]>) => response.data,
+    }),
+
+    /**
+     * Get categories
+     */
+    getCategories: builder.query<any[], void>({
+      query: () => ({
+        url: '/categories',
+        baseUrl: SERVICES.COMMERCE
+      }),
+      providesTags: ['Category'],
+      transformResponse: (response: ApiResponse<any[]>) => response.data,
     })
   }),
 });
+
+// Export the generated hooks
+export const {
+  useGetFeaturedShopsQuery,
+  useGetFeaturedProductsQuery,
+  useSearchProductsQuery,
+  useAddToCartMutation,
+  useGetShopProductsQuery,
+  useGetCategoriesQuery
+} = commerceApi;
 
 // =============================================================================
 // Payment Service Endpoints (Southeast Asian Payment Methods)
@@ -469,6 +629,102 @@ export const notificationApi = api.injectEndpoints({
 });
 
 // =============================================================================
+// Social Service Endpoints
+// =============================================================================
+export const socialApi = api.injectEndpoints({
+  endpoints: (builder) => ({
+    /**
+     * Get social feed posts
+     */
+    getSocialFeed: builder.query<any[], { type?: string; limit?: number; page?: number }>({
+      query: ({ type = 'all', limit = 20, page = 1 }) => {
+        const params = new URLSearchParams();
+        params.append('type', type);
+        params.append('limit', limit.toString());
+        params.append('page', page.toString());
+        return {
+          url: `/social/feed?${params}`,
+          baseUrl: SERVICES.CONTENT
+        };
+      },
+      providesTags: ['SocialPost'],
+      transformResponse: (response: ApiResponse<any[]>) => response.data,
+    }),
+
+    /**
+     * Get social stories/moments
+     */
+    getSocialStories: builder.query<any[], { active?: boolean; limit?: number }>({
+      query: ({ active = true, limit = 20 }) => {
+        const params = new URLSearchParams();
+        if (active) params.append('active', 'true');
+        params.append('limit', limit.toString());
+        return {
+          url: `/social/stories?${params}`,
+          baseUrl: SERVICES.CONTENT
+        };
+      },
+      providesTags: ['SocialStory'],
+      transformResponse: (response: ApiResponse<any[]>) => response.data,
+    }),
+
+    /**
+     * Get user friends/connections
+     */
+    getUserFriends: builder.query<any[], { status?: string; limit?: number }>({
+      query: ({ status = 'active', limit = 50 }) => {
+        const params = new URLSearchParams();
+        params.append('status', status);
+        params.append('limit', limit.toString());
+        return {
+          url: `/friends?${params}`,
+          baseUrl: SERVICES.MESSAGING
+        };
+      },
+      providesTags: ['Friend'],
+      transformResponse: (response: ApiResponse<any[]>) => response.data,
+    }),
+
+    /**
+     * Like a social post
+     */
+    likeSocialPost: builder.mutation<void, { postId: string; isLiked: boolean }>({
+      query: ({ postId, isLiked }) => ({
+        url: `/social/posts/${postId}/like`,
+        method: isLiked ? 'POST' : 'DELETE',
+        baseUrl: SERVICES.CONTENT
+      }),
+      invalidatesTags: ['SocialPost'],
+    }),
+
+    /**
+     * Create a social post
+     */
+    createSocialPost: builder.mutation<any, { content: string; images?: string[]; location?: string; tags?: string[]; type?: string }>({
+      query: (postData) => ({
+        url: '/social/posts',
+        method: 'POST',
+        body: postData,
+        baseUrl: SERVICES.CONTENT
+      }),
+      invalidatesTags: ['SocialPost'],
+    }),
+
+    /**
+     * Follow/unfollow a user
+     */
+    followUser: builder.mutation<void, { userId: string; action: 'follow' | 'unfollow' }>({
+      query: ({ userId, action }) => ({
+        url: `/friends/${userId}/${action}`,
+        method: 'POST',
+        baseUrl: SERVICES.MESSAGING
+      }),
+      invalidatesTags: ['Friend'],
+    }),
+  }),
+});
+
+// =============================================================================
 // Export Generated Hooks
 // =============================================================================
 
@@ -479,7 +735,11 @@ export const {
   useSendChatMessageMutation,
   useCreateChatMutation,
 
-  // Commerce hooks
+  // Commerce hooks - Shops
+  useGetFeaturedShopsQuery,
+  useSearchShopsQuery,
+
+  // Commerce hooks - Products
   useGetFeaturedProductsQuery,
   useSearchProductsQuery,
   useGetProductQuery,
@@ -499,8 +759,399 @@ export const {
   useGetUserNotificationsQuery,
   useMarkNotificationReadMutation,
   useMarkAllNotificationsReadMutation,
-  useSubscribeToPushNotificationsMutation
+  useSubscribeToPushNotificationsMutation,
+
+  // Social hooks
+  useGetSocialFeedQuery,
+  useGetSocialStoriesQuery,
+  useGetUserFriendsQuery,
+  useLikeSocialPostMutation,
+  useCreateSocialPostMutation,
+  useFollowUserMutation,
+
+  // Workspace hooks
+  useGetUpcomingFeaturesQuery,
+  useGetWorkspaceStatsQuery,
+  useRequestBetaAccessMutation,
+  useSubscribeToFeatureMutation,
+
+  // Discover hooks
+  useGetTrendingPostsQuery,
+  useGetTrendingTopicsQuery,
+  useGetSuggestedUsersQuery,
+  useSearchDiscoverQuery,
+
+  // Events hooks
+  useGetUpcomingEventsQuery,
+  useGetHistoricalEventsQuery,
+  useGetEventDetailsQuery,
+  useRegisterEventInterestMutation,
+  useRsvpToEventMutation,
+  useBookEventTicketsMutation
 } = api;
+
+// =============================================================================
+// Workspace/Work Service Endpoints
+// =============================================================================
+export const workspaceApi = api.injectEndpoints({
+  endpoints: (builder) => ({
+    /**
+     * Get upcoming work features
+     */
+    getUpcomingFeatures: builder.query<any[], { status?: string; limit?: number }>({
+      query: ({ status, limit = 20 }) => {
+        const params = new URLSearchParams();
+        if (status) params.append('status', status);
+        params.append('limit', limit.toString());
+        return {
+          url: `/workspace/features?${params}`,
+          baseUrl: SERVICES.CONTENT
+        };
+      },
+      providesTags: ['WorkFeature'],
+      transformResponse: (response: ApiResponse<any[]>) => response.data,
+    }),
+
+    /**
+     * Get workspace statistics
+     */
+    getWorkspaceStats: builder.query<any, void>({
+      query: () => ({
+        url: `/workspace/stats`,
+        baseUrl: SERVICES.CONTENT
+      }),
+      providesTags: ['WorkStats'],
+      transformResponse: (response: ApiResponse<any>) => response.data,
+    }),
+
+    /**
+     * Request beta access for a feature
+     */
+    requestBetaAccess: builder.mutation<any, { featureId: string; userInfo: any }>({
+      query: ({ featureId, userInfo }) => ({
+        url: `/workspace/features/${featureId}/beta-request`,
+        method: 'POST',
+        body: userInfo,
+        baseUrl: SERVICES.CONTENT
+      }),
+      invalidatesTags: ['WorkFeature'],
+    }),
+
+    /**
+     * Subscribe to feature notifications
+     */
+    subscribeToFeature: builder.mutation<any, { featureId: string }>({
+      query: ({ featureId }) => ({
+        url: `/workspace/features/${featureId}/subscribe`,
+        method: 'POST',
+        baseUrl: SERVICES.CONTENT
+      }),
+      invalidatesTags: ['WorkFeature'],
+    })
+  }),
+});
+
+// =============================================================================
+// Discover/Trending Service Endpoints
+// =============================================================================
+export const discoverApi = api.injectEndpoints({
+  endpoints: (builder) => ({
+    /**
+     * Get trending posts
+     */
+    getTrendingPosts: builder.query<any[], { limit?: number; timeframe?: string; category?: string }>({
+      query: ({ limit = 20, timeframe = '24h', category }) => {
+        const params = new URLSearchParams();
+        params.append('limit', limit.toString());
+        params.append('timeframe', timeframe);
+        if (category) params.append('category', category);
+        return {
+          url: `/discover/trending/posts?${params}`,
+          baseUrl: SERVICES.CONTENT
+        };
+      },
+      providesTags: ['TrendingPost'],
+      transformResponse: (response: ApiResponse<any[]>) => response.data,
+    }),
+
+    /**
+     * Get trending topics and hashtags
+     */
+    getTrendingTopics: builder.query<any[], { category?: string; timeframe?: string; limit?: number }>({
+      query: ({ category, timeframe = '24h', limit = 20 }) => {
+        const params = new URLSearchParams();
+        if (category) params.append('category', category);
+        params.append('timeframe', timeframe);
+        params.append('limit', limit.toString());
+        return {
+          url: `/discover/trending/topics?${params}`,
+          baseUrl: SERVICES.CONTENT
+        };
+      },
+      providesTags: ['TrendingTopic'],
+      transformResponse: (response: ApiResponse<any[]>) => response.data,
+    }),
+
+    /**
+     * Get suggested users to follow
+     */
+    getSuggestedUsers: builder.query<any[], { category?: string; limit?: number }>({
+      query: ({ category, limit = 10 }) => {
+        const params = new URLSearchParams();
+        if (category) params.append('category', category);
+        params.append('limit', limit.toString());
+        return {
+          url: `/discover/users/suggested?${params}`,
+          baseUrl: SERVICES.CONTENT
+        };
+      },
+      providesTags: ['SuggestedUser'],
+      transformResponse: (response: ApiResponse<any[]>) => response.data,
+    }),
+
+    /**
+     * Search discover content
+     */
+    searchDiscover: builder.query<any, { query: string; type?: string; limit?: number }>({
+      query: ({ query, type = 'all', limit = 20 }) => {
+        const params = new URLSearchParams();
+        params.append('q', query);
+        params.append('type', type);
+        params.append('limit', limit.toString());
+        return {
+          url: `/discover/search?${params}`,
+          baseUrl: SERVICES.CONTENT
+        };
+      },
+      providesTags: ['SearchResult'],
+      transformResponse: (response: ApiResponse<any>) => response.data,
+    })
+  }),
+});
+
+// =============================================================================
+// Events Service Endpoints
+// =============================================================================
+export const eventsApi = api.injectEndpoints({
+  endpoints: (builder) => ({
+    /**
+     * Get upcoming events
+     */
+    getUpcomingEvents: builder.query<any[], { category?: string; location?: string; limit?: number; page?: number }>({
+      query: ({ category, location, limit = 20, page = 1 }) => {
+        const params = new URLSearchParams();
+        if (category) params.append('category', category);
+        if (location) params.append('location', location);
+        params.append('limit', limit.toString());
+        params.append('page', page.toString());
+        return {
+          url: `/events/upcoming?${params}`,
+          baseUrl: SERVICES.CONTENT
+        };
+      },
+      providesTags: ['Event'],
+      transformResponse: (response: ApiResponse<any[]>) => response.data,
+    }),
+
+    /**
+     * Get historical/past events
+     */
+    getHistoricalEvents: builder.query<any[], { category?: string; limit?: number; page?: number }>({
+      query: ({ category, limit = 10, page = 1 }) => {
+        const params = new URLSearchParams();
+        if (category) params.append('category', category);
+        params.append('limit', limit.toString());
+        params.append('page', page.toString());
+        return {
+          url: `/events/historical?${params}`,
+          baseUrl: SERVICES.CONTENT
+        };
+      },
+      providesTags: ['HistoricalEvent'],
+      transformResponse: (response: ApiResponse<any[]>) => response.data,
+    }),
+
+    /**
+     * Get event details
+     */
+    getEventDetails: builder.query<any, { eventId: string }>({
+      query: ({ eventId }) => ({
+        url: `/events/${eventId}`,
+        baseUrl: SERVICES.CONTENT
+      }),
+      providesTags: ['Event'],
+      transformResponse: (response: ApiResponse<any>) => response.data,
+    }),
+
+    /**
+     * Register interest in an event
+     */
+    registerEventInterest: builder.mutation<any, { eventId: string; interested: boolean }>({
+      query: ({ eventId, interested }) => ({
+        url: `/events/${eventId}/interest`,
+        method: 'POST',
+        body: { interested },
+        baseUrl: SERVICES.CONTENT
+      }),
+      invalidatesTags: ['Event'],
+    }),
+
+    /**
+     * RSVP to an event (attending)
+     */
+    rsvpToEvent: builder.mutation<any, { eventId: string; attending: boolean }>({
+      query: ({ eventId, attending }) => ({
+        url: `/events/${eventId}/rsvp`,
+        method: 'POST',
+        body: { attending },
+        baseUrl: SERVICES.CONTENT
+      }),
+      invalidatesTags: ['Event'],
+    }),
+
+    /**
+     * Book event tickets
+     */
+    bookEventTickets: builder.mutation<any, { eventId: string; ticketType: string; quantity: number; userInfo?: any }>({
+      query: ({ eventId, ticketType, quantity, userInfo }) => ({
+        url: `/events/${eventId}/book`,
+        method: 'POST',
+        body: { ticketType, quantity, userInfo },
+        baseUrl: SERVICES.CONTENT
+      }),
+      invalidatesTags: ['Event'],
+    })
+  }),
+});
+
+// =============================================================================
+// Authentication API - Critical for routes.tsx mockUser replacement
+// =============================================================================
+
+export const authApi = api.injectEndpoints({
+  endpoints: (builder) => ({
+    getCurrentUser: builder.query<User, void>({
+      query: () => ({
+        url: '/users/profile',
+        baseUrl: SERVICES.AUTH
+      }),
+      providesTags: ['User'],
+      transformResponse: (response: ApiResponse<User>) => response.data,
+    }),
+
+    updateUserProfile: builder.mutation<User, Partial<User>>({
+      query: (userData) => ({
+        url: '/users/profile',
+        method: 'PATCH',
+        body: userData,
+        baseUrl: SERVICES.AUTH
+      }),
+      invalidatesTags: ['User'],
+      transformResponse: (response: ApiResponse<User>) => response.data,
+    }),
+
+    getUserSession: builder.query<any, void>({
+      query: () => ({
+        url: '/auth/session',
+        baseUrl: SERVICES.AUTH
+      }),
+      providesTags: ['Session'],
+      transformResponse: (response: ApiResponse<any>) => response.data,
+    })
+  }),
+});
+
+// =============================================================================
+// Product Reviews Service Endpoints (E-commerce Reviews)
+// =============================================================================
+
+export const reviewsApi = api.injectEndpoints({
+  endpoints: (builder) => ({
+    /**
+     * Get product reviews with pagination
+     */
+    getProductReviews: builder.query<any[], {
+      productId: string;
+      page?: number;
+      limit?: number;
+      sortBy?: 'newest' | 'oldest' | 'rating_high' | 'rating_low' | 'helpful';
+    }>({
+      query: ({ productId, page = 1, limit = 10, sortBy = 'newest' }) => {
+        const params = new URLSearchParams();
+        params.append('page', page.toString());
+        params.append('limit', limit.toString());
+        params.append('sort', sortBy);
+        return {
+          url: `/products/${productId}/reviews?${params}`,
+          baseUrl: SERVICES.COMMERCE
+        };
+      },
+      providesTags: (result, error, { productId }) => [
+        { type: 'ProductReview', id: productId },
+        { type: 'ProductReview', id: 'LIST' }
+      ],
+      transformResponse: (response: ApiResponse<any[]>) => response.data,
+    }),
+
+    /**
+     * Add a new product review
+     */
+    addProductReview: builder.mutation<any, {
+      productId: string;
+      rating: number;
+      comment: string;
+      images?: string[];
+    }>({
+      query: ({ productId, ...reviewData }) => ({
+        url: `/products/${productId}/reviews`,
+        method: 'POST',
+        body: reviewData,
+        baseUrl: SERVICES.COMMERCE
+      }),
+      invalidatesTags: (result, error, { productId }) => [
+        { type: 'ProductReview', id: productId },
+        { type: 'ProductReview', id: 'LIST' },
+        { type: 'Product', id: productId }
+      ],
+      transformResponse: (response: ApiResponse<any>) => response.data,
+    }),
+
+    /**
+     * Mark review as helpful
+     */
+    markReviewHelpful: builder.mutation<any, { reviewId: string }>({
+      query: ({ reviewId }) => ({
+        url: `/reviews/${reviewId}/helpful`,
+        method: 'POST',
+        baseUrl: SERVICES.COMMERCE
+      }),
+      invalidatesTags: ['ProductReview'],
+      transformResponse: (response: ApiResponse<any>) => response.data,
+    }),
+
+    /**
+     * Get review statistics for a product
+     */
+    getProductReviewStats: builder.query<any, { productId: string }>({
+      query: ({ productId }) => ({
+        url: `/products/${productId}/reviews/stats`,
+        baseUrl: SERVICES.COMMERCE
+      }),
+      providesTags: (result, error, { productId }) => [
+        { type: 'ProductReview', id: `${productId}-stats` }
+      ],
+      transformResponse: (response: ApiResponse<any>) => response.data,
+    })
+  }),
+});
+
+// Export the generated hooks
+export const {
+  useGetProductReviewsQuery,
+  useAddProductReviewMutation,
+  useMarkReviewHelpfulMutation,
+  useGetProductReviewStatsQuery
+} = reviewsApi;
 
 // =============================================================================
 // Service Health Check Utilities

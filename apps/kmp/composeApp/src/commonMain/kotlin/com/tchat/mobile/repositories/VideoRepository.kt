@@ -11,11 +11,11 @@ import kotlinx.datetime.Clock
  * Provides mock data for development and testing
  */
 interface VideoRepository {
-    suspend fun getShortVideos(category: VideoCategory = VideoCategory.ALL): List<VideoContent>
-    suspend fun getLongVideos(category: VideoCategory = VideoCategory.ALL): List<VideoContent>
-    suspend fun getChannels(category: VideoCategory = VideoCategory.ALL): List<ChannelInfo>
-    suspend fun getChannel(channelId: String): ChannelInfo?
-    suspend fun getVideo(videoId: String): VideoContent?
+    suspend fun getShortVideos(category: VVVideoCategory = VVVideoCategory.ALL): List<VVVideoContent>
+    suspend fun getLongVideos(category: VVVideoCategory = VVVideoCategory.ALL): List<VVVideoContent>
+    suspend fun getChannels(category: VVVideoCategory = VVVideoCategory.ALL): List<VVChannelInfo>
+    suspend fun getChannel(channelId: String): VVChannelInfo?
+    suspend fun getVideo(videoId: String): VVVideoContent?
 
     // Engagement
     suspend fun likeVideo(videoId: String): Boolean
@@ -24,7 +24,7 @@ interface VideoRepository {
     suspend fun unsubscribeFromChannel(channelId: String): Boolean
 
     // Observable
-    fun observeVideos(): Flow<List<VideoContent>>
+    fun observeVideos(): Flow<List<VVVideoContent>>
     fun observeSubscriptions(): Flow<Set<String>>
 }
 
@@ -51,7 +51,7 @@ class MockVideoRepository : VideoRepository {
         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WhatCarCanYouGetForAGrand.mp4"
     )
 
-    override suspend fun getShortVideos(category: VideoCategory): List<VideoContent> {
+    override suspend fun getShortVideos(category: VVVideoCategory): List<VVVideoContent> {
         delay(500) // Simulate network delay
 
         val allShorts = listOf(
@@ -66,10 +66,10 @@ class MockVideoRepository : VideoRepository {
                 views = 128000,
                 likes = 8500,
                 comments = 247,
-                category = VideoCategory.FOOD,
+                category = VVVideoCategory.FOOD,
                 tags = listOf("food", "thai", "cooking", "street"),
                 channelId = "thai-chef",
-                type = VideoType.SHORT
+                type = VVVideoType.SHORT
             ),
             createVideoContent(
                 id = "short-2",
@@ -82,10 +82,10 @@ class MockVideoRepository : VideoRepository {
                 views = 245000,
                 likes = 15200,
                 comments = 832,
-                category = VideoCategory.ENTERTAINMENT,
+                category = VVVideoCategory.ENTERTAINMENT,
                 tags = listOf("dance", "culture", "traditional", "viral"),
                 channelId = "thai-culture",
-                type = VideoType.SHORT
+                type = VVVideoType.SHORT
             ),
             createVideoContent(
                 id = "short-3",
@@ -98,10 +98,10 @@ class MockVideoRepository : VideoRepository {
                 views = 67000,
                 likes = 4300,
                 comments = 156,
-                category = VideoCategory.TRAVEL,
+                category = VVVideoCategory.TRAVEL,
                 tags = listOf("bangkok", "market", "shopping", "budget"),
                 channelId = "bangkok-explorer",
-                type = VideoType.SHORT
+                type = VVVideoType.SHORT
             ),
             createVideoContent(
                 id = "short-4",
@@ -114,10 +114,10 @@ class MockVideoRepository : VideoRepository {
                 views = 89000,
                 likes = 6700,
                 comments = 298,
-                category = VideoCategory.FOOD,
+                category = VVVideoCategory.FOOD,
                 tags = listOf("korean", "bbq", "grilling", "cooking"),
                 channelId = "asian-cuisine",
-                type = VideoType.SHORT
+                type = VVVideoType.SHORT
             ),
             createVideoContent(
                 id = "short-5",
@@ -130,10 +130,10 @@ class MockVideoRepository : VideoRepository {
                 views = 156000,
                 likes = 12400,
                 comments = 445,
-                category = VideoCategory.TECH,
+                category = VVVideoCategory.TECH,
                 tags = listOf("tech", "review", "smartphone", "gadgets"),
                 channelId = "tech-reviewer",
-                type = VideoType.SHORT
+                type = VVVideoType.SHORT
             ),
             createVideoContent(
                 id = "short-6",
@@ -146,10 +146,10 @@ class MockVideoRepository : VideoRepository {
                 views = 203000,
                 likes = 18500,
                 comments = 672,
-                category = VideoCategory.GAMING,
+                category = VVVideoCategory.GAMING,
                 tags = listOf("gaming", "tips", "strategy", "pro"),
                 channelId = "pro-gamer",
-                type = VideoType.SHORT
+                type = VVVideoType.SHORT
             ),
             createVideoContent(
                 id = "short-7",
@@ -162,10 +162,10 @@ class MockVideoRepository : VideoRepository {
                 views = 324000,
                 likes = 28900,
                 comments = 1234,
-                category = VideoCategory.LIFESTYLE,
+                category = VVVideoCategory.LIFESTYLE,
                 tags = listOf("fitness", "workout", "abs", "health"),
                 channelId = "fitness-coach",
-                type = VideoType.SHORT
+                type = VVVideoType.SHORT
             ),
             createVideoContent(
                 id = "short-8",
@@ -178,17 +178,17 @@ class MockVideoRepository : VideoRepository {
                 views = 98000,
                 likes = 7800,
                 comments = 234,
-                category = VideoCategory.BUSINESS,
+                category = VVVideoCategory.BUSINESS,
                 tags = listOf("business", "entrepreneur", "success", "tips"),
                 channelId = "business-mentor",
-                type = VideoType.SHORT
+                type = VVVideoType.SHORT
             )
         )
 
-        return if (category == VideoCategory.ALL) allShorts else allShorts.filter { it.category == category }
+        return if (category == VVVideoCategory.ALL) allShorts else allShorts.filter { it.category == category }
     }
 
-    override suspend fun getLongVideos(category: VideoCategory): List<VideoContent> {
+    override suspend fun getLongVideos(category: VVVideoCategory): List<VVVideoContent> {
         delay(600) // Simulate network delay
 
         val allLongs = listOf(
@@ -203,10 +203,10 @@ class MockVideoRepository : VideoRepository {
                 views = 524000,
                 likes = 18500,
                 comments = 1842,
-                category = VideoCategory.FOOD,
+                category = VVVideoCategory.FOOD,
                 tags = listOf("street food", "bangkok", "thai cuisine", "travel"),
                 channelId = "foodie-adventures",
-                type = VideoType.LONG
+                type = VVVideoType.LONG
             ),
             createVideoContent(
                 id = "long-2",
@@ -219,10 +219,10 @@ class MockVideoRepository : VideoRepository {
                 views = 156000,
                 likes = 9200,
                 comments = 567,
-                category = VideoCategory.EDUCATION,
+                category = VVVideoCategory.EDUCATION,
                 tags = listOf("thai language", "education", "travel", "learning"),
                 channelId = "learn-thai",
-                type = VideoType.LONG
+                type = VVVideoType.LONG
             ),
             createVideoContent(
                 id = "long-3",
@@ -235,10 +235,10 @@ class MockVideoRepository : VideoRepository {
                 views = 412000,
                 likes = 31200,
                 comments = 2134,
-                category = VideoCategory.TECH,
+                category = VVVideoCategory.TECH,
                 tags = listOf("ai", "technology", "future", "innovation"),
                 channelId = "tech-futurist",
-                type = VideoType.LONG
+                type = VVVideoType.LONG
             ),
             createVideoContent(
                 id = "long-4",
@@ -251,10 +251,10 @@ class MockVideoRepository : VideoRepository {
                 views = 289000,
                 likes = 24700,
                 comments = 1456,
-                category = VideoCategory.BUSINESS,
+                category = VVVideoCategory.BUSINESS,
                 tags = listOf("startup", "entrepreneur", "business", "success"),
                 channelId = "startup-stories",
-                type = VideoType.LONG
+                type = VVVideoType.LONG
             ),
             createVideoContent(
                 id = "long-5",
@@ -267,43 +267,43 @@ class MockVideoRepository : VideoRepository {
                 views = 678000,
                 likes = 45600,
                 comments = 3421,
-                category = VideoCategory.LIFESTYLE,
+                category = VVVideoCategory.LIFESTYLE,
                 tags = listOf("fitness", "transformation", "health", "nutrition"),
                 channelId = "transformation-coach",
-                type = VideoType.LONG
+                type = VVVideoType.LONG
             )
         )
 
-        return if (category == VideoCategory.ALL) allLongs else allLongs.filter { it.category == category }
+        return if (category == VVVideoCategory.ALL) allLongs else allLongs.filter { it.category == category }
     }
 
-    override suspend fun getChannels(category: VideoCategory): List<ChannelInfo> {
+    override suspend fun getChannels(category: VVVideoCategory): List<VVChannelInfo> {
         delay(400) // Simulate network delay
 
         val allChannels = listOf(
-            createChannelInfo("thai-chef", "Bangkok Street Chef", VideoCategory.FOOD),
-            createChannelInfo("thai-culture", "Thai Culture Hub", VideoCategory.ENTERTAINMENT),
-            createChannelInfo("bangkok-explorer", "Bangkok Explorer", VideoCategory.TRAVEL),
-            createChannelInfo("foodie-adventures", "Southeast Asian Foodie", VideoCategory.FOOD),
-            createChannelInfo("learn-thai", "Thai Language Academy", VideoCategory.EDUCATION),
-            createChannelInfo("asian-cuisine", "Asian Cuisine Master", VideoCategory.FOOD),
-            createChannelInfo("tech-reviewer", "Tech Review Central", VideoCategory.TECH),
-            createChannelInfo("pro-gamer", "Pro Gaming Academy", VideoCategory.GAMING),
-            createChannelInfo("fitness-coach", "Fitness Revolution", VideoCategory.LIFESTYLE),
-            createChannelInfo("business-mentor", "Business Growth Hub", VideoCategory.BUSINESS),
-            createChannelInfo("tech-futurist", "Tech Futurist", VideoCategory.TECH),
-            createChannelInfo("startup-stories", "Startup Success Stories", VideoCategory.BUSINESS),
-            createChannelInfo("transformation-coach", "Total Life Transformation", VideoCategory.LIFESTYLE)
+            createChannelInfo("thai-chef", "Bangkok Street Chef", VVVideoCategory.FOOD),
+            createChannelInfo("thai-culture", "Thai Culture Hub", VVVideoCategory.ENTERTAINMENT),
+            createChannelInfo("bangkok-explorer", "Bangkok Explorer", VVVideoCategory.TRAVEL),
+            createChannelInfo("foodie-adventures", "Southeast Asian Foodie", VVVideoCategory.FOOD),
+            createChannelInfo("learn-thai", "Thai Language Academy", VVVideoCategory.EDUCATION),
+            createChannelInfo("asian-cuisine", "Asian Cuisine Master", VVVideoCategory.FOOD),
+            createChannelInfo("tech-reviewer", "Tech Review Central", VVVideoCategory.TECH),
+            createChannelInfo("pro-gamer", "Pro Gaming Academy", VVVideoCategory.GAMING),
+            createChannelInfo("fitness-coach", "Fitness Revolution", VVVideoCategory.LIFESTYLE),
+            createChannelInfo("business-mentor", "Business Growth Hub", VVVideoCategory.BUSINESS),
+            createChannelInfo("tech-futurist", "Tech Futurist", VVVideoCategory.TECH),
+            createChannelInfo("startup-stories", "Startup Success Stories", VVVideoCategory.BUSINESS),
+            createChannelInfo("transformation-coach", "Total Life Transformation", VVVideoCategory.LIFESTYLE)
         )
 
-        return if (category == VideoCategory.ALL) allChannels else allChannels.filter { it.category == category }
+        return if (category == VVVideoCategory.ALL) allChannels else allChannels.filter { it.category == category }
     }
 
-    override suspend fun getChannel(channelId: String): ChannelInfo? {
+    override suspend fun getChannel(channelId: String): VVChannelInfo? {
         return getChannels().find { it.id == channelId }
     }
 
-    override suspend fun getVideo(videoId: String): VideoContent? {
+    override suspend fun getVideo(videoId: String): VVVideoContent? {
         val allVideos = getShortVideos() + getLongVideos()
         return allVideos.find { it.id == videoId }
     }
@@ -338,7 +338,7 @@ class MockVideoRepository : VideoRepository {
         return false
     }
 
-    override fun observeVideos(): Flow<List<VideoContent>> = flow {
+    override fun observeVideos(): Flow<List<VVVideoContent>> = flow {
         while (true) {
             emit(getShortVideos() + getLongVideos())
             delay(30000) // Emit every 30 seconds
@@ -364,12 +364,12 @@ class MockVideoRepository : VideoRepository {
         views: Long,
         likes: Long,
         comments: Long,
-        category: VideoCategory,
+        category: VVVideoCategory,
         tags: List<String>,
         channelId: String,
-        type: VideoType
-    ): VideoContent {
-        return VideoContent(
+        type: VVVideoType
+    ): VVVideoContent {
+        return VVVideoContent(
             id = id,
             title = title,
             description = description,
@@ -403,9 +403,9 @@ class MockVideoRepository : VideoRepository {
         )
     }
 
-    private fun createChannelInfo(id: String, name: String, category: VideoCategory): ChannelInfo {
+    private fun createChannelInfo(id: String, name: String, category: VVVideoCategory): VVChannelInfo {
         return when (id) {
-            "thai-chef" -> ChannelInfo(
+            "thai-chef" -> VVChannelInfo(
                 id = id,
                 name = "Bangkok Street Chef",
                 avatar = "https://images.unsplash.com/photo-1595273670150-bd0c3c392e46?w=150&h=150&fit=crop",
@@ -414,11 +414,11 @@ class MockVideoRepository : VideoRepository {
                 subscribers = 45000,
                 totalVideos = 234,
                 verified = true,
-                category = VideoCategory.FOOD,
+                category = VVVideoCategory.FOOD,
                 joinedDate = "Jan 2020",
                 location = "Bangkok, Thailand"
             )
-            "thai-culture" -> ChannelInfo(
+            "thai-culture" -> VVChannelInfo(
                 id = id,
                 name = "Thai Culture Hub",
                 avatar = "https://images.unsplash.com/photo-1494790108755-2616b612b820?w=150&h=150&fit=crop",
@@ -427,11 +427,11 @@ class MockVideoRepository : VideoRepository {
                 subscribers = 89000,
                 totalVideos = 156,
                 verified = true,
-                category = VideoCategory.ENTERTAINMENT,
+                category = VVVideoCategory.ENTERTAINMENT,
                 joinedDate = "Mar 2019",
                 location = "Chiang Mai, Thailand"
             )
-            "bangkok-explorer" -> ChannelInfo(
+            "bangkok-explorer" -> VVChannelInfo(
                 id = id,
                 name = "Bangkok Explorer",
                 avatar = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
@@ -440,11 +440,11 @@ class MockVideoRepository : VideoRepository {
                 subscribers = 32000,
                 totalVideos = 89,
                 verified = false,
-                category = VideoCategory.TRAVEL,
+                category = VVVideoCategory.TRAVEL,
                 joinedDate = "Aug 2021",
                 location = "Bangkok, Thailand"
             )
-            "foodie-adventures" -> ChannelInfo(
+            "foodie-adventures" -> VVChannelInfo(
                 id = id,
                 name = "Southeast Asian Foodie",
                 avatar = "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop",
@@ -453,11 +453,11 @@ class MockVideoRepository : VideoRepository {
                 subscribers = 235000,
                 totalVideos = 412,
                 verified = true,
-                category = VideoCategory.FOOD,
+                category = VVVideoCategory.FOOD,
                 joinedDate = "Jun 2018",
                 location = "Singapore"
             )
-            "learn-thai" -> ChannelInfo(
+            "learn-thai" -> VVChannelInfo(
                 id = id,
                 name = "Thai Language Academy",
                 avatar = "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop",
@@ -466,11 +466,11 @@ class MockVideoRepository : VideoRepository {
                 subscribers = 87000,
                 totalVideos = 178,
                 verified = true,
-                category = VideoCategory.EDUCATION,
+                category = VVVideoCategory.EDUCATION,
                 joinedDate = "Feb 2020",
                 location = "Bangkok, Thailand"
             )
-            "asian-cuisine" -> ChannelInfo(
+            "asian-cuisine" -> VVChannelInfo(
                 id = id,
                 name = "Asian Cuisine Master",
                 avatar = "https://images.unsplash.com/photo-1566492031773-4f4e44671d66?w=150&h=150&fit=crop",
@@ -478,11 +478,11 @@ class MockVideoRepository : VideoRepository {
                 subscribers = 156000,
                 totalVideos = 289,
                 verified = true,
-                category = VideoCategory.FOOD,
+                category = VVVideoCategory.FOOD,
                 joinedDate = "Sep 2019",
                 location = "Hong Kong"
             )
-            "tech-reviewer" -> ChannelInfo(
+            "tech-reviewer" -> VVChannelInfo(
                 id = id,
                 name = "Tech Review Central",
                 avatar = "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop",
@@ -490,11 +490,11 @@ class MockVideoRepository : VideoRepository {
                 subscribers = 423000,
                 totalVideos = 567,
                 verified = true,
-                category = VideoCategory.TECH,
+                category = VVVideoCategory.TECH,
                 joinedDate = "Mar 2018",
                 location = "California, USA"
             )
-            "pro-gamer" -> ChannelInfo(
+            "pro-gamer" -> VVChannelInfo(
                 id = id,
                 name = "Pro Gaming Academy",
                 avatar = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop",
@@ -502,11 +502,11 @@ class MockVideoRepository : VideoRepository {
                 subscribers = 789000,
                 totalVideos = 1234,
                 verified = true,
-                category = VideoCategory.GAMING,
+                category = VVVideoCategory.GAMING,
                 joinedDate = "Jan 2017",
                 location = "Seoul, South Korea"
             )
-            "fitness-coach" -> ChannelInfo(
+            "fitness-coach" -> VVChannelInfo(
                 id = id,
                 name = "Fitness Revolution",
                 avatar = "https://images.unsplash.com/photo-1594736797933-d0401ba9d4c4?w=150&h=150&fit=crop",
@@ -514,11 +514,11 @@ class MockVideoRepository : VideoRepository {
                 subscribers = 234000,
                 totalVideos = 345,
                 verified = true,
-                category = VideoCategory.LIFESTYLE,
+                category = VVVideoCategory.LIFESTYLE,
                 joinedDate = "May 2019",
                 location = "Los Angeles, USA"
             )
-            "business-mentor" -> ChannelInfo(
+            "business-mentor" -> VVChannelInfo(
                 id = id,
                 name = "Business Growth Hub",
                 avatar = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
@@ -526,11 +526,11 @@ class MockVideoRepository : VideoRepository {
                 subscribers = 134000,
                 totalVideos = 234,
                 verified = true,
-                category = VideoCategory.BUSINESS,
+                category = VVVideoCategory.BUSINESS,
                 joinedDate = "Aug 2020",
                 location = "New York, USA"
             )
-            "tech-futurist" -> ChannelInfo(
+            "tech-futurist" -> VVChannelInfo(
                 id = id,
                 name = "Tech Futurist",
                 avatar = "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&h=150&fit=crop",
@@ -538,11 +538,11 @@ class MockVideoRepository : VideoRepository {
                 subscribers = 345000,
                 totalVideos = 189,
                 verified = true,
-                category = VideoCategory.TECH,
+                category = VVVideoCategory.TECH,
                 joinedDate = "Nov 2018",
                 location = "Silicon Valley, USA"
             )
-            "startup-stories" -> ChannelInfo(
+            "startup-stories" -> VVChannelInfo(
                 id = id,
                 name = "Startup Success Stories",
                 avatar = "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop",
@@ -550,11 +550,11 @@ class MockVideoRepository : VideoRepository {
                 subscribers = 198000,
                 totalVideos = 156,
                 verified = true,
-                category = VideoCategory.BUSINESS,
+                category = VVVideoCategory.BUSINESS,
                 joinedDate = "Apr 2019",
                 location = "Austin, USA"
             )
-            "transformation-coach" -> ChannelInfo(
+            "transformation-coach" -> VVChannelInfo(
                 id = id,
                 name = "Total Life Transformation",
                 avatar = "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop",
@@ -562,11 +562,11 @@ class MockVideoRepository : VideoRepository {
                 subscribers = 567000,
                 totalVideos = 445,
                 verified = true,
-                category = VideoCategory.LIFESTYLE,
+                category = VVVideoCategory.LIFESTYLE,
                 joinedDate = "Feb 2018",
                 location = "Miami, USA"
             )
-            else -> ChannelInfo(
+            else -> VVChannelInfo(
                 id = id,
                 name = name.ifEmpty { "Unknown Channel" },
                 avatar = "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop",

@@ -1,0 +1,113 @@
+-- Sync Metadata Table
+CREATE TABLE syncMetadata (
+    chatId TEXT NOT NULL PRIMARY KEY,
+    lastSyncTimestamp INTEGER,
+    lastSuccessfulSync INTEGER,
+    syncStatus TEXT NOT NULL DEFAULT 'IDLE', -- IDLE, SYNCING, SYNCED, ERROR, CONFLICT_PENDING
+    pendingOperations INTEGER NOT NULL DEFAULT 0,
+    conflictCount INTEGER NOT NULL DEFAULT 0,
+    errorMessage TEXT,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    FOREIGN KEY (chatId) REFERENCES chatSession(id) ON DELETE CASCADE
+);
+
+-- Sync Operations Queue Table
+CREATE TABLE syncOperation (
+    id TEXT NOT NULL PRIMARY KEY,
+    type TEXT NOT NULL, -- SEND_MESSAGE, EDIT_MESSAGE, DELETE_MESSAGE, UPDATE_CHAT, JOIN_CHAT, LEAVE_CHAT
+    chatId TEXT NOT NULL,
+    data TEXT NOT NULL, -- JSON serialized operation data
+    timestamp INTEGER NOT NULL,
+    retryCount INTEGER NOT NULL DEFAULT 0,
+    maxRetries INTEGER NOT NULL DEFAULT 3,
+    status TEXT NOT NULL DEFAULT 'PENDING', -- PENDING, IN_PROGRESS, COMPLETED, FAILED
+    priority INTEGER NOT NULL DEFAULT 5, -- 1 (high) to 10 (low)
+    errorMessage TEXT,
+    scheduledAt INTEGER, -- For retry scheduling
+    createdAt INTEGER NOT NULL,
+    completedAt INTEGER,
+    FOREIGN KEY (chatId) REFERENCES chatSession(id) ON DELETE CASCADE
+);
+
+-- Message Conflicts Table
+CREATE TABLE messageConflict (
+    id TEXT NOT NULL PRIMARY KEY,
+    messageId TEXT NOT NULL,
+    chatId TEXT NOT NULL,
+    conflictType TEXT NOT NULL, -- EDIT_CONFLICT, STATUS_CONFLICT, DELETE_CONFLICT
+    severity TEXT NOT NULL, -- CRITICAL, HIGH, MEDIUM, LOW
+    localData TEXT NOT NULL, -- JSON of local message state
+    remoteData TEXT NOT NULL, -- JSON of remote message state
+    resolution TEXT, -- JSON of resolution data
+    resolutionStrategy TEXT, -- LOCAL_WINS, REMOTE_WINS, MERGE, USER_CHOICE_REQUIRED
+    autoResolvable INTEGER NOT NULL DEFAULT 0,
+    detectedAt INTEGER NOT NULL,
+    resolvedAt INTEGER,
+    FOREIGN KEY (messageId) REFERENCES message(id) ON DELETE CASCADE,
+    FOREIGN KEY (chatId) REFERENCES chatSession(id) ON DELETE CASCADE
+);
+
+-- Sync Metadata Queries
+insertSyncMetadata:
+INSERT INTO syncMetadata (chatId, lastSyncTimestamp, lastSuccessfulSync, syncStatus, pendingOperations, conflictCount, errorMessage, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+getSyncMetadata:
+SELECT * FROM syncMetadata WHERE chatId = ?;
+
+updateSyncMetadata:
+UPDATE syncMetadata
+SET lastSyncTimestamp = ?, lastSuccessfulSync = ?, syncStatus = ?, pendingOperations = ?, conflictCount = ?, errorMessage = ?, updatedAt = ?
+WHERE chatId = ?;
+
+getAllSyncMetadata:
+SELECT * FROM syncMetadata ORDER BY updatedAt DESC;
+
+-- Sync Operations Queries
+insertSyncOperation:
+INSERT INTO syncOperation (id, type, chatId, data, timestamp, retryCount, maxRetries, status, priority, errorMessage, scheduledAt, createdAt, completedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+getPendingSyncOperations:
+SELECT * FROM syncOperation WHERE status = 'PENDING' ORDER BY priority ASC, timestamp ASC;
+
+getSyncOperationsByChat:
+SELECT * FROM syncOperation WHERE chatId = ? ORDER BY timestamp DESC;
+
+updateSyncOperationStatus:
+UPDATE syncOperation SET status = ?, errorMessage = ?, completedAt = ? WHERE id = ?;
+
+incrementSyncOperationRetry:
+UPDATE syncOperation SET retryCount = retryCount + 1, scheduledAt = ? WHERE id = ?;
+
+-- Message Conflict Queries
+insertMessageConflict:
+INSERT INTO messageConflict (id, messageId, chatId, conflictType, severity, localData, remoteData, resolution, resolutionStrategy, autoResolvable, detectedAt, resolvedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+getMessageConflictsByChat:
+SELECT * FROM messageConflict WHERE chatId = ? AND resolvedAt IS NULL ORDER BY detectedAt DESC;
+
+resolveMessageConflict:
+UPDATE messageConflict SET resolution = ?, resolutionStrategy = ?, resolvedAt = ? WHERE id = ?;
+
+-- Sync Status Queries
+getChatSyncStatus:
+SELECT
+    sm.chatId,
+    sm.syncStatus,
+    sm.lastSyncTimestamp,
+    sm.pendingOperations,
+    sm.conflictCount,
+    COUNT(so.id) AS queuedOperations
+FROM syncMetadata sm
+LEFT JOIN syncOperation so ON sm.chatId = so.chatId AND so.status = 'PENDING'
+WHERE sm.chatId = ?
+GROUP BY sm.chatId;
+
+-- Performance Optimization Indexes
+CREATE INDEX idx_sync_operation_status_priority ON syncOperation(status, priority, timestamp);
+CREATE INDEX idx_sync_operation_chat ON syncOperation(chatId, status);
+CREATE INDEX idx_message_conflict_chat ON messageConflict(chatId, resolvedAt);
+CREATE INDEX idx_sync_metadata_status ON syncMetadata(syncStatus, updatedAt);

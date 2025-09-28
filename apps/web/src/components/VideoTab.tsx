@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -56,6 +56,20 @@ import {
 } from 'lucide-react';
 import { toast } from "sonner";
 
+// RTK Query video hooks
+import {
+  useGetVideosQuery,
+  useSearchVideosQuery,
+  useGetVideoByIdQuery,
+  useGetChannelsQuery,
+  useGetChannelByIdQuery,
+  useGetChannelVideosQuery,
+  useChannelSubscriptionMutation,
+  useVideoInteractionMutation,
+  useCreateVideoCommentMutation,
+  useGetVideoCommentsQuery,
+} from '../services/videoApi';
+
 interface Video {
   id: string;
   title: string;
@@ -105,7 +119,7 @@ interface VideoTabProps {
   currentVideoId: string;
   watchedVideos: string[];
   likedVideos: string[];
-  subscribedChannels: string[];
+  subscribedChannels?: string[]; // Optional - now derived from RTK Query
 }
 
 export function VideoTab({
@@ -118,7 +132,7 @@ export function VideoTab({
   currentVideoId,
   watchedVideos,
   likedVideos,
-  subscribedChannels: propSubscribedChannels
+  subscribedChannels: propSubscribedChannels // Not used - RTK Query manages subscriptions
 }: VideoTabProps) {
   const [currentTab, setCurrentTab] = useState<'shorts' | 'long' | 'channels' | 'subscriptions'>('shorts');
   const [currentShortIndex, setCurrentShortIndex] = useState(0);
@@ -126,7 +140,7 @@ export function VideoTab({
   const [isMuted, setIsMuted] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [subscribedChannels, setSubscribedChannels] = useState<string[]>(propSubscribedChannels || ['thai-chef', 'thai-culture']);
+  // Remove hardcoded subscribedChannels state - now derived from RTK Query channels data
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
   const [newChannelData, setNewChannelData] = useState({
@@ -136,242 +150,127 @@ export function VideoTab({
   });
   const [videoLoading, setVideoLoading] = useState(false);
   const [videoError, setVideoError] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Short videos data (TikTok-style) with real video URLs
-  const shortVideos: Video[] = [
-    {
-      id: 'short-1',
-      title: 'Amazing Pad Thai Street Food',
-      description: 'Learn how to make authentic Pad Thai in 60 seconds! 🍜✨ #StreetFood #Thai #Cooking',
-      thumbnail: 'https://images.unsplash.com/photo-1559847844-5315695b6a77?w=400&h=700&fit=crop',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-      duration: '0:45',
-      views: 128000,
-      likes: 8500,
-      channel: {
-        id: 'thai-chef',
-        name: 'Bangkok Street Chef',
-        avatar: 'https://images.unsplash.com/photo-1595273670150-bd0c3c392e46?w=150&h=150&fit=crop',
-        subscribers: 45000,
-        verified: true
-      },
-      uploadTime: '2 hours ago',
-      category: 'food',
-      tags: ['food', 'thai', 'cooking', 'street'],
-      type: 'short'
-    },
-    {
-      id: 'short-2',
-      title: 'Thai Dance Challenge',
-      description: 'Traditional Thai dance moves gone viral! Try this at home 💃 #ThaiDance #Culture #Challenge',
-      thumbnail: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=400&h=700&fit=crop',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-      duration: '0:30',
-      views: 245000,
-      likes: 15200,
-      channel: {
-        id: 'thai-culture',
-        name: 'Thai Culture Hub',
-        avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b820?w=150&h=150&fit=crop',
-        subscribers: 89000,
-        verified: true
-      },
-      uploadTime: '4 hours ago',
-      category: 'entertainment',
-      tags: ['dance', 'culture', 'traditional', 'viral'],
-      type: 'short'
-    },
-    {
-      id: 'short-3',
-      title: 'Bangkok Night Market Tour',
-      description: 'Best night market finds under 100 baht! 🌃🛍️ #Bangkok #Market #Shopping',
-      thumbnail: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=700&fit=crop',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-      duration: '1:20',
-      views: 67000,
-      likes: 4300,
-      channel: {
-        id: 'bangkok-explorer',
-        name: 'Bangkok Explorer',
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop',
-        subscribers: 32000,
-        verified: false
-      },
-      uploadTime: '6 hours ago',
-      category: 'travel',
-      tags: ['bangkok', 'market', 'shopping', 'budget'],
-      type: 'short'
-    }
-  ];
+  // Mount guard to prevent premature API calls
+  useEffect(() => {
+    setIsMounted(true);
+    return () => setIsMounted(false);
+  }, []);
 
-  // Channels data
-  const channels: Channel[] = [
-    {
-      id: 'thai-chef',
-      name: 'Bangkok Street Chef',
-      avatar: 'https://images.unsplash.com/photo-1595273670150-bd0c3c392e46?w=150&h=150&fit=crop',
-      banner: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&h=200&fit=crop',
-      description: 'Authentic Thai street food recipes and cooking techniques from Bangkok\'s best chefs.',
-      subscribers: 45000,
-      videos: 234,
-      verified: true,
-      category: 'food',
-      joinedDate: 'Jan 2020',
-      location: 'Bangkok, Thailand',
-      isSubscribed: subscribedChannels.includes('thai-chef'),
-      notificationsEnabled: true
-    },
-    {
-      id: 'thai-culture',
-      name: 'Thai Culture Hub',
-      avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b820?w=150&h=150&fit=crop',
-      banner: 'https://images.unsplash.com/photo-1528181304800-259b08848526?w=800&h=200&fit=crop',
-      description: 'Explore the rich culture, traditions, and modern life of Thailand through our videos.',
-      subscribers: 89000,
-      videos: 156,
-      verified: true,
-      category: 'entertainment',
-      joinedDate: 'Mar 2019',
-      location: 'Chiang Mai, Thailand',
-      isSubscribed: subscribedChannels.includes('thai-culture'),
-      notificationsEnabled: false
-    },
-    {
-      id: 'bangkok-explorer',
-      name: 'Bangkok Explorer',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop',
-      banner: 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=800&h=200&fit=crop',
-      description: 'Your guide to the best spots in Bangkok - from hidden gems to popular attractions.',
-      subscribers: 32000,
-      videos: 89,
-      verified: false,
-      category: 'travel',
-      joinedDate: 'Aug 2021',
-      location: 'Bangkok, Thailand',
-      isSubscribed: false,
-      notificationsEnabled: false
-    },
-    {
-      id: 'foodie-adventures',
-      name: 'Southeast Asian Foodie',
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop',
-      banner: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&h=200&fit=crop',
-      description: 'Food adventures across Southeast Asia. Discover the best local cuisines and hidden food gems.',
-      subscribers: 235000,
-      videos: 412,
-      verified: true,
-      category: 'food',
-      joinedDate: 'Jun 2018',
-      location: 'Singapore',
-      isSubscribed: false,
-      notificationsEnabled: false
-    },
-    {
-      id: 'learn-thai',
-      name: 'Thai Language Academy',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop',
-      banner: 'https://images.unsplash.com/photo-1544717297-fa95b6ee9643?w=800&h=200&fit=crop',
-      description: 'Learn Thai language easily with our structured lessons and practical conversations.',
-      subscribers: 87000,
-      videos: 178,
-      verified: true,
-      category: 'education',
-      joinedDate: 'Feb 2020',
-      location: 'Bangkok, Thailand',
-      isSubscribed: false,
-      notificationsEnabled: false
-    }
-  ];
+  // RTK Query hooks for video data - fixed to prevent infinite loops
+  const { data: shortVideosData, isLoading: shortVideosLoading, error: shortVideosError } = useGetVideosQuery({
+    type: 'short',
+    limit: 50
+  }, {
+    skip: !isMounted
+  });
 
-  // Long videos data (YouTube-style) with real video URLs
-  const longVideos: Video[] = [
-    {
-      id: 'long-1',
-      title: 'Complete Guide to Thai Street Food: Bangkok Edition',
-      description: 'Join me as I explore the best street food vendors in Bangkok! From traditional Pad Thai to hidden gems, this comprehensive guide covers everything you need to know about Thai street food culture.',
-      thumbnail: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=225&fit=crop',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4',
-      duration: '15:43',
-      views: 524000,
-      likes: 18500,
-      channel: {
-        id: 'foodie-adventures',
-        name: 'Southeast Asian Foodie',
-        avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop',
-        subscribers: 235000,
-        verified: true
-      },
-      uploadTime: '1 day ago',
-      category: 'food',
-      tags: ['street food', 'bangkok', 'thai cuisine', 'travel'],
-      type: 'long'
-    },
-    {
-      id: 'long-2',
-      title: 'Thai Language Crash Course for Travelers',
-      description: 'Learn essential Thai phrases for your trip to Thailand! Perfect for beginners who want to communicate with locals and enhance their travel experience.',
-      thumbnail: 'https://images.unsplash.com/photo-1544717297-fa95b6ee9643?w=400&h=225&fit=crop',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
-      duration: '22:18',
-      views: 156000,
-      likes: 9200,
-      channel: {
-        id: 'learn-thai',
-        name: 'Thai Language Academy',
-        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop',
-        subscribers: 87000,
-        verified: true
-      },
-      uploadTime: '2 days ago',
-      category: 'education',
-      tags: ['thai language', 'education', 'travel', 'learning'],
-      type: 'long'
-    },
-    {
-      id: 'long-3',
-      title: 'Building a Successful Food Delivery Business in SEA',
-      description: 'From idea to execution: How I built a successful food delivery business across Southeast Asia. Tips, challenges, and lessons learned.',
-      thumbnail: 'https://images.unsplash.com/photo-1526367790999-0150786686a2?w=400&h=225&fit=crop',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/VolkswagenGTIReview.mp4',
-      duration: '28:45',
-      views: 89000,
-      likes: 5400,
-      channel: {
-        id: 'sea-business',
-        name: 'SEA Entrepreneurs',
-        avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&h=150&fit=crop',
-        subscribers: 156000,
-        verified: true
-      },
-      uploadTime: '3 days ago',
-      category: 'business',
-      tags: ['business', 'startup', 'food delivery', 'sea'],
-      type: 'long'
-    },
-    {
-      id: 'long-4',
-      title: 'Traditional Thai Cooking Masterclass',
-      description: 'Learn to cook authentic Thai dishes from a master chef! This comprehensive cooking class covers traditional techniques, ingredients, and recipes passed down through generations.',
-      thumbnail: 'https://images.unsplash.com/photo-1559847844-5315695b6a77?w=400&h=225&fit=crop',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WhatCarCanYouGetForAGrand.mp4',
-      duration: '45:20',
-      views: 432000,
-      likes: 23400,
-      channel: {
-        id: 'master-chef-thai',
-        name: 'Master Chef Thailand',
-        avatar: 'https://images.unsplash.com/photo-1595273670150-bd0c3c392e46?w=150&h=150&fit=crop',
-        subscribers: 890000,
-        verified: true
-      },
-      uploadTime: '1 week ago',
-      isLive: false,
-      category: 'food',
-      tags: ['cooking', 'thai cuisine', 'masterclass', 'traditional'],
-      type: 'long'
+  const { data: longVideosData, isLoading: longVideosLoading, error: longVideosError } = useGetVideosQuery({
+    type: 'long',
+    limit: 50
+  }, {
+    skip: !isMounted
+  });
+
+  // RTK Query hook for channels data
+  const { data: channelsData, isLoading: channelsLoading, error: channelsError } = useGetChannelsQuery({
+    limit: 50
+  }, {
+    skip: !isMounted
+  });
+
+  // Log any errors for debugging
+  useEffect(() => {
+    if (shortVideosError) {
+      console.error('Short videos error:', shortVideosError);
     }
-  ];
+  }, [shortVideosError]);
+
+  useEffect(() => {
+    if (longVideosError) {
+      console.error('Long videos error:', longVideosError);
+    }
+  }, [longVideosError]);
+
+  useEffect(() => {
+    if (channelsError) {
+      console.error('Channels error:', channelsError);
+    }
+  }, [channelsError]);
+
+  // Log RTK Query results for debugging
+  useEffect(() => {
+    if (shortVideosData) {
+      console.log('RTK Query - Short videos data:', shortVideosData);
+    }
+    if (shortVideosError) {
+      console.log('RTK Query - Short videos error:', shortVideosError);
+    }
+  }, [shortVideosData, shortVideosError]);
+
+  useEffect(() => {
+    if (longVideosData) {
+      console.log('RTK Query - Long videos data:', longVideosData);
+    }
+    if (longVideosError) {
+      console.log('RTK Query - Long videos error:', longVideosError);
+    }
+  }, [longVideosData, longVideosError]);
+
+  // Use real channels data from RTK Query
+  const effectiveChannels = channelsData?.data || [];
+
+  // Replace hardcoded subscribedChannels with channels that have isSubscribed = true
+  const subscribedChannelIds = useMemo(() => {
+    return effectiveChannels
+      .filter(channel => channel.isSubscribed)
+      .map(channel => channel.id);
+  }, [effectiveChannels]);
+
+  // Video mutations - using the unified interaction and subscription mutations
+  const [videoInteraction] = useVideoInteractionMutation();
+  const [channelSubscription] = useChannelSubscriptionMutation();
+
+  // Enhanced handlers that use RTK mutations
+  const handleVideoLike = useCallback(async (videoId: string) => {
+    try {
+      const action = likedVideos.includes(videoId) ? 'unlike' : 'like';
+      await videoInteraction({ videoId, action }).unwrap();
+      // Also call the prop callback for existing functionality
+      onVideoLike(videoId);
+    } catch (error) {
+      console.error('Error toggling video like:', error);
+      toast.error('Failed to update like status');
+    }
+  }, [likedVideos, videoInteraction, onVideoLike]);
+
+  const handleVideoShare = useCallback(async (videoId: string, videoData?: any) => {
+    try {
+      await videoInteraction({ videoId, action: 'share' }).unwrap();
+      // Also call the prop callback for existing functionality
+      onVideoShare(videoId, videoData);
+      toast.success('Video shared successfully!');
+    } catch (error) {
+      console.error('Error sharing video:', error);
+      toast.error('Failed to share video');
+    }
+  }, [videoInteraction, onVideoShare]);
+
+  const handleChannelSubscribe = useCallback(async (channelId: string) => {
+    try {
+      const action = subscribedChannelIds.includes(channelId) ? 'UNSUBSCRIBE' : 'SUBSCRIBE';
+      await channelSubscription({ channelId, action }).unwrap();
+      // RTK Query handles optimistic updates automatically
+      onSubscribe(channelId);
+      toast.success(action === 'UNSUBSCRIBE' ? 'Unsubscribed successfully!' : 'Subscribed successfully!');
+    } catch (error) {
+      console.error('Error toggling subscription:', error);
+      toast.error('Failed to update subscription');
+    }
+  }, [subscribedChannelIds, channelSubscription, onSubscribe]);
+
 
   const categories = [
     { id: 'all', name: 'All', icon: Home },
@@ -383,20 +282,28 @@ export function VideoTab({
     { id: 'travel', name: 'Travel', icon: Compass },
   ];
 
-  const filteredShorts = selectedCategory === 'all' 
-    ? shortVideos 
-    : shortVideos.filter(video => video.category === selectedCategory);
+  // Use real API data only - no mock data fallback
+  const effectiveShortVideos = shortVideosData?.videos || [];
+  const effectiveLongVideos = longVideosData?.videos || [];
+  const effectiveChannels = derivedChannels;
 
-  const filteredLongs = selectedCategory === 'all' 
-    ? longVideos 
-    : longVideos.filter(video => video.category === selectedCategory);
+  // Memoize filtered shorts to prevent infinite re-renders
+  const filteredShorts = useMemo(() => {
+    return selectedCategory === 'all'
+      ? effectiveShortVideos
+      : effectiveShortVideos.filter(video => video.category === selectedCategory);
+  }, [selectedCategory, effectiveShortVideos]);
 
-  const filteredChannels = selectedCategory === 'all' 
-    ? channels 
-    : channels.filter(channel => channel.category === selectedCategory);
+  const filteredLongs = selectedCategory === 'all'
+    ? effectiveLongVideos
+    : effectiveLongVideos.filter(video => video.category === selectedCategory);
 
-  const subscribedChannelsList = channels.filter(channel => 
-    subscribedChannels.includes(channel.id)
+  const filteredChannels = selectedCategory === 'all'
+    ? effectiveChannels
+    : effectiveChannels.filter(channel => channel.category === selectedCategory);
+
+  const subscribedChannelsList = effectiveChannels.filter(channel =>
+    subscribedChannelIds.includes(channel.id)
   );
 
   const togglePlayPause = () => {
@@ -447,16 +354,6 @@ export function VideoTab({
     return subs.toString();
   };
 
-  const handleChannelSubscribe = (channelId: string) => {
-    if (subscribedChannels.includes(channelId)) {
-      setSubscribedChannels(prev => prev.filter(id => id !== channelId));
-      toast.success('Unsubscribed from channel');
-    } else {
-      setSubscribedChannels(prev => [...prev, channelId]);
-      toast.success('Subscribed to channel!');
-    }
-    onSubscribe(channelId);
-  };
 
   const handleCreateChannel = () => {
     if (!newChannelData.name.trim()) {
@@ -476,13 +373,14 @@ export function VideoTab({
 
   const currentShort = filteredShorts[currentShortIndex];
 
-  // Auto-play shorts when switching
+  // Auto-play shorts when switching (infinite loop fixed by memoizing filteredShorts)
   useEffect(() => {
-    if (currentShort && videoRef.current && currentTab === 'shorts') {
+    const currentShortVideo = filteredShorts[currentShortIndex];
+    if (currentShortVideo && videoRef.current && currentTab === 'shorts') {
       const video = videoRef.current;
-      video.src = currentShort.videoUrl || '';
+      video.src = currentShortVideo.videoUrl || '';
       video.muted = isMuted;
-      
+
       // Auto-play after a short delay
       const playTimer = setTimeout(() => {
         video.play().then(() => {
@@ -492,10 +390,10 @@ export function VideoTab({
           setIsPlaying(false);
         });
       }, 500);
-      
+
       return () => clearTimeout(playTimer);
     }
-  }, [currentShortIndex, currentShort, currentTab, isMuted]);
+  }, [currentShortIndex, currentTab, isMuted, filteredShorts]);
 
   // Channel Detail View
   if (selectedChannel) {
@@ -593,7 +491,7 @@ export function VideoTab({
               
               <TabsContent value="videos" className="mt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {longVideos
+                  {effectiveLongVideos
                     .filter(video => video.channel.id === selectedChannel.id)
                     .map((video) => (
                       <Card 
@@ -631,7 +529,7 @@ export function VideoTab({
               
               <TabsContent value="shorts" className="mt-4">
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                  {shortVideos
+                  {effectiveShortVideos
                     .filter(video => video.channel.id === selectedChannel.id)
                     .map((video) => (
                       <Card 
@@ -858,7 +756,41 @@ export function VideoTab({
         {/* Shorts Tab Content */}
         <TabsContent value="shorts" className="flex-1 m-0 p-0">
           <div className="h-full relative bg-black">
-            {currentShort && (
+            {/* Loading state */}
+            {shortVideosLoading && (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-white text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
+                  <p>Loading shorts...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Error state */}
+            {shortVideosError && !shortVideosLoading && (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-white text-center p-4">
+                  <p className="text-lg mb-2">Failed to load shorts</p>
+                  <p className="text-sm text-gray-300 mb-4">Please check your connection and try again</p>
+                  <Button variant="outline" onClick={() => window.location.reload()}>
+                    Retry
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!shortVideosLoading && !shortVideosError && effectiveShortVideos.length === 0 && (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-white text-center p-4">
+                  <p className="text-lg mb-2">No shorts available</p>
+                  <p className="text-sm text-gray-300">Check back later for new content</p>
+                </div>
+              </div>
+            )}
+
+            {/* Main content */}
+            {!shortVideosLoading && !shortVideosError && currentShort && (
               <>
                 {/* Video Player */}
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -952,7 +884,7 @@ export function VideoTab({
                       className={`w-12 h-12 rounded-full text-white hover:bg-white/20 ${
                         likedVideos.includes(currentShort.id) ? 'bg-red-500' : 'bg-black/50'
                       }`}
-                      onClick={() => onVideoLike(currentShort.id)}
+                      onClick={() => handleVideoLike(currentShort.id)}
                     >
                       <Heart className={`w-6 h-6 ${likedVideos.includes(currentShort.id) ? 'fill-current' : ''}`} />
                     </Button>
@@ -975,7 +907,7 @@ export function VideoTab({
                       variant="ghost"
                       size="icon"
                       className="w-12 h-12 rounded-full bg-black/50 text-white hover:bg-white/20"
-                      onClick={() => onVideoShare(currentShort.id)}
+                      onClick={() => handleVideoShare(currentShort.id)}
                     >
                       <Share className="w-6 h-6" />
                     </Button>
@@ -1025,7 +957,7 @@ export function VideoTab({
                         <Button
                           size="sm"
                           className="bg-red-600 hover:bg-red-700 text-white h-7 px-3 rounded-full font-medium shadow-lg border-0 flex-shrink-0 transition-all duration-200 hover:scale-105"
-                          onClick={() => onSubscribe(currentShort.channel.id)}
+                          onClick={() => handleChannelSubscribe(currentShort.channel.id)}
                         >
                           <UserPlus className="w-3 h-3 mr-1.5" />
                           Follow
@@ -1084,7 +1016,41 @@ export function VideoTab({
         <TabsContent value="long" className="flex-1 m-0">
           <ScrollArea className="h-full">
             <div className="p-4 space-y-4">
-              {filteredLongs.map((video) => (
+              {/* Loading state */}
+              {longVideosLoading && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p>Loading videos...</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Error state */}
+              {longVideosError && !longVideosLoading && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center p-4">
+                    <p className="text-lg mb-2">Failed to load videos</p>
+                    <p className="text-sm text-muted-foreground mb-4">Please check your connection and try again</p>
+                    <Button variant="outline" onClick={() => window.location.reload()}>
+                      Retry
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Empty state */}
+              {!longVideosLoading && !longVideosError && filteredLongs.length === 0 && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center p-4">
+                    <p className="text-lg mb-2">No videos available</p>
+                    <p className="text-sm text-muted-foreground">Check back later for new content</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Main content */}
+              {!longVideosLoading && !longVideosError && filteredLongs.map((video) => (
                 <Card 
                   key={video.id} 
                   className="overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
@@ -1140,7 +1106,7 @@ export function VideoTab({
                         className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0 cursor-pointer touch-manipulation"
                         onClick={(e) => {
                           e.stopPropagation();
-                          const channel = channels.find(c => c.id === video.channel.id);
+                          const channel = effectiveChannels.find(c => c.id === video.channel.id);
                           if (channel) handleChannelClick(channel);
                         }}
                       >
@@ -1155,7 +1121,7 @@ export function VideoTab({
                             className="cursor-pointer hover:text-primary truncate max-w-32 sm:max-w-none touch-manipulation"
                             onClick={(e) => {
                               e.stopPropagation();
-                              const channel = channels.find(c => c.id === video.channel.id);
+                              const channel = effectiveChannels.find(c => c.id === video.channel.id);
                               if (channel) handleChannelClick(channel);
                             }}
                           >
@@ -1217,7 +1183,7 @@ export function VideoTab({
                       </div>
                       
                       <Button
-                        variant={subscribedChannels.includes(video.channel.id) ? "outline" : "default"}
+                        variant={subscribedChannelIds.includes(video.channel.id) ? "outline" : "default"}
                         size="sm"
                         className="flex-shrink-0 h-8 sm:h-9 px-2 sm:px-3 text-xs sm:text-sm touch-manipulation"
                         onClick={(e) => {
@@ -1225,7 +1191,7 @@ export function VideoTab({
                           handleChannelSubscribe(video.channel.id);
                         }}
                       >
-                        {subscribedChannels.includes(video.channel.id) ? (
+                        {subscribedChannelIds.includes(video.channel.id) ? (
                           <>
                             <UserMinus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                             <span className="hidden sm:inline">Subscribed</span>
@@ -1263,76 +1229,112 @@ export function VideoTab({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredChannels.map((channel) => (
-                  <Card 
-                    key={channel.id} 
-                    className="overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
-                    onClick={() => handleChannelClick(channel)}
-                  >
-                    {channel.banner && (
-                      <div className="h-24 relative">
-                        <ImageWithFallback
-                          src={channel.banner}
-                          alt={`${channel.name} banner`}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-                      </div>
-                    )}
-                    
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-4">
-                        <Avatar className="w-16 h-16 border-2 border-background">
-                          <AvatarImage src={channel.avatar} />
-                          <AvatarFallback>{channel.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-medium line-clamp-1">{channel.name}</h3>
-                            {channel.verified && (
-                              <CheckCircle className="w-4 h-4 text-blue-500 fill-current" />
-                            )}
-                          </div>
-                          
-                          <div className="flex items-center gap-3 text-sm text-muted-foreground mb-2">
-                            <span>{formatSubscribers(channel.subscribers)} subscribers</span>
-                            <span>•</span>
-                            <span>{channel.videos} videos</span>
-                          </div>
-                          
-                          <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                            {channel.description}
-                          </p>
-                          
-                          <Button
-                            variant={channel.isSubscribed ? "outline" : "default"}
-                            size="sm"
-                            className="w-full"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleChannelSubscribe(channel.id);
-                            }}
-                          >
-                            {channel.isSubscribed ? (
-                              <>
-                                <UserMinus className="w-4 h-4 mr-2" />
-                                Subscribed
-                              </>
-                            ) : (
-                              <>
-                                <UserPlus className="w-4 h-4 mr-2" />
-                                Subscribe
-                              </>
-                            )}
-                          </Button>
+              {/* Loading state */}
+              {channelsLoading && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p>Loading channels...</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Error state */}
+              {channelsError && !channelsLoading && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center p-4">
+                    <p className="text-lg mb-2">Failed to load channels</p>
+                    <p className="text-sm text-muted-foreground mb-4">Please check your connection and try again</p>
+                    <Button variant="outline" onClick={() => window.location.reload()}>
+                      Retry
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Empty state */}
+              {!channelsLoading && !channelsError && effectiveChannels.length === 0 && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center p-4">
+                    <p className="text-lg mb-2">No channels available</p>
+                    <p className="text-sm text-muted-foreground">Channels will appear here once videos are loaded</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Main content */}
+              {!channelsLoading && !channelsError && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {filteredChannels.map((channel) => (
+                    <Card
+                      key={channel.id}
+                      className="overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+                      onClick={() => handleChannelClick(channel)}
+                    >
+                      {channel.banner && (
+                        <div className="h-24 relative">
+                          <ImageWithFallback
+                            src={channel.banner}
+                            alt={`${channel.name} banner`}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                      )}
+
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-4">
+                          <Avatar className="w-16 h-16 border-2 border-background">
+                            <AvatarImage src={channel.avatar} />
+                            <AvatarFallback>{channel.name.charAt(0)}</AvatarFallback>
+                          </Avatar>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-medium line-clamp-1">{channel.name}</h3>
+                              {channel.verified && (
+                                <CheckCircle className="w-4 h-4 text-blue-500 fill-current" />
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-3 text-sm text-muted-foreground mb-2">
+                              <span>{formatSubscribers(channel.subscribers)} subscribers</span>
+                              <span>•</span>
+                              <span>{channel.videos} videos</span>
+                            </div>
+
+                            <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                              {channel.description}
+                            </p>
+
+                            <Button
+                              variant={channel.isSubscribed ? "outline" : "default"}
+                              size="sm"
+                              className="w-full"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleChannelSubscribe(channel.id);
+                              }}
+                            >
+                              {channel.isSubscribed ? (
+                                <>
+                                  <UserMinus className="w-4 h-4 mr-2" />
+                                  Subscribed
+                                </>
+                              ) : (
+                                <>
+                                  <UserPlus className="w-4 h-4 mr-2" />
+                                  Subscribe
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           </ScrollArea>
         </TabsContent>
@@ -1432,8 +1434,8 @@ export function VideoTab({
                 <div className="mt-6 sm:mt-8">
                   <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Latest from your subscriptions</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                    {longVideos
-                      .filter(video => subscribedChannels.includes(video.channel.id))
+                    {effectiveLongVideos
+                      .filter(video => subscribedChannelIds.includes(video.channel.id))
                       .slice(0, 8)
                       .map((video) => (
                         <Card 

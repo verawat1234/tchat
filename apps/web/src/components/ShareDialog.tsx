@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Share, Copy, MessageCircle, Users, Facebook, Twitter, Instagram, Link, QrCode, Mail, Download, Star, Heart, Bookmark, Send, CheckCircle, Video, ShoppingCart, Radio, Store, FileText, Phone, MessageSquare } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Button } from './ui/button';
@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
 import { toast } from "sonner";
+import { useGetUserFriendsQuery } from '../services/microservicesApi';
 
 interface ShareDialogProps {
   open: boolean;
@@ -49,58 +50,49 @@ export function ShareDialog({ open, onOpenChange, content, user }: ShareDialogPr
   const [shareMessage, setShareMessage] = useState('');
   const [currentTab, setCurrentTab] = useState<'contacts' | 'social' | 'link'>('contacts');
 
-  // Mock contacts data
-  const contacts: Contact[] = [
-    {
-      id: '1',
-      name: 'Family Group',
-      avatar: '',
-      status: 'online',
-      type: 'group',
-      isFrequent: true
-    },
-    {
-      id: '2',
-      name: 'Mom',
-      avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b820?w=40&h=40&fit=crop',
-      status: 'online',
-      type: 'individual',
-      isFrequent: true
-    },
-    {
-      id: '3',
-      name: 'Bangkok Foodies',
-      avatar: '',
-      status: 'online',
-      type: 'group',
-      isFrequent: true
-    },
-    {
-      id: '4',
-      name: 'Sarah Johnson',
-      avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b820?w=40&h=40&fit=crop',
-      status: 'online',
-      type: 'individual',
-      isFrequent: false
-    },
-    {
-      id: '5',
-      name: 'Mike Chen',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop',
-      status: 'offline',
-      lastSeen: '2 hours ago',
-      type: 'individual',
-      isFrequent: false
-    },
-    {
-      id: '6',
-      name: 'Work Team',
-      avatar: '',
-      status: 'online',
-      type: 'group',
-      isFrequent: true
+  // RTK Query for user friends/contacts
+  const {
+    data: friendsData,
+    isLoading: friendsLoading,
+    error: friendsError
+  } = useGetUserFriendsQuery({
+    status: 'all',
+    limit: 50
+  });
+
+  const contacts: Contact[] = useMemo(() => {
+    if (friendsLoading || !friendsData) {
+      // Fallback data while loading
+      return [
+        {
+          id: '1',
+          name: 'Family Group',
+          avatar: '',
+          status: 'online',
+          type: 'group',
+          isFrequent: true
+        },
+        {
+          id: '2',
+          name: 'Mom',
+          avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b820?w=40&h=40&fit=crop',
+          status: 'online',
+          type: 'individual',
+          isFrequent: true
+        }
+      ];
     }
-  ];
+
+    return friendsData.map((friend: any) => ({
+      id: friend.id || friend.user_id || friend.friend_id || `contact-${Math.random()}`,
+      name: friend.name || friend.display_name || friend.username || 'Unknown Contact',
+      avatar: friend.avatar || friend.profile_picture || friend.image || undefined,
+      status: friend.status || friend.online_status || (friend.is_online ? 'online' : 'offline'),
+      lastSeen: friend.lastSeen || friend.last_seen || friend.last_active || undefined,
+      type: friend.type || friend.chat_type || (friend.is_group ? 'group' : 'individual'),
+      isFrequent: friend.isFrequent || friend.is_frequent || friend.interaction_score > 50 || false
+    }));
+  }, [friendsData, friendsLoading]);
 
   const frequentContacts = contacts.filter(c => c.isFrequent);
   const allContacts = contacts.filter(c => !c.isFrequent);

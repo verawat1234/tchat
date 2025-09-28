@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useGetShopProductsQuery } from '../services/microservicesApi';
 import { 
   ArrowLeft, 
   Star, 
@@ -98,79 +99,66 @@ export function ShopPage({ user, shopId, onBack, onProductClick, onAddToCart }: 
     joinedDate: 'March 2020'
   };
 
-  // Mock products data
-  const products: Product[] = [
-    {
-      id: '1',
-      name: 'Pad Thai Goong',
-      price: 45,
-      currency: 'THB',
-      image: 'https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0aGFpJTIwc3RyZWV0JTIwZm9vZCUyMGNvb2tpbmd8ZW58MXx8fHwxNzU4Mzk0NTE3fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      rating: 4.8,
-      category: 'main',
-      isLive: true,
-      isHot: true,
-      orders: 1234,
-      stock: 15
-    },
-    {
-      id: '2',
-      name: 'Som Tam Thai',
-      price: 35,
-      currency: 'THB',
-      image: 'https://images.unsplash.com/photo-1743485753872-3b24372fcd24?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzb3V0aGVhc3QlMjBhc2lhJTIwbWFya2V0JTIwdmVuZG9yfGVufDF8fHx8MTc1ODM5NDUxNXww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      rating: 4.6,
-      category: 'salad',
-      discount: 20,
-      isHot: true,
-      orders: 892,
-      stock: 8
-    },
-    {
-      id: '3',
-      name: 'Mango Sticky Rice',
-      price: 40,
-      currency: 'THB',
-      image: 'https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0aGFpJTIwZGVzc2VydCUyMG1hbmdvfGVufDF8fHx8MTc1ODM5NDUxN3ww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      rating: 4.9,
-      category: 'dessert',
-      orders: 567,
-      stock: 12
-    },
-    {
-      id: '4',
-      name: 'Tom Yum Goong',
-      price: 55,
-      currency: 'THB',
-      image: 'https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0b20lMjB5dW0lMjBzb3VwfGVufDF8fHx8MTc1ODM5NDUxN3ww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      rating: 4.7,
-      category: 'soup',
-      orders: 445,
-      stock: 20
-    },
-    {
-      id: '5',
-      name: 'Thai Iced Tea',
-      price: 25,
-      currency: 'THB',
-      image: 'https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0aGFpJTIwaWNlZCUyMHRlYXxlbnwxfHx8fDE3NTgzOTQ1MTd8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      rating: 4.5,
-      category: 'drink',
-      orders: 334,
-      stock: 25
-    },
-    {
-      id: '6',
-      name: 'Green Curry',
-      price: 60,
-      currency: 'THB',
-      image: 'https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0aGFpJTIwZ3JlZW4lMjBjdXJyeXxlbnwxfHx8fDE3NTgzOTQ1MTd8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      rating: 4.6,
-      category: 'main',
-      orders: 223,
-      stock: 10
+  // RTK Query for shop products
+  const {
+    data: productsData,
+    isLoading: productsLoading,
+    error: productsError
+  } = useGetShopProductsQuery({
+    shopId: 'thai-street-food-paradise',
+    page: 1,
+    limit: 20,
+    category: activeCategory === 'all' ? undefined : activeCategory
+  });
+
+  const products: Product[] = useMemo(() => {
+    if (productsLoading || !productsData) {
+      // Fallback data while loading
+      return [
+        {
+          id: '1',
+          name: 'Pad Thai Goong',
+          price: 45,
+          currency: 'THB',
+          image: 'https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0aGFpJTIwc3RyZWV0JTIwZm9vZCUyMGNvb2tpbmd8ZW58MXx8fHwxNzU4Mzk0NTE3fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
+          rating: 4.8,
+          category: 'main',
+          isLive: true,
+          isHot: true,
+          orders: 1234,
+          stock: 15
+        },
+        {
+          id: '2',
+          name: 'Som Tam Thai',
+          price: 35,
+          currency: 'THB',
+          image: 'https://images.unsplash.com/photo-1743485753872-3b24372fcd24?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzb3V0aGVhc3QlMjBhc2lhJTIwbWFya2V0JTIwdmVuZG9yfGVufDF8fHx8MTc1ODM5NDUxNXww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
+          rating: 4.6,
+          category: 'salad',
+          discount: 20,
+          isHot: true,
+          orders: 892,
+          stock: 8
+        }
+      ];
     }
-  ];
+
+    return productsData.map((product: any) => ({
+      id: product.id || product.product_id || `product-${Math.random()}`,
+      name: product.name || product.title || 'Product',
+      price: product.price || 0,
+      currency: product.currency || 'THB',
+      image: product.image || product.image_url || product.thumbnail || 'https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?w=1080',
+      rating: product.rating || product.average_rating || 4.5,
+      category: product.category || product.product_category || 'main',
+      isLive: product.isLive || product.is_live || false,
+      isHot: product.isHot || product.is_hot || product.trending || false,
+      discount: product.discount || product.discount_percentage || undefined,
+      orders: product.orders || product.total_orders || 0,
+      stock: product.stock || product.available_quantity || 0
+    }));
+  }, [productsData, productsLoading, activeCategory]);
 
   const categories = [
     { id: 'all', name: 'All', count: products.length },

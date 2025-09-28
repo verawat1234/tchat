@@ -191,6 +191,8 @@ export const useNavigationContentBatch = (contentIds: string[]): Record<string, 
     isError: categoryError
   } = useGetContentByCategoryQuery('navigation', {
     pollingInterval: 300000, // 5 minutes
+    // Skip to prevent errors for now
+    skip: true,
   });
 
   // Extract items from paginated response structure

@@ -390,15 +390,17 @@ contentFallbackMiddleware.startListening({
 // =============================================================================
 
 /**
- * Perform periodic maintenance
+ * Perform periodic maintenance - initialize once only
  */
 let maintenanceInterval: NodeJS.Timeout;
+let maintenanceInitialized = false;
 
 contentFallbackMiddleware.startListening({
-  predicate: () => true,
+  actionCreator: 'persist/REHYDRATE' as any,
   effect: async (action, listenerApi) => {
-    // Set up maintenance interval once
-    if (!maintenanceInterval) {
+    // Set up maintenance interval only once during rehydration
+    if (!maintenanceInitialized) {
+      maintenanceInitialized = true;
       maintenanceInterval = setInterval(async () => {
         try {
           await contentFallbackService.performMaintenance();

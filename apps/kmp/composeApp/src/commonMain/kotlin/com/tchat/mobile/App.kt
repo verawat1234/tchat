@@ -12,15 +12,21 @@ import com.tchat.mobile.navigation.MainTab
 import com.tchat.mobile.navigation.TchatNavigation
 import com.tchat.mobile.navigation.rememberScreenNavigationState
 import com.tchat.mobile.repositories.ChatRepository
-import com.tchat.mobile.repositories.MockChatRepository
+import com.tchat.mobile.services.SocialContentService
+import com.tchat.mobile.services.ContentApiService
 import com.tchat.mobile.screens.*
+import org.koin.compose.koinInject
 
 @Composable
 fun App() {
     val navigationState = rememberScreenNavigationState()
 
-    // Initialize ChatRepository - using MockChatRepository for now
-    val chatRepository: ChatRepository = remember { MockChatRepository() }
+    // Initialize ChatRepository - using koinInject for now
+    val chatRepository: ChatRepository = koinInject()
+
+    // Inject services using Koin
+    val socialContentService: SocialContentService = koinInject()
+    val contentApiService: ContentApiService = koinInject()
 
     // Video screen UI visibility state for controlling bottom nav opacity
     var isVideoUIVisible by remember { mutableStateOf(true) }
@@ -158,6 +164,8 @@ fun App() {
                     onMoreClick = {
                         navigationState.navigateTo(Screen.More)
                     },
+                    socialContentService = socialContentService,
+                    contentApiService = contentApiService,
                     modifier = Modifier.padding(paddingValues)
                 )
 

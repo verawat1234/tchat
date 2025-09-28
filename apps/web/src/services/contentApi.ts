@@ -314,7 +314,7 @@ export const contentApi = api.injectEndpoints({
      * - Category metadata and descriptions
      */
     getContentCategories: builder.query<ContentCategory[], void>({
-      query: () => '/v1/content/categories',
+      query: () => '/content/categories',
       providesTags: ['ContentCategory'],
       keepUnusedDataFor: 1800, // 30 minutes - categories change infrequently
     }),
@@ -329,7 +329,7 @@ export const contentApi = api.injectEndpoints({
      */
     getContentVersions: builder.query<GetContentVersionsResponse, GetContentVersionsRequest>({
       query: ({ contentId, ...params }) => ({
-        url: `/v1/content/${encodeURIComponent(contentId)}/versions`,
+        url: `/content/${encodeURIComponent(contentId)}/versions`,
         method: 'GET',
         params,
       }),
@@ -351,7 +351,7 @@ export const contentApi = api.injectEndpoints({
      */
     syncContent: builder.query<SyncContentResponse, SyncContentRequest>({
       query: (params) => ({
-        url: '/v1/content/sync',
+        url: '/content/sync',
         method: 'POST',
         body: params,
       }),
@@ -375,7 +375,7 @@ export const contentApi = api.injectEndpoints({
      */
     createContentItem: builder.mutation<ContentItem, CreateContentItemRequest>({
       query: (body) => ({
-        url: '/v1/content',
+        url: '/content',
         method: 'POST',
         body,
       }),
@@ -427,7 +427,7 @@ export const contentApi = api.injectEndpoints({
      */
     updateContentItem: builder.mutation<ContentItem, UpdateContentItemRequest>({
       query: ({ id, ...body }) => ({
-        url: `/v1/content/${encodeURIComponent(id)}`,
+        url: `/content/${encodeURIComponent(id)}`,
         method: 'PUT',
         body,
       }),
@@ -469,7 +469,7 @@ export const contentApi = api.injectEndpoints({
      */
     publishContent: builder.mutation<ContentItem, PublishContentRequest>({
       query: ({ id, ...body }) => ({
-        url: `/v1/content/${encodeURIComponent(id)}/publish`,
+        url: `/content/${encodeURIComponent(id)}/publish`,
         method: 'POST',
         body,
       }),
@@ -491,7 +491,7 @@ export const contentApi = api.injectEndpoints({
      */
     archiveContent: builder.mutation<ContentItem, ArchiveContentRequest>({
       query: ({ id, ...body }) => ({
-        url: `/v1/content/${encodeURIComponent(id)}/archive`,
+        url: `/content/${encodeURIComponent(id)}/archive`,
         method: 'POST',
         body,
       }),
@@ -513,7 +513,7 @@ export const contentApi = api.injectEndpoints({
      */
     bulkUpdateContent: builder.mutation<BulkUpdateContentResponse, BulkUpdateContentRequest>({
       query: (body) => ({
-        url: '/v1/content/bulk',
+        url: '/content/bulk',
         method: 'PUT',
         body,
       }),
@@ -559,7 +559,7 @@ export const contentApi = api.injectEndpoints({
      */
     revertContentVersion: builder.mutation<ContentItem, RevertContentVersionRequest>({
       query: ({ id, ...body }) => ({
-        url: `/v1/content/${encodeURIComponent(id)}/versions/${body.version}/revert`,
+        url: `/content/${encodeURIComponent(id)}/versions/${body.version}/revert`,
         method: 'POST',
         body,
       }),

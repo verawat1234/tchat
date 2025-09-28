@@ -26,47 +26,12 @@ import com.tchat.mobile.components.TchatInputType
 import com.tchat.mobile.components.TchatTopBar
 import com.tchat.mobile.designsystem.TchatColors
 import com.tchat.mobile.designsystem.TchatSpacing
+import com.tchat.mobile.repositories.ProductRepository
+import com.tchat.mobile.models.*
+import org.koin.compose.koinInject
+import kotlinx.coroutines.launch
 
-data class ShopItem(
-    val id: String,
-    val name: String,
-    val description: String,
-    val avatar: String,
-    val coverImage: String,
-    val rating: Double,
-    val deliveryTime: String,
-    val distance: String,
-    val isVerified: Boolean = false,
-    val followers: Int = 0,
-    val totalProducts: Int = 0
-)
-
-data class ProductItem(
-    val id: String,
-    val name: String,
-    val price: Double,
-    val originalPrice: Double? = null,
-    val rating: Double,
-    val category: String,
-    val merchant: String,
-    val image: String,
-    val deliveryTime: String = "30 min",
-    val distance: String = "2.5 km",
-    val isHot: Boolean = false,
-    val discount: Int? = null,
-    val orders: Int = 0
-)
-
-data class LiveStreamItem(
-    val id: String,
-    val title: String,
-    val merchant: String,
-    val viewers: Int,
-    val thumbnail: String,
-    val products: List<ProductItem>,
-    val isLive: Boolean = true,
-    val duration: String = "00:45:32"
-)
+// Data classes moved to Commerce.kt for PACT contract consistency
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,10 +42,34 @@ fun StoreScreen(
     onMoreClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val productRepository: ProductRepository = koinInject()
+    val coroutineScope = rememberCoroutineScope()
+
     var selectedTab by remember { mutableStateOf(0) }
     var searchQuery by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    var hasDataInitialized by remember { mutableStateOf(false) }
 
     val tabs = listOf("Shops", "Products", "Live")
+
+    // Initialize data if not already done
+    LaunchedEffect(Unit) {
+        if (!hasDataInitialized) {
+            isLoading = true
+            try {
+                // Check if we have data, if not seed it
+                val existingProducts = productRepository.getAllProducts().getOrNull()
+                if (existingProducts.isNullOrEmpty()) {
+                    productRepository.seedInitialData()
+                }
+                hasDataInitialized = true
+            } catch (e: Exception) {
+                // Handle error - could show snackbar or error state
+            } finally {
+                isLoading = false
+            }
+        }
+    }
 
     Column(
         modifier = modifier
@@ -143,12 +132,14 @@ fun StoreScreen(
                 .padding(TchatSpacing.md)
         )
 
-        // Tab Row
+        // Tab Row - Fix SubcomposeLayout intrinsic measurement issue
         TabRow(
             selectedTabIndex = selectedTab,
             containerColor = TchatColors.surface,
             contentColor = TchatColors.primary,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp) // Explicit height to avoid intrinsic measurement
         ) {
             tabs.forEachIndexed { index, title ->
                 Tab(
@@ -186,19 +177,25 @@ fun StoreScreen(
         // Content based on selected tab
         when (selectedTab) {
             0 -> ShopsContent(
+                productRepository = productRepository,
                 searchQuery = searchQuery,
                 onShopClick = onShopClick,
+                isLoading = isLoading,
                 modifier = Modifier.weight(1f)
             )
             1 -> ProductsContent(
+                productRepository = productRepository,
                 searchQuery = searchQuery,
                 onProductClick = onProductClick,
+                isLoading = isLoading,
                 modifier = Modifier.weight(1f)
             )
             2 -> LiveContent(
+                productRepository = productRepository,
                 searchQuery = searchQuery,
                 onLiveStreamClick = onLiveStreamClick,
                 onProductClick = onProductClick,
+                isLoading = isLoading,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -207,80 +204,153 @@ fun StoreScreen(
 
 @Composable
 private fun ShopsContent(
+    productRepository: ProductRepository,
     searchQuery: String,
     onShopClick: (String) -> Unit,
+    isLoading: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val shops = getDummyShops().filter {
-        it.name.contains(searchQuery, ignoreCase = true) ||
-        it.description.contains(searchQuery, ignoreCase = true)
+    var shops by remember { mutableStateOf<List<ShopItem>>(emptyList()) }
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(searchQuery) {
+        coroutineScope.launch {
+            try {
+                val result = if (searchQuery.isEmpty()) {
+                    productRepository.getShopItems()
+                } else {
+                    productRepository.searchShopItems(searchQuery)
+                }
+                shops = result.getOrDefault(emptyList())
+            } catch (e: Exception) {
+                shops = emptyList()
+            }
+        }
     }
 
-    LazyColumn(
-        modifier = modifier,
-        contentPadding = PaddingValues(TchatSpacing.md),
-        verticalArrangement = Arrangement.spacedBy(TchatSpacing.sm)
-    ) {
-        items(shops) { shop ->
-            ShopCard(
-                shop = shop,
-                onClick = { onShopClick(shop.id) }
-            )
+    if (isLoading) {
+        Box(
+            modifier = modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = TchatColors.primary)
+        }
+    } else {
+        LazyColumn(
+            modifier = modifier,
+            contentPadding = PaddingValues(TchatSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(TchatSpacing.sm)
+        ) {
+            items(shops) { shop ->
+                ShopCard(
+                    shop = shop,
+                    onClick = { onShopClick(shop.id) }
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun ProductsContent(
+    productRepository: ProductRepository,
     searchQuery: String,
     onProductClick: (String) -> Unit,
+    isLoading: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val products = getDummyProducts().filter {
-        it.name.contains(searchQuery, ignoreCase = true) ||
-        it.category.contains(searchQuery, ignoreCase = true) ||
-        it.merchant.contains(searchQuery, ignoreCase = true)
+    var products by remember { mutableStateOf<List<ProductItem>>(emptyList()) }
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(searchQuery) {
+        coroutineScope.launch {
+            try {
+                val result = if (searchQuery.isEmpty()) {
+                    productRepository.getProductItems()
+                } else {
+                    productRepository.searchProductItems(searchQuery)
+                }
+                products = result.getOrDefault(emptyList())
+            } catch (e: Exception) {
+                products = emptyList()
+            }
+        }
     }
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(TchatSpacing.md),
-        horizontalArrangement = Arrangement.spacedBy(TchatSpacing.sm),
-        verticalArrangement = Arrangement.spacedBy(TchatSpacing.sm)
-    ) {
-        items(products) { product ->
-            ProductCard(
-                product = product,
-                onClick = { onProductClick(product.id) }
-            )
+    if (isLoading) {
+        Box(
+            modifier = modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = TchatColors.primary)
+        }
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            modifier = modifier.fillMaxSize(),
+            contentPadding = PaddingValues(TchatSpacing.md),
+            horizontalArrangement = Arrangement.spacedBy(TchatSpacing.sm),
+            verticalArrangement = Arrangement.spacedBy(TchatSpacing.sm)
+        ) {
+            items(products) { product ->
+                ProductCard(
+                    product = product,
+                    onClick = { onProductClick(product.id) }
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun LiveContent(
+    productRepository: ProductRepository,
     searchQuery: String,
     onLiveStreamClick: (String) -> Unit,
     onProductClick: (String) -> Unit,
+    isLoading: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val streams = getDummyLiveStreams().filter {
-        it.title.contains(searchQuery, ignoreCase = true) ||
-        it.merchant.contains(searchQuery, ignoreCase = true)
+    var streams by remember { mutableStateOf<List<LiveStreamItem>>(emptyList()) }
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(searchQuery) {
+        coroutineScope.launch {
+            try {
+                // For now, using dummy live streams as these are typically real-time data
+                // In production, this would come from a LiveStreamRepository or API
+                val dummyStreams = getDummyLiveStreams().filter {
+                    searchQuery.isEmpty() ||
+                    it.title.contains(searchQuery, ignoreCase = true) ||
+                    it.merchant.contains(searchQuery, ignoreCase = true)
+                }
+                streams = dummyStreams
+            } catch (e: Exception) {
+                streams = emptyList()
+            }
+        }
     }
 
-    LazyColumn(
-        modifier = modifier,
-        contentPadding = PaddingValues(TchatSpacing.md),
-        verticalArrangement = Arrangement.spacedBy(TchatSpacing.md)
-    ) {
-        items(streams) { stream ->
-            LiveStreamCard(
-                stream = stream,
-                onStreamClick = { onLiveStreamClick(stream.id) },
-                onProductClick = onProductClick
-            )
+    if (isLoading) {
+        Box(
+            modifier = modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = TchatColors.primary)
+        }
+    } else {
+        LazyColumn(
+            modifier = modifier,
+            contentPadding = PaddingValues(TchatSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(TchatSpacing.md)
+        ) {
+            items(streams) { stream ->
+                LiveStreamCard(
+                    stream = stream,
+                    onStreamClick = { onLiveStreamClick(stream.id) },
+                    onProductClick = onProductClick
+                )
+            }
         }
     }
 }
@@ -728,25 +798,8 @@ private fun LiveStreamCard(
     }
 }
 
-// Sample data functions
-private fun getDummyShops(): List<ShopItem> = listOf(
-    ShopItem("1", "Bangkok Street Food", "Authentic Thai street food and snacks", "BS", "cover1", 4.8, "15-25 min", "1.2 km", true, 2540, 45),
-    ShopItem("2", "Tech Paradise", "Latest electronics and gadgets", "TP", "cover2", 4.6, "30-45 min", "3.1 km", true, 1890, 120),
-    ShopItem("3", "Fashion House", "Trendy clothes and accessories", "FH", "cover3", 4.5, "20-30 min", "2.8 km", false, 980, 78),
-    ShopItem("4", "Fresh Market", "Organic fruits and vegetables", "FM", "cover4", 4.7, "10-20 min", "0.8 km", true, 3200, 230),
-    ShopItem("5", "Coffee Corner", "Premium coffee and desserts", "CC", "cover5", 4.9, "5-15 min", "0.5 km", true, 1560, 35)
-)
-
-private fun getDummyProducts(): List<ProductItem> = listOf(
-    ProductItem("1", "Pad Thai Goong", 45.0, 55.0, 4.8, "Food", "Bangkok Street Food", "image1", "15 min", "1.2 km", true, 18, 245),
-    ProductItem("2", "Wireless Headphones", 2490.0, 2990.0, 4.6, "Electronics", "Tech Paradise", "image2", "30 min", "3.1 km", false, 15, 89),
-    ProductItem("3", "Cotton T-Shirt", 590.0, null, 4.3, "Fashion", "Fashion House", "image3", "25 min", "2.8 km", false, null, 67),
-    ProductItem("4", "Fresh Mango", 120.0, 150.0, 4.9, "Food", "Fresh Market", "image4", "15 min", "0.8 km", true, 20, 156),
-    ProductItem("5", "Iced Coffee", 85.0, null, 4.7, "Beverage", "Coffee Corner", "image5", "10 min", "0.5 km", false, null, 98),
-    ProductItem("6", "Som Tam", 35.0, null, 4.5, "Food", "Bangkok Street Food", "image6", "15 min", "1.2 km", true, null, 189),
-    ProductItem("7", "Smart Watch", 8990.0, 10990.0, 4.4, "Electronics", "Tech Paradise", "image7", "30 min", "3.1 km", false, 18, 45),
-    ProductItem("8", "Denim Jeans", 1290.0, 1590.0, 4.2, "Fashion", "Fashion House", "image8", "25 min", "2.8 km", false, 19, 78)
-)
+// Temporary live stream data (moved to repository pattern)
+// Products and Shops now use ProductRepository with PACT contract compliance
 
 private fun getDummyLiveStreams(): List<LiveStreamItem> = listOf(
     LiveStreamItem(

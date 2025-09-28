@@ -96,21 +96,37 @@ private fun MessageContent(
 ) {
     when (message.type) {
         MessageType.TEXT -> {
-            Column {
-                if (message.isEdited) {
+            // Message bubble with background
+            Surface(
+                modifier = Modifier
+                    .widthIn(max = 280.dp),
+                shape = RoundedCornerShape(
+                    topStart = 16.dp,
+                    topEnd = 16.dp,
+                    bottomStart = if (isFromMe) 16.dp else 4.dp,
+                    bottomEnd = if (isFromMe) 4.dp else 16.dp
+                ),
+                color = if (isFromMe) TchatColors.primary else TchatColors.surface,
+                shadowElevation = 1.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp)
+                ) {
+                    if (message.isEdited) {
+                        Text(
+                            text = "edited",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = (if (isFromMe) TchatColors.onPrimary else TchatColors.onSurface).copy(alpha = 0.6f),
+                            modifier = Modifier.padding(bottom = 2.dp)
+                        )
+                    }
                     Text(
-                        text = "edited",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = (if (isFromMe) TchatColors.onPrimary else TchatColors.onSurface).copy(alpha = 0.6f),
-                        modifier = Modifier.padding(bottom = 2.dp)
+                        text = message.content,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (isFromMe) TchatColors.onPrimary else TchatColors.onSurface,
+                        modifier = modifier.testTag("message-text-content")
                     )
                 }
-                Text(
-                    text = message.content,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isFromMe) TchatColors.onPrimary else TchatColors.onSurface,
-                    modifier = modifier.testTag("message-text-content")
-                )
             }
         }
         MessageType.IMAGE -> {
@@ -154,6 +170,78 @@ private fun MessageContent(
                 message = message,
                 modifier = modifier.testTag("message-system-content")
             )
+        }
+        MessageType.PRODUCT -> {
+            ProductMessage(
+                message = message,
+                modifier = modifier.testTag("message-product-content")
+            )
+        }
+        MessageType.INVOICE -> {
+            InvoiceMessage(
+                message = message,
+                modifier = modifier.testTag("message-invoice-content")
+            )
+        }
+        MessageType.ORDER -> {
+            OrderMessage(
+                message = message,
+                modifier = modifier.testTag("message-order-content")
+            )
+        }
+        MessageType.ORDER_STATUS_UPDATE -> {
+            OrderStatusMessage(
+                message = message,
+                modifier = modifier.testTag("message-order-status-content")
+            )
+        }
+        MessageType.PAYMENT_REQUEST -> {
+            PaymentRequestMessage(
+                message = message,
+                modifier = modifier.testTag("message-payment-request-content")
+            )
+        }
+        MessageType.QUOTATION -> {
+            QuotationMessage(
+                message = message,
+                modifier = modifier.testTag("message-quotation-content")
+            )
+        }
+        // Handle additional message types with fallback to text display
+        MessageType.CONTACT, MessageType.GIF, MessageType.POLL, MessageType.EVENT,
+        MessageType.DELETED, MessageType.EMBED, MessageType.EVENT_MESSAGE,
+        MessageType.FORM, MessageType.LOCATION_MESSAGE, MessageType.PAYMENT,
+        MessageType.FILE_MESSAGE -> {
+            // Fallback: Display as text with type indicator in message bubble
+            Surface(
+                modifier = Modifier
+                    .widthIn(max = 280.dp),
+                shape = RoundedCornerShape(
+                    topStart = 16.dp,
+                    topEnd = 16.dp,
+                    bottomStart = if (isFromMe) 16.dp else 4.dp,
+                    bottomEnd = if (isFromMe) 4.dp else 16.dp
+                ),
+                color = if (isFromMe) TchatColors.primary else TchatColors.surface,
+                shadowElevation = 1.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp)
+                ) {
+                    Text(
+                        text = "${message.type.displayName}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = (if (isFromMe) TchatColors.onPrimary else TchatColors.onSurface).copy(alpha = 0.7f),
+                        modifier = Modifier.padding(bottom = 2.dp)
+                    )
+                    Text(
+                        text = message.content,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (isFromMe) TchatColors.onPrimary else TchatColors.onSurface,
+                        modifier = modifier.testTag("message-${message.type.name.lowercase()}-content")
+                    )
+                }
+            }
         }
     }
 }
@@ -286,7 +374,7 @@ private fun MessageStatusRow(
         }
 
         // Read status information (like web chat interfaces)
-        if (message.deliveryStatus == MessageDeliveryStatus.READ && message.readBy.isNotEmpty()) {
+        if (message.deliveryStatus == DeliveryStatus.READ && message.readBy.isNotEmpty()) {
             Row(
                 modifier = Modifier.padding(top = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -330,15 +418,15 @@ private fun MessageStatusRow(
 
 @Composable
 private fun DeliveryStatusIcon(
-    status: MessageDeliveryStatus,
+    status: DeliveryStatus,
     modifier: Modifier = Modifier
 ) {
     val (icon, tint) = when (status) {
-        MessageDeliveryStatus.SENDING -> Icons.Default.Schedule to TchatColors.onPrimary.copy(alpha = 0.5f)
-        MessageDeliveryStatus.SENT -> Icons.Default.Done to TchatColors.onPrimary.copy(alpha = 0.7f)
-        MessageDeliveryStatus.DELIVERED -> Icons.Default.DoneAll to TchatColors.onPrimary.copy(alpha = 0.7f)
-        MessageDeliveryStatus.READ -> Icons.Default.DoneAll to TchatColors.primary
-        MessageDeliveryStatus.FAILED -> Icons.Default.Error to TchatColors.error
+        DeliveryStatus.PENDING -> Icons.Default.Schedule to TchatColors.onPrimary.copy(alpha = 0.5f)
+        DeliveryStatus.SENT -> Icons.Default.Done to TchatColors.onPrimary.copy(alpha = 0.7f)
+        DeliveryStatus.DELIVERED -> Icons.Default.DoneAll to TchatColors.onPrimary.copy(alpha = 0.7f)
+        DeliveryStatus.READ -> Icons.Default.DoneAll to TchatColors.primary
+        DeliveryStatus.FAILED -> Icons.Default.Error to TchatColors.error
     }
 
     Icon(
@@ -2549,6 +2637,234 @@ fun SystemMessage(
                 color = TchatColors.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+fun ProductMessage(
+    message: Message,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = TchatColors.surfaceVariant,
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ShoppingCart,
+                    contentDescription = "Product",
+                    tint = TchatColors.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Product",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TchatColors.primary
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = message.content,
+                style = MaterialTheme.typography.bodyMedium,
+                color = TchatColors.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun InvoiceMessage(
+    message: Message,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = TchatColors.surfaceVariant,
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Receipt,
+                    contentDescription = "Invoice",
+                    tint = TchatColors.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Invoice",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TchatColors.primary
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = message.content,
+                style = MaterialTheme.typography.bodyMedium,
+                color = TchatColors.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun OrderMessage(
+    message: Message,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = TchatColors.surfaceVariant,
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LocalShipping,
+                    contentDescription = "Order",
+                    tint = TchatColors.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Order",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TchatColors.primary
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = message.content,
+                style = MaterialTheme.typography.bodyMedium,
+                color = TchatColors.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun OrderStatusMessage(
+    message: Message,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = TchatColors.surfaceVariant,
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Update,
+                    contentDescription = "Order Status Update",
+                    tint = TchatColors.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Order Status Update",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TchatColors.primary
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = message.content,
+                style = MaterialTheme.typography.bodyMedium,
+                color = TchatColors.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun PaymentRequestMessage(
+    message: Message,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = TchatColors.surfaceVariant,
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Payment,
+                    contentDescription = "Payment Request",
+                    tint = TchatColors.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Payment Request",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TchatColors.primary
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = message.content,
+                style = MaterialTheme.typography.bodyMedium,
+                color = TchatColors.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun QuotationMessage(
+    message: Message,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = TchatColors.surfaceVariant,
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.RequestQuote,
+                    contentDescription = "Quotation",
+                    tint = TchatColors.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Quotation",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TchatColors.primary
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = message.content,
+                style = MaterialTheme.typography.bodyMedium,
+                color = TchatColors.onSurfaceVariant
             )
         }
     }

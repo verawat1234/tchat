@@ -1,0 +1,159 @@
+-- Product table for e-commerce functionality
+CREATE TABLE Product (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    short_description TEXT,
+    sku TEXT NOT NULL,
+    category TEXT NOT NULL,
+    brand TEXT,
+    price INTEGER NOT NULL DEFAULT 0, -- price in cents
+    original_price INTEGER, -- original price for discounts, in cents
+    currency TEXT NOT NULL DEFAULT 'THB',
+    thumbnail TEXT,
+    availability TEXT NOT NULL DEFAULT 'IN_STOCK', -- IN_STOCK, OUT_OF_STOCK, LIMITED_STOCK, DISCONTINUED, PRE_ORDER
+    stock INTEGER NOT NULL DEFAULT 0,
+    min_order_quantity INTEGER NOT NULL DEFAULT 1,
+    max_order_quantity INTEGER NOT NULL DEFAULT 100,
+    weight REAL, -- weight in grams
+    rating REAL NOT NULL DEFAULT 0.0,
+    review_count INTEGER NOT NULL DEFAULT 0,
+    is_digital INTEGER NOT NULL DEFAULT 0, -- boolean as integer
+    shipping_required INTEGER NOT NULL DEFAULT 1, -- boolean as integer
+    taxable INTEGER NOT NULL DEFAULT 1, -- boolean as integer
+    status TEXT NOT NULL DEFAULT 'ACTIVE', -- ACTIVE, INACTIVE, DRAFT, ARCHIVED
+    seller_id TEXT NOT NULL,
+    store_name TEXT NOT NULL,
+    created_at INTEGER NOT NULL, -- unix timestamp
+    updated_at INTEGER NOT NULL, -- unix timestamp
+    delivery_time TEXT NOT NULL DEFAULT '30 min',
+    distance TEXT NOT NULL DEFAULT '2.5 km',
+    is_hot INTEGER NOT NULL DEFAULT 0, -- boolean as integer
+    orders INTEGER NOT NULL DEFAULT 0,
+    tags TEXT NOT NULL DEFAULT '', -- JSON array as text
+    images TEXT NOT NULL DEFAULT '[]' -- JSON array as text
+);
+
+-- Store table for shop/merchant information
+CREATE TABLE Store (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    avatar TEXT NOT NULL,
+    cover_image TEXT NOT NULL,
+    rating REAL NOT NULL DEFAULT 0.0,
+    delivery_time TEXT NOT NULL DEFAULT '30 min',
+    distance TEXT NOT NULL DEFAULT '2.5 km',
+    is_verified INTEGER NOT NULL DEFAULT 0, -- boolean as integer
+    followers INTEGER NOT NULL DEFAULT 0,
+    total_products INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL, -- unix timestamp
+    updated_at INTEGER NOT NULL -- unix timestamp
+);
+
+-- Product Images table (normalized)
+CREATE TABLE ProductImage (
+    id TEXT NOT NULL PRIMARY KEY,
+    product_id TEXT NOT NULL,
+    image_url TEXT NOT NULL,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (product_id) REFERENCES Product(id) ON DELETE CASCADE
+);
+
+-- Create indexes for better performance
+CREATE INDEX idx_product_category ON Product(category);
+CREATE INDEX idx_product_seller ON Product(seller_id);
+CREATE INDEX idx_product_status ON Product(status);
+CREATE INDEX idx_product_rating ON Product(rating);
+CREATE INDEX idx_product_price ON Product(price);
+CREATE INDEX idx_store_rating ON Store(rating);
+CREATE INDEX idx_product_image_product_id ON ProductImage(product_id);
+
+-- Queries for Product operations
+insertProduct:
+INSERT INTO Product (
+    id, name, description, short_description, sku, category, brand,
+    price, original_price, currency, thumbnail, availability, stock,
+    min_order_quantity, max_order_quantity, weight, rating, review_count,
+    is_digital, shipping_required, taxable, status, seller_id, store_name,
+    created_at, updated_at, delivery_time, distance, is_hot, orders, tags, images
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateProduct:
+UPDATE Product SET
+    name = ?, description = ?, short_description = ?, sku = ?, category = ?, brand = ?,
+    price = ?, original_price = ?, currency = ?, thumbnail = ?, availability = ?, stock = ?,
+    min_order_quantity = ?, max_order_quantity = ?, weight = ?, rating = ?, review_count = ?,
+    is_digital = ?, shipping_required = ?, taxable = ?, status = ?, seller_id = ?, store_name = ?,
+    updated_at = ?, delivery_time = ?, distance = ?, is_hot = ?, orders = ?, tags = ?, images = ?
+WHERE id = ?;
+
+deleteProduct:
+DELETE FROM Product WHERE id = ?;
+
+getProductById:
+SELECT * FROM Product WHERE id = ?;
+
+getAllProducts:
+SELECT * FROM Product ORDER BY created_at DESC;
+
+getProductsByCategory:
+SELECT * FROM Product WHERE category = ? AND status = 'ACTIVE' ORDER BY rating DESC;
+
+getProductsByStore:
+SELECT * FROM Product WHERE seller_id = ? AND status = 'ACTIVE' ORDER BY created_at DESC;
+
+getProductsByStatus:
+SELECT * FROM Product WHERE status = ? ORDER BY created_at DESC;
+
+getHotProducts:
+SELECT * FROM Product WHERE is_hot = 1 AND status = 'ACTIVE' ORDER BY rating DESC;
+
+getTopRatedProducts:
+SELECT * FROM Product WHERE status = 'ACTIVE' ORDER BY rating DESC LIMIT ?;
+
+searchProducts:
+SELECT * FROM Product
+WHERE (name LIKE '%' || ? || '%' OR description LIKE '%' || ? || '%' OR category LIKE '%' || ? || '%')
+AND status = 'ACTIVE'
+ORDER BY rating DESC;
+
+-- Queries for Store operations
+insertStore:
+INSERT INTO Store (
+    id, name, description, avatar, cover_image, rating, delivery_time, distance,
+    is_verified, followers, total_products, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateStore:
+UPDATE Store SET
+    name = ?, description = ?, avatar = ?, cover_image = ?, rating = ?, delivery_time = ?, distance = ?,
+    is_verified = ?, followers = ?, total_products = ?, updated_at = ?
+WHERE id = ?;
+
+deleteStore:
+DELETE FROM Store WHERE id = ?;
+
+getStoreById:
+SELECT * FROM Store WHERE id = ?;
+
+getAllStores:
+SELECT * FROM Store ORDER BY rating DESC;
+
+getVerifiedStores:
+SELECT * FROM Store WHERE is_verified = 1 ORDER BY rating DESC;
+
+searchStores:
+SELECT * FROM Store
+WHERE (name LIKE '%' || ? || '%' OR description LIKE '%' || ? || '%')
+ORDER BY rating DESC;
+
+-- Queries for ProductImage operations
+insertProductImage:
+INSERT INTO ProductImage (id, product_id, image_url, display_order) VALUES (?, ?, ?, ?);
+
+getProductImages:
+SELECT * FROM ProductImage WHERE product_id = ? ORDER BY display_order ASC;
+
+deleteProductImages:
+DELETE FROM ProductImage WHERE product_id = ?;

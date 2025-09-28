@@ -71,7 +71,7 @@ interface ChatRepository {
     // Message status updates
     suspend fun markMessageAsDelivered(messageId: String): Result<Boolean>
     suspend fun markMessageAsRead(messageId: String, userId: String): Result<Boolean>
-    suspend fun updateMessageDeliveryStatus(messageId: String, status: MessageDeliveryStatus): Result<Boolean>
+    suspend fun updateDeliveryStatus(messageId: String, status: DeliveryStatus): Result<Boolean>
 
     // Voice message operations
     suspend fun uploadVoiceMessage(audioData: ByteArray): Result<String> // Returns URL
@@ -191,7 +191,7 @@ class MockChatRepository : ChatRepository {
         val newMessage = message.copy(
             id = "msg_${PlatformUtils.currentTimeMillis()}",
             createdAt = getCurrentTimestamp(),
-            deliveryStatus = MessageDeliveryStatus.SENT
+            deliveryStatus = DeliveryStatus.SENT
         )
 
         _messages.value = _messages.value + newMessage
@@ -530,7 +530,7 @@ class MockChatRepository : ChatRepository {
                         senderId = message.senderId,
                         senderName = message.senderName,
                         timestamp = message.createdAt,
-                        type = ChatMessageType.valueOf(message.type.name),
+                        type = MessageType.valueOf(message.type.name),
                         isEdited = message.isEdited,
                         attachmentCount = message.attachments.size
                     ),
@@ -559,7 +559,7 @@ class MockChatRepository : ChatRepository {
             content = content,
             replyToId = replyToId,
             createdAt = getCurrentTimestamp(),
-            deliveryStatus = MessageDeliveryStatus.SENT
+            deliveryStatus = DeliveryStatus.SENT
         )
 
         _messages.value = _messages.value + newMessage
@@ -590,7 +590,7 @@ class MockChatRepository : ChatRepository {
             attachments = attachments,
             replyToId = replyToId,
             createdAt = getCurrentTimestamp(),
-            deliveryStatus = MessageDeliveryStatus.SENT
+            deliveryStatus = DeliveryStatus.SENT
         )
 
         _messages.value = _messages.value + newMessage
@@ -619,7 +619,7 @@ class MockChatRepository : ChatRepository {
             content = "Voice message",
             attachments = listOf(audioAttachment),
             createdAt = getCurrentTimestamp(),
-            deliveryStatus = MessageDeliveryStatus.SENT
+            deliveryStatus = DeliveryStatus.SENT
         )
 
         _messages.value = _messages.value + newMessage
@@ -651,7 +651,7 @@ class MockChatRepository : ChatRepository {
             content = address ?: "Location shared",
             attachments = listOf(locationAttachment),
             createdAt = getCurrentTimestamp(),
-            deliveryStatus = MessageDeliveryStatus.SENT
+            deliveryStatus = DeliveryStatus.SENT
         )
 
         _messages.value = _messages.value + newMessage
@@ -676,7 +676,7 @@ class MockChatRepository : ChatRepository {
                 content = originalMessage.content,
                 attachments = originalMessage.attachments,
                 createdAt = getCurrentTimestamp(),
-                deliveryStatus = MessageDeliveryStatus.SENT
+                deliveryStatus = DeliveryStatus.SENT
             )
         }
 
@@ -714,7 +714,7 @@ class MockChatRepository : ChatRepository {
     }
 
     override suspend fun markMessageAsDelivered(messageId: String): Result<Boolean> {
-        return updateMessageDeliveryStatus(messageId, MessageDeliveryStatus.DELIVERED)
+        return updateDeliveryStatus(messageId, DeliveryStatus.DELIVERED)
     }
 
     override suspend fun markMessageAsRead(messageId: String, userId: String): Result<Boolean> {
@@ -723,7 +723,7 @@ class MockChatRepository : ChatRepository {
         val updatedMessages = _messages.value.map { message ->
             if (message.id == messageId) {
                 message.copy(
-                    deliveryStatus = MessageDeliveryStatus.READ,
+                    deliveryStatus = DeliveryStatus.READ,
                     readBy = message.readBy + userId
                 )
             } else {
@@ -735,7 +735,7 @@ class MockChatRepository : ChatRepository {
         return Result.success(true)
     }
 
-    override suspend fun updateMessageDeliveryStatus(messageId: String, status: MessageDeliveryStatus): Result<Boolean> {
+    override suspend fun updateDeliveryStatus(messageId: String, status: DeliveryStatus): Result<Boolean> {
         delay(50)
 
         val updatedMessages = _messages.value.map { message ->
@@ -842,7 +842,7 @@ class MockChatRepository : ChatRepository {
                     senderId = "user_sarah",
                     senderName = "Sarah Chen",
                     timestamp = "2 hours ago",
-                    type = ChatMessageType.TEXT
+                    type = MessageType.TEXT
                 ),
                 unreadCount = 2,
                 metadata = ChatMetadata(),
@@ -886,7 +886,7 @@ class MockChatRepository : ChatRepository {
                     senderId = "user_alex",
                     senderName = "Alex Johnson",
                     timestamp = "45 minutes ago",
-                    type = ChatMessageType.TEXT
+                    type = MessageType.TEXT
                 ),
                 unreadCount = 0,
                 isPinned = true,
@@ -925,7 +925,7 @@ class MockChatRepository : ChatRepository {
                     senderId = "user_mike",
                     senderName = "Mike Wilson",
                     timestamp = "3 hours ago",
-                    type = ChatMessageType.FILE,
+                    type = MessageType.FILE,
                     attachmentCount = 1
                 ),
                 unreadCount = 1,
@@ -948,7 +948,7 @@ class MockChatRepository : ChatRepository {
                 type = MessageType.TEXT,
                 content = "Hey! How's your day going?",
                 createdAt = "2024-01-15T14:30:00Z",
-                deliveryStatus = MessageDeliveryStatus.DELIVERED
+                deliveryStatus = DeliveryStatus.DELIVERED
             ),
             Message(
                 id = "msg_2",
@@ -967,7 +967,7 @@ class MockChatRepository : ChatRepository {
                         timestamp = "2024-01-15T13:46:00Z"
                     )
                 ),
-                deliveryStatus = MessageDeliveryStatus.READ
+                deliveryStatus = DeliveryStatus.READ
             ),
             Message(
                 id = "msg_3",
@@ -988,7 +988,7 @@ class MockChatRepository : ChatRepository {
                     )
                 ),
                 createdAt = "2024-01-15T11:30:00Z",
-                deliveryStatus = MessageDeliveryStatus.DELIVERED
+                deliveryStatus = DeliveryStatus.DELIVERED
             )
         )
     }

@@ -27,7 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import coil.compose.AsyncImage
+import com.tchat.mobile.components.AsyncImage
 import com.tchat.mobile.components.*
 import com.tchat.mobile.designsystem.TchatColors
 import com.tchat.mobile.designsystem.TchatSpacing
@@ -43,8 +43,8 @@ fun VideoDetailScreen(
     onVideoClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var video by remember { mutableStateOf<VideoContent?>(null) }
-    var relatedVideos by remember { mutableStateOf<List<VideoContent>>(emptyList()) }
+    var video by remember { mutableStateOf<VVVideoContent?>(null) }
+    var relatedVideos by remember { mutableStateOf<List<VVVideoContent>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var isLiked by remember { mutableStateOf(false) }
     var isSubscribed by remember { mutableStateOf(false) }
@@ -66,8 +66,8 @@ fun VideoDetailScreen(
         isLoading = true
         try {
             // Get video details from mock data
-            val longVideos = videoRepository.getLongVideos(VideoCategory.ALL)
-            val shortVideos = videoRepository.getShortVideos(VideoCategory.ALL)
+            val longVideos = videoRepository.getLongVideos(VVVideoCategory.ALL)
+            val shortVideos = videoRepository.getShortVideos(VVVideoCategory.ALL)
             val allVideos = longVideos + shortVideos
 
             video = allVideos.find { it.id == videoId }
@@ -480,7 +480,7 @@ private data class RelatedVideo(
 
 @Composable
 private fun FullscreenVideoPlayer(
-    video: VideoContent,
+    video: VVVideoContent,
     isPlaying: Boolean,
     onPlayPauseClick: () -> Unit,
     onFullscreenToggle: () -> Unit,
@@ -649,7 +649,7 @@ private fun FullscreenVideoPlayer(
 
 @Composable
 private fun VideoInfoSection(
-    video: VideoContent,
+    video: VVVideoContent,
     isLiked: Boolean,
     isSubscribed: Boolean,
     showDescription: Boolean,
@@ -672,7 +672,7 @@ private fun VideoInfoSection(
 
         // Views and Upload Time
         Text(
-            text = "${VideoMockData.formatViews(video.views)} views • ${video.uploadTimeFormatted}",
+            text = "${VVideoMockData.formatViews(video.views)} views • ${video.uploadTimeFormatted}",
             style = MaterialTheme.typography.bodyMedium,
             color = TchatColors.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 16.dp)
@@ -686,7 +686,7 @@ private fun VideoInfoSection(
             // Like Button
             ActionButton(
                 icon = if (isLiked) Icons.Default.ThumbUp else Icons.Default.ThumbUpOffAlt,
-                text = VideoMockData.formatViews(video.likes),
+                text = VVideoMockData.formatViews(video.likes),
                 onClick = onLikeClick,
                 isActive = isLiked
             )
@@ -749,7 +749,7 @@ private fun VideoInfoSection(
                     }
                 }
                 Text(
-                    text = "${VideoMockData.formatSubscribers(video.channel.subscribers)} subscribers",
+                    text = "${VVideoMockData.formatSubscribers(video.channel.subscribers)} subscribers",
                     style = MaterialTheme.typography.bodySmall,
                     color = TchatColors.onSurfaceVariant
                 )
@@ -814,7 +814,7 @@ private fun VideoInfoSection(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Comments ${VideoMockData.formatViews(video.comments)}",
+                    text = "Comments ${VVideoMockData.formatViews(video.comments)}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TchatColors.onSurfaceVariant
                 )
@@ -831,7 +831,7 @@ private fun VideoInfoSection(
 
 @Composable
 private fun RelatedVideoCard(
-    video: VideoContent,
+    video: VVVideoContent,
     onVideoClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -904,7 +904,7 @@ private fun RelatedVideoCard(
                 )
 
                 Text(
-                    text = "${VideoMockData.formatViews(video.views)} views • ${video.uploadTimeFormatted}",
+                    text = "${VVideoMockData.formatViews(video.views)} views • ${video.uploadTimeFormatted}",
                     style = MaterialTheme.typography.bodySmall,
                     color = TchatColors.onSurfaceVariant,
                     maxLines = 1,

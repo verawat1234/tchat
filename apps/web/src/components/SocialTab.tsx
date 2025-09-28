@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Heart, MessageCircle, Share, MoreVertical, Plus, Camera, MapPin, Clock, Users, Zap, Star, Play, Send, Bookmark, UserPlus, UserCheck, Hash, Copy, ChevronDown, ChevronUp, TrendingUp, Search, Eye, Filter, X, Globe, Utensils, Building, Calendar, Bell, ArrowRight, Navigation, Music, Flame, Sparkles, ChevronLeft, ChevronRight, Volume2, PlayCircle, PauseCircle, SkipForward } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Heart, MessageCircle, Share, MoreVertical, Plus, Camera, MapPin, Clock, Users, Zap, Star, Play, Send, Bookmark, UserPlus, UserCheck, Hash, Copy, ChevronDown, ChevronUp, TrendingUp, Search, Eye, Filter, X, Globe, Utensils, Building, Calendar, Bell, ArrowRight, Navigation, Music, Flame, Sparkles, ChevronLeft, ChevronRight, Volume2, PlayCircle, PauseCircle, SkipForward, AlertTriangle } from 'lucide-react';
 import { CreatePostSection } from './CreatePostSection';
 import { DiscoverTab } from './DiscoverTab';
 import { EventsTab } from './EventsTab';
@@ -17,6 +17,14 @@ import { Separator } from './ui/separator';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { Progress } from './ui/progress';
 import { toast } from "sonner";
+import {
+  useGetSocialFeedQuery,
+  useGetSocialStoriesQuery,
+  useGetUserFriendsQuery,
+  useLikeSocialPostMutation,
+  useCreateSocialPostMutation,
+  useFollowUserMutation
+} from '../services/microservicesApi';
 
 interface SocialTabProps {
   user: any;
@@ -99,6 +107,7 @@ interface Moment {
 }
 
 export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabProps) {
+  const [isMounted, setIsMounted] = useState(false);
   const [likedPosts, setLikedPosts] = useState<string[]>([]);
   const [bookmarkedPosts, setBookmarkedPosts] = useState<string[]>([]);
   const [followingUsers, setFollowingUsers] = useState<string[]>(['1', '2', '3', '5']);
@@ -110,6 +119,31 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
   const [storyProgress, setStoryProgress] = useState(0);
   const [storyMediaIndex, setStoryMediaIndex] = useState(0);
   const [showEventsTab, setShowEventsTab] = useState(false);
+
+  // RTK Query hooks for social data
+  const { data: socialFeedData, isLoading: feedLoading, error: feedError } = useGetSocialFeedQuery(
+    { type: 'all', limit: 20, page: 1 },
+    { skip: !isMounted }
+  );
+
+  const { data: socialStoriesData, isLoading: storiesLoading, error: storiesError } = useGetSocialStoriesQuery(
+    { active: true, limit: 20 },
+    { skip: !isMounted }
+  );
+
+  const { data: friendsData, isLoading: friendsLoading, error: friendsError } = useGetUserFriendsQuery(
+    { status: 'active', limit: 50 },
+    { skip: !isMounted }
+  );
+
+  const [likeSocialPost] = useLikeSocialPostMutation();
+  const [createSocialPost] = useCreateSocialPostMutation();
+  const [followUser] = useFollowUserMutation();
+
+  // Mount effect
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   
   // Create Post state
   const [createPostOpen, setCreatePostOpen] = useState(false);
@@ -127,9 +161,39 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
   const [storyBackground, setStoryBackground] = useState('#1a1a1a');
   const [storyType, setStoryType] = useState<'text' | 'image' | 'video'>('text');
 
-  // Moments data - Enhanced with more functionality
-  const stories: Moment[] = [
-    {
+  // Transform RTK Query stories data to Moment format
+  const stories: Moment[] = useMemo(() => {
+    if (!socialStoriesData || storiesLoading || storiesError) {
+      // Fallback data while loading or on error
+      return [
+        {
+          id: '0',
+          author: { name: 'Your Moment', avatar: user?.avatar || '' },
+          preview: '',
+          isViewed: false,
+          content: 'Add to your moment',
+          timestamp: 'now',
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        },
+        {
+          id: 'fallback-1',
+          author: { name: 'Sarah Johnson', avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b820?w=150&h=150&fit=crop&crop=face' },
+          preview: 'https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?w=400&h=600&fit=crop',
+          isViewed: false,
+          content: 'Amazing Pad Thai at Chatuchak Market! 🍜✨',
+          timestamp: '2h ago',
+          expiresAt: new Date(Date.now() + 22 * 60 * 60 * 1000).toISOString(),
+          media: [{
+            type: 'image',
+            url: 'https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?w=400&h=600&fit=crop',
+            duration: 5
+          }]
+        }
+      ];
+    }
+
+    // Always include user's own story creation option first
+    const userStory: Moment = {
       id: '0',
       author: { name: 'Your Moment', avatar: user?.avatar || '' },
       preview: '',
@@ -137,212 +201,140 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
       content: 'Add to your moment',
       timestamp: 'now',
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-    },
-    {
-      id: '1',
-      author: { name: 'Sarah Johnson', avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b820?w=150&h=150&fit=crop&crop=face' },
-      preview: 'https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?w=400&h=600&fit=crop',
-      isViewed: false,
-      content: 'Amazing Pad Thai at Chatuchak Market! 🍜✨',
-      timestamp: '2h ago',
-      expiresAt: new Date(Date.now() + 22 * 60 * 60 * 1000).toISOString(),
-      media: [{
-        type: 'image',
-        url: 'https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?w=400&h=600&fit=crop',
-        duration: 5
-      }]
-    },
-    {
-      id: '2',
-      author: { name: 'Mike Chen', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face' },
-      preview: 'https://images.unsplash.com/photo-1743485753872-3b24372fcd24?w=400&h=600&fit=crop',
-      isViewed: false,
-      isLive: true,
-      content: 'Live from the floating market! 🛶',
-      timestamp: '5m ago',
-      expiresAt: new Date(Date.now() + 23.5 * 60 * 60 * 1000).toISOString(),
-      media: [{
-        type: 'video',
-        url: 'https://images.unsplash.com/photo-1743485753872-3b24372fcd24?w=400&h=600&fit=crop',
-        duration: 15
-      }]
-    },
-    {
-      id: '3',
-      author: { name: 'Emma Wilson', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face' },
-      preview: 'https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?w=400&h=600&fit=crop',
-      isViewed: true,
-      content: 'Temple hopping day! 🏛️',
-      timestamp: '1d ago',
-      expiresAt: new Date(Date.now() + 1 * 60 * 60 * 1000).toISOString(),
-      media: [{
-        type: 'image',
-        url: 'https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?w=400&h=600&fit=crop',
-        duration: 7
-      }]
-    }
-  ];
+    };
 
-  // Interest-based feed - Mix of friends, trending, and algorithm-driven content
-  const feedPosts: Post[] = [
-    {
-      id: '1',
+    // Transform API data to Moment format
+    const apiStories = socialStoriesData.map(story => ({
+      id: story.id,
       author: {
-        name: 'Thai Food Explorer',
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
-        verified: true,
-        type: 'channel'
+        name: story.author?.name || 'Unknown User',
+        avatar: story.author?.avatar || ''
       },
-      content: 'TRENDING: Secret street food spots only locals know about! 🏮🍜 This hidden gem in Chinatown serves the most authentic Tom Yum I\'ve ever tasted. The owner has been perfecting this recipe for 30 years!',
-      images: ['https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?w=600&h=400&fit=crop'],
-      timestamp: '15 min ago',
-      likes: 847,
-      comments: 123,
-      shares: 45,
-      location: 'Chinatown, Bangkok',
-      tags: ['#HiddenGems', '#TomYum', '#Chinatown', '#StreetFood'],
-      type: 'image',
-      source: 'trending'
-    },
-    {
-      id: '2',
-      author: {
-        name: 'Sarah Johnson',
-        avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b820?w=150&h=150&fit=crop&crop=face',
-        verified: false,
-        type: 'user'
-      },
-      content: 'Just tried the most amazing Pad Thai at Chatuchak Market! 🍜✨ The vendor taught me his secret ingredient - tamarind paste mixed with palm sugar. Mind blown! 🤯',
-      images: ['https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?w=600&h=400&fit=crop'],
-      timestamp: '25 min ago',
-      likes: 47,
-      comments: 12,
-      shares: 3,
-      location: 'Chatuchak Weekend Market, Bangkok',
-      tags: ['#PadThai', '#StreetFood', '#Bangkok'],
-      type: 'image',
-      source: 'following'
-    },
-    {
-      id: '3',
-      author: {
-        name: 'Bangkok Food Tours',
-        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face',
-        verified: true,
-        type: 'channel'
-      },
-      content: '🔥 SPONSORED: Join our sunset food tour tonight! Explore 5 authentic local restaurants, meet fellow food lovers, and discover Bangkok\'s culinary secrets. Book now and get 20% off! 🌅🍽️',
-      images: ['https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=600&h=400&fit=crop'],
-      timestamp: '45 min ago',
-      likes: 234,
-      comments: 56,
-      shares: 18,
-      location: 'Bangkok',
-      tags: ['#FoodTour', '#Bangkok', '#Sponsored'],
-      type: 'image',
-      source: 'sponsored'
-    },
-    {
-      id: '4',
-      author: {
-        name: 'Cultural Thailand',
-        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face',
-        verified: true,
-        type: 'channel'
-      },
-      content: 'Did you know? The tradition of floating markets dates back over 150 years! 🛶 These waterways were the original highways of Thailand, connecting communities through trade and culture. Which floating market is your favorite?',
-      images: ['https://images.unsplash.com/photo-1743485753872-3b24372fcd24?w=600&h=400&fit=crop'],
-      timestamp: '1 hour ago',
-      likes: 892,
-      comments: 167,
-      shares: 234,
-      location: 'Thailand',
-      tags: ['#FloatingMarket', '#Culture', '#History', '#Thailand'],
-      type: 'image',
-      source: 'interest'
-    },
-    {
-      id: '5',
-      author: {
-        name: 'Mike Chen',
-        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
-        verified: false,
-        type: 'user'
-      },
-      content: '🔥 Going LIVE from the floating market! Come join me as I explore traditional boats selling fresh fruits and local delicacies. The energy here is incredible! 🛶💫',
-      images: ['https://images.unsplash.com/photo-1743485753872-3b24372fcd24?w=600&h=400&fit=crop'],
-      timestamp: '1 hour ago',
-      likes: 89,
-      comments: 23,
-      shares: 8,
-      location: 'Damnoen Saduak Floating Market',
-      tags: ['#FloatingMarket', '#Thailand', '#LiveStream'],
-      type: 'live',
-      source: 'following',
-      liveData: {
-        viewers: 234,
-        startTime: '11:30 AM',
-        isLive: true
-      }
-    }
-  ];
+      preview: story.preview || story.media?.[0]?.url || '',
+      isViewed: story.isViewed || false,
+      isLive: story.isLive || false,
+      content: story.content || '',
+      timestamp: story.timestamp || 'Just now',
+      media: story.media || [],
+      expiresAt: story.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    }));
 
-  // Friends data - Enhanced with friend functionality
-  const friends: Friend[] = [
-    {
-      id: '1',
-      name: 'Sarah Johnson',
-      username: '@sarah_foodie',
-      avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b820?w=150&h=150&fit=crop&crop=face',
-      isOnline: true,
-      mutualFriends: 12,
-      status: 'Exploring Bangkok street food! 🍜',
-      isFollowing: true
-    },
-    {
-      id: '2',
-      name: 'Mike Chen',
-      username: '@mike_travels',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
-      isOnline: true,
-      lastSeen: '2 min ago',
-      mutualFriends: 8,
-      status: 'Live streaming from floating market!',
-      isFollowing: true
-    },
-    {
-      id: '3',
-      name: 'Emma Wilson',
-      username: '@emma_culture',
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face',
-      isOnline: false,
-      lastSeen: '1 hour ago',
-      mutualFriends: 15,
-      status: 'Temple hopping in Bangkok',
-      isFollowing: true
-    },
-    {
-      id: '4',
-      name: 'Alex Thai',
-      username: '@alex_local',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
-      isOnline: true,
-      mutualFriends: 23,
-      status: 'Local Bangkok guide 🏛️',
-      isFollowing: true
-    },
-    {
-      id: '5',
-      name: 'Luna Park',
-      username: '@luna_markets',
-      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face',
-      isOnline: false,
-      lastSeen: '3 hours ago',
-      mutualFriends: 7,
-      status: 'Market photography enthusiast',
-      isFollowing: false
+    return [userStory, ...apiStories];
+  }, [socialStoriesData, storiesLoading, storiesError, user?.avatar]);
+
+  // Transform RTK Query feed data to Post format
+  const feedPosts: Post[] = useMemo(() => {
+    if (!socialFeedData || feedLoading || feedError) {
+      // Fallback data while loading or on error
+      return [
+        {
+          id: 'fallback-1',
+          author: {
+            name: 'Thai Food Explorer',
+            avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+            verified: true,
+            type: 'channel'
+          },
+          content: 'TRENDING: Secret street food spots only locals know about! 🏮🍜 This hidden gem in Chinatown serves the most authentic Tom Yum I\'ve ever tasted. The owner has been perfecting this recipe for 30 years!',
+          images: ['https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?w=600&h=400&fit=crop'],
+          timestamp: '15 min ago',
+          likes: 847,
+          comments: 123,
+          shares: 45,
+          location: 'Chinatown, Bangkok',
+          tags: ['#HiddenGems', '#TomYum', '#Chinatown', '#StreetFood'],
+          type: 'image',
+          source: 'trending'
+        },
+        {
+          id: 'fallback-2',
+          author: {
+            name: 'Sarah Johnson',
+            avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b820?w=150&h=150&fit=crop&crop=face',
+            verified: false,
+            type: 'user'
+          },
+          content: 'Just tried the most amazing Pad Thai at Chatuchak Market! 🍜✨ The vendor taught me his secret ingredient - tamarind paste mixed with palm sugar. Mind blown! 🤯',
+          images: ['https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?w=600&h=400&fit=crop'],
+          timestamp: '25 min ago',
+          likes: 47,
+          comments: 12,
+          shares: 3,
+          location: 'Chatuchak Weekend Market, Bangkok',
+          tags: ['#PadThai', '#StreetFood', '#Bangkok'],
+          type: 'image',
+          source: 'following'
+        }
+      ];
     }
-  ];
+
+    // Transform API data to Post format
+    return socialFeedData.map(post => ({
+      id: post.id,
+      author: {
+        name: post.author?.name || 'Unknown User',
+        avatar: post.author?.avatar || '',
+        verified: post.author?.verified || false,
+        type: post.author?.type || 'user'
+      },
+      content: post.content || '',
+      images: post.images || [],
+      timestamp: post.timestamp || 'Just now',
+      likes: post.likes || 0,
+      comments: post.comments || 0,
+      shares: post.shares || 0,
+      isLiked: post.isLiked || false,
+      location: post.location || '',
+      tags: post.tags || [],
+      type: post.type || 'text',
+      source: post.source || 'interest',
+      product: post.product,
+      liveData: post.liveData
+    }));
+  }, [socialFeedData, feedLoading, feedError]);
+
+  // Transform RTK Query friends data to Friend format
+  const friends: Friend[] = useMemo(() => {
+    if (!friendsData || friendsLoading || friendsError) {
+      // Fallback data while loading or on error
+      return [
+        {
+          id: 'fallback-1',
+          name: 'Sarah Johnson',
+          username: '@sarah_foodie',
+          avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b820?w=150&h=150&fit=crop&crop=face',
+          isOnline: true,
+          mutualFriends: 12,
+          status: 'Exploring Bangkok street food! 🍜',
+          isFollowing: true
+        },
+        {
+          id: 'fallback-2',
+          name: 'Mike Chen',
+          username: '@mike_travels',
+          avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
+          isOnline: true,
+          lastSeen: '2 min ago',
+          mutualFriends: 8,
+          status: 'Live streaming from floating market!',
+          isFollowing: true
+        }
+      ];
+    }
+
+    // Transform API data to Friend format
+    return friendsData.map(friend => ({
+      id: friend.id,
+      name: friend.name || 'Unknown User',
+      username: friend.username || '@user',
+      avatar: friend.avatar || '',
+      isOnline: friend.isOnline || false,
+      lastSeen: friend.lastSeen || '',
+      mutualFriends: friend.mutualFriends || 0,
+      status: friend.status || '',
+      isFollowing: friend.isFollowing || false
+    }));
+  }, [friendsData, friendsLoading, friendsError]);
 
   // Moment progress timer
   useEffect(() => {
@@ -373,12 +365,29 @@ export function SocialTab({ user, onLiveStreamClick, onPostShare }: SocialTabPro
   }, [viewingStory, storyMediaIndex]);
 
   // Event handlers
-  const handleLike = (postId: string) => {
-    if (likedPosts.includes(postId)) {
-      setLikedPosts(likedPosts.filter(id => id !== postId));
-    } else {
-      setLikedPosts([...likedPosts, postId]);
-      toast.success('Post liked!');
+  const handleLike = async (postId: string) => {
+    const isCurrentlyLiked = likedPosts.includes(postId);
+
+    try {
+      // Optimistic update
+      if (isCurrentlyLiked) {
+        setLikedPosts(likedPosts.filter(id => id !== postId));
+      } else {
+        setLikedPosts([...likedPosts, postId]);
+        toast.success('Post liked!');
+      }
+
+      // RTK Query mutation
+      await likeSocialPost({ postId, isLiked: !isCurrentlyLiked }).unwrap();
+    } catch (error) {
+      // Revert optimistic update on error
+      if (isCurrentlyLiked) {
+        setLikedPosts([...likedPosts, postId]);
+      } else {
+        setLikedPosts(likedPosts.filter(id => id !== postId));
+      }
+      toast.error('Failed to like post');
+      console.error('Error liking post:', error);
     }
   };
 

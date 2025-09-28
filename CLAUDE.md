@@ -1,6 +1,6 @@
 # Tchat Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2025-09-23
+Auto-generated from all feature plans. Last updated: 2025-09-27
 
 ## Active Technologies
 - Go 1.21+ (microservices backend architecture) + Go standard library, gRPC, protocol buffers, JWT authentication, message brokers (Kafka/RabbitMQ), WebSocket libraries (004-create-backend-spec)
@@ -47,6 +47,7 @@ Auto-generated from all feature plans. Last updated: 2025-09-23
 - TypeScript 5.3.0, React 18.3.1 + Vite 6.3.5, Radix UI components, TailwindCSS v4, Framer Motion 11.0.0
 - Redux Toolkit 2.0+ with RTK Query for API state management, Redux Persist for offline support
 - **Dynamic Content Management**: 12 RTK Query endpoints, localStorage fallback service, performance-optimized (<200ms load times)
+- **Video Integration**: Gateway-routed video API with RTK Query, unified microservice architecture (Gateway: 8080 → Video: 8091), infinite loop resolution with useMemo optimization
 - Authentication: JWT tokens with automatic refresh, secure token storage
 - Caching: Advanced tag-based invalidation, optimistic updates with rollback, error recovery middleware
 - Testing: Vitest, Testing Library, Storybook, MSW for API mocking, Playwright E2E testing, contract-driven TDD approach
@@ -225,6 +226,12 @@ npm run analyze-components  # Validate component structure
 npm run test:content        # Run content management tests
 npm run test:e2e:content    # Run content E2E performance tests
 npm run test:fallback       # Test localStorage fallback system
+
+# Gateway & Video System Testing
+npm run test:video          # Run video component tests
+npm run build               # Verify VideoTab compilation (critical for video system)
+curl http://localhost:8080/api/v1/videos/test  # Test video API through gateway
+curl http://localhost:8091/api/v1/videos       # Test video service direct access
 ```
 
 ### Mobile Development
@@ -309,6 +316,25 @@ go test -v -benchmem -bench=.        # Memory benchmarks
 - **Type Safety**: Comprehensive TypeScript interfaces, request/response validation, content type definitions
 - **Real-time Sync**: Incremental synchronization, conflict resolution, deleted content tracking
 
+### Gateway Architecture & Service Routing
+- **API Gateway**: Unified access point on port 8080 for all microservices with proper routing configuration
+- **Service Discovery**: Gateway correctly routes video requests to video service (port 8091)
+- **Route Registration**: Video routes (`/api/v1/videos/*`) properly registered in Gin framework
+- **Request Flow**: Frontend → Gateway (8080) → Video Service (8091) → Response
+- **Configuration Management**: VITE_USE_DIRECT_SERVICES=false enables gateway routing
+- **Service Status**: ✅ Gateway operational with video routes active
+- **Routing Verification**: `curl http://localhost:8080/api/v1/videos/test` returns video service response
+
+### Video System Architecture
+- **Real-time Video API**: Working integration with video service through gateway routing
+- **RTK Query Integration**: Video hooks with proper caching, error handling, and loading states
+- **Performance Optimization**: useMemo implementation to prevent infinite re-renders in VideoTab component
+- **Service Configuration**: Gateway-first routing with fallback to direct service access
+- **Data Flow**: Live API integration with real video content through gateway
+- **Error Resolution**: Fixed infinite loop caused by unstable dependency arrays in useEffect hooks
+- **Infrastructure Status**: ✅ All services operational (Gateway: 8080, Video: 8091, Web: 3000)
+- **API Integration**: ✅ VideoTab successfully consuming real API data through gateway
+
 ### State Management
 - **Web-Native Sync**: Real-time state synchronization between web and mobile
 - **Content State**: Centralized content management with Redux Toolkit and RTK Query
@@ -333,6 +359,15 @@ go test -v -benchmem -bench=.        # Memory benchmarks
 - **Platform-Specific**: XCTest (iOS), JUnit + Espresso (Android), Vitest (Web), Playwright (E2E), Go benchmarks (Backend)
 
 ## Recent Changes
+- **Gateway Video Routing Resolution (2025-09-27)**: Complete infrastructure fix for video service integration
+  - **Gateway Architecture**: Rebuilt gateway binary with latest code including video route registration
+  - **Service Routing**: Gateway (port 8080) now properly routes `/api/v1/videos/*` to video service (port 8091)
+  - **Frontend Configuration**: Updated .env.local to VITE_USE_DIRECT_SERVICES=false for gateway routing
+  - **VideoTab Infinite Loop Fix**: Resolved useEffect dependency issue with useMemo optimization for `filteredShorts`
+  - **API Verification**: Confirmed working API flow: Frontend → Gateway → Video Service → Response
+  - **Infrastructure Status**: ✅ All services operational (Gateway: 8080, Video: 8091, Web: 3000)
+  - **RTK Query Integration**: VideoTab successfully consuming real API data through gateway routing
+  - **Key Files Modified**: VideoTab.tsx, .env.local, serviceConfig.ts, gateway binary rebuild
 - 022-https-www-jetbrains: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
 - 022-https-www-jetbrains: Added Kotlin Multiplatform 1.9.23, Compose Multiplatform 1.6.10 + Compose Multiplatform, Ktor Client, SQLDelight, Pact JVM, Coroutines
 - 021-implement-pact-contract: Added Go 1.22+ (backend), TypeScript 5.3.0 (web), Swift 5.9+ (iOS), Kotlin 1.9+ (Android) + Pact Foundation libraries, existing microservices (auth, content, commerce, messaging, payment, notification), test runners for each platform

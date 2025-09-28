@@ -1,0 +1,144 @@
+-- Friends table for social relationships
+CREATE TABLE IF NOT EXISTS friends (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id TEXT NOT NULL,
+    friend_user_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending', -- pending, accepted, blocked, rejected
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (friend_user_id) REFERENCES users(id),
+    UNIQUE(user_id, friend_user_id)
+);
+
+-- User profiles for social features
+CREATE TABLE IF NOT EXISTS user_profiles (
+    user_id TEXT PRIMARY KEY NOT NULL,
+    display_name TEXT NOT NULL,
+    username TEXT UNIQUE NOT NULL,
+    avatar_url TEXT DEFAULT '',
+    bio TEXT DEFAULT '',
+    is_verified INTEGER NOT NULL DEFAULT 0,
+    is_online INTEGER NOT NULL DEFAULT 0,
+    last_seen INTEGER,
+    status_message TEXT DEFAULT '',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS friends_user_id_idx ON friends(user_id);
+CREATE INDEX IF NOT EXISTS friends_friend_user_id_idx ON friends(friend_user_id);
+CREATE INDEX IF NOT EXISTS friends_status_idx ON friends(status);
+CREATE INDEX IF NOT EXISTS user_profiles_username_idx ON user_profiles(username);
+CREATE INDEX IF NOT EXISTS user_profiles_is_online_idx ON user_profiles(is_online);
+
+-- Queries
+getFriends:
+SELECT
+    f.*,
+    up.display_name,
+    up.username,
+    up.avatar_url,
+    up.is_verified,
+    up.is_online,
+    up.last_seen,
+    up.status_message,
+    (SELECT COUNT(*) FROM friends f2
+     WHERE f2.user_id = f.friend_user_id
+     AND f2.friend_user_id IN (
+         SELECT friend_user_id FROM friends
+         WHERE user_id = f.user_id AND status = 'accepted'
+     ) AND f2.status = 'accepted') AS mutual_friends_count
+FROM friends f
+JOIN user_profiles up ON f.friend_user_id = up.user_id
+WHERE f.user_id = ? AND f.status = ?
+ORDER BY up.is_online DESC, up.last_seen DESC;
+
+getPendingFriendRequests:
+SELECT
+    f.*,
+    up.display_name,
+    up.username,
+    up.avatar_url,
+    up.is_verified,
+    up.is_online,
+    up.last_seen,
+    up.status_message
+FROM friends f
+JOIN user_profiles up ON f.user_id = up.user_id
+WHERE f.friend_user_id = ? AND f.status = 'pending'
+ORDER BY f.created_at DESC;
+
+getOnlineFriends:
+SELECT
+    f.*,
+    up.display_name,
+    up.username,
+    up.avatar_url,
+    up.is_verified,
+    up.is_online,
+    up.last_seen,
+    up.status_message
+FROM friends f
+JOIN user_profiles up ON f.friend_user_id = up.user_id
+WHERE f.user_id = ? AND f.status = 'accepted' AND up.is_online = 1
+ORDER BY up.last_seen DESC;
+
+getUserProfile:
+SELECT * FROM user_profiles WHERE user_id = ?;
+
+getUserProfileByUsername:
+SELECT * FROM user_profiles WHERE username = ?;
+
+insertFriendRequest:
+INSERT INTO friends (id, user_id, friend_user_id, status, created_at, updated_at)
+VALUES (?, ?, ?, 'pending', ?, ?);
+
+updateFriendStatus:
+UPDATE friends
+SET status = ?, updated_at = ?
+WHERE user_id = ? AND friend_user_id = ?;
+
+deleteFriend:
+DELETE FROM friends
+WHERE (user_id = ? AND friend_user_id = ?)
+   OR (user_id = ? AND friend_user_id = ?);
+
+insertUserProfile:
+INSERT OR REPLACE INTO user_profiles
+(user_id, display_name, username, avatar_url, bio, is_verified, is_online, last_seen, status_message, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateUserOnlineStatus:
+UPDATE user_profiles
+SET is_online = ?, last_seen = ?, updated_at = ?
+WHERE user_id = ?;
+
+updateUserProfile:
+UPDATE user_profiles
+SET display_name = ?, bio = ?, avatar_url = ?, status_message = ?, updated_at = ?
+WHERE user_id = ?;
+
+checkFriendship:
+SELECT status FROM friends
+WHERE user_id = ? AND friend_user_id = ?;
+
+getFriendSuggestions:
+SELECT DISTINCT
+    up.*,
+    COUNT(f2.friend_user_id) AS mutual_friends_count
+FROM user_profiles up
+LEFT JOIN friends f1 ON up.user_id = f1.friend_user_id AND f1.user_id = ?
+LEFT JOIN friends f2 ON up.user_id = f2.friend_user_id
+    AND f2.user_id IN (
+        SELECT friend_user_id FROM friends
+        WHERE user_id = ? AND status = 'accepted'
+    ) AND f2.status = 'accepted'
+WHERE f1.id IS NULL
+    AND up.user_id != ?
+GROUP BY up.user_id
+HAVING mutual_friends_count > 0
+ORDER BY mutual_friends_count DESC, up.created_at DESC
+LIMIT ?;

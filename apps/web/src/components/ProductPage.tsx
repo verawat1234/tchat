@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useGetProductReviewsQuery } from '../services/microservicesApi';
 import { 
   ArrowLeft, 
   Star, 
@@ -129,42 +130,61 @@ export function ProductPage({ user, productId, onBack, onShopClick, onAddToCart,
     ]
   };
 
-  // Mock reviews data
-  const reviews: Review[] = [
-    {
-      id: '1',
-      user: {
-        name: 'Somchai K.',
-        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face'
-      },
-      rating: 5,
-      comment: 'Amazing authentic taste! Reminds me of the street food from my childhood in Bangkok. The prawns were fresh and the sauce was perfectly balanced.',
-      date: '2 days ago',
-      helpful: 12,
-      images: ['https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?w=400&h=300&fit=crop']
-    },
-    {
-      id: '2',
-      user: {
-        name: 'Sarah M.',
-        avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b820?w=150&h=150&fit=crop&crop=face'
-      },
-      rating: 4,
-      comment: 'Very good Pad Thai! Fast delivery and still hot when arrived. Would definitely order again.',
-      date: '1 week ago',
-      helpful: 8
-    },
-    {
-      id: '3',
-      user: {
-        name: 'Michael T.'
-      },
-      rating: 5,
-      comment: 'Best Pad Thai in Bangkok! The portion size is generous and the flavor is incredible.',
-      date: '2 weeks ago',
-      helpful: 15
+  // Load reviews using RTK Query
+  const {
+    data: reviewsData,
+    isLoading: reviewsLoading,
+    error: reviewsError
+  } = useGetProductReviewsQuery({
+    productId: productId || 'pad-thai-premium',
+    page: 1,
+    limit: 10,
+    sortBy: 'newest'
+  });
+
+  // Transform reviews data with fallback
+  const reviews: Review[] = useMemo(() => {
+    if (reviewsLoading || !reviewsData) {
+      return [
+        {
+          id: '1',
+          user: {
+            name: 'Somchai K.',
+            avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face'
+          },
+          rating: 5,
+          comment: 'Amazing authentic taste! Reminds me of the street food from my childhood in Bangkok.',
+          date: '2 days ago',
+          helpful: 12,
+          images: ['https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?w=400&h=300&fit=crop']
+        },
+        {
+          id: '2',
+          user: {
+            name: 'Sarah M.',
+            avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b820?w=150&h=150&fit=crop&crop=face'
+          },
+          rating: 4,
+          comment: 'Very good Pad Thai! Fast delivery and still hot when arrived.',
+          date: '1 week ago',
+          helpful: 8
+        }
+      ];
     }
-  ];
+
+    return reviewsData.map((review: any) => ({
+      id: review.id || review.review_id || `review-${Math.random()}`,
+      user: {
+        name: review.user?.name || review.author_name || 'Anonymous User',
+        avatar: review.user?.avatar || review.author_avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face'
+      },
+      rating: review.rating || 5,
+      comment: review.comment || review.review_text || 'Great product!',
+      date: review.date || review.created_at || 'Recently',
+      helpful: review.helpful || review.helpful_count || 0,
+      images: review.images || review.review_images || []
+    }));
+  }, [reviewsData, reviewsLoading]);
 
   const handleQuantityChange = (delta: number) => {
     const newQuantity = Math.max(1, Math.min(product.stock || 99, quantity + delta));

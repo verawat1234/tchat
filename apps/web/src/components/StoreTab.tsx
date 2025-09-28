@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Filter, ShoppingCart, Star, MapPin, Clock, Zap, Heart, QrCode, Wallet, CreditCard, TrendingUp, Compass, Grid3X3, Store, Users, Eye } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { toast } from "sonner";
+import { useGetFeaturedShopsQuery, useGetFeaturedProductsQuery } from '../services/microservicesApi';
 
 interface StoreTabProps {
   user: any;
@@ -61,6 +62,39 @@ export function StoreTab({ user, onShopClick, onProductClick, onAddToCart, onLiv
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [showPayment, setShowPayment] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // RTK Query hooks for real data
+  const {
+    data: shopsData,
+    error: shopsError,
+    isLoading: shopsLoading
+  } = useGetFeaturedShopsQuery(
+    {
+      country: 'TH', // Default to Thailand for Southeast Asian market
+      category: selectedCategory === 'all' ? undefined : selectedCategory,
+      limit: 20
+    },
+    { skip: !isMounted }
+  );
+
+  const {
+    data: productsData,
+    error: productsError,
+    isLoading: productsLoading
+  } = useGetFeaturedProductsQuery(
+    {
+      country: 'TH', // Default to Thailand for Southeast Asian market
+      category: selectedCategory === 'all' ? undefined : selectedCategory,
+      filter: selectedFilter === 'all' ? undefined : selectedFilter,
+      limit: 50
+    },
+    { skip: !isMounted }
+  );
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Filter options
   const filters = [
@@ -82,8 +116,11 @@ export function StoreTab({ user, onShopClick, onProductClick, onAddToCart, onLiv
     { id: 'books', name: 'Books', icon: '📚' }
   ];
 
-  // Mock shops data
-  const shops: Shop[] = [
+  // Transform API data to component format with fallback
+  const shops = useMemo((): Shop[] => {
+    if (shopsLoading || !shopsData) {
+      // Fallback data for loading/error states
+      return [
     {
       id: 'shop1',
       name: 'Bangkok Street Food Palace',
@@ -143,10 +180,33 @@ export function StoreTab({ user, onShopClick, onProductClick, onAddToCart, onLiv
       followers: 3420,
       products: 89
     }
-  ];
+      ];
+    }
 
-  // Mock products data
-  const products: Product[] = [
+    // Transform API data to component format
+    return shopsData.map((shop: any) => ({
+      id: shop.id || shop.shop_id || `shop-${Math.random()}`,
+      name: shop.name || shop.shop_name || 'Unknown Shop',
+      description: shop.description || 'No description available',
+      image: shop.image_url || shop.banner_url || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d',
+      avatar: shop.avatar_url || shop.logo_url || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e',
+      rating: shop.rating || shop.average_rating || 4.0,
+      deliveryTime: shop.delivery_time || shop.estimated_delivery || '30-45 min',
+      distance: shop.distance || '1.0 km',
+      category: shop.category || 'general',
+      isVerified: shop.is_verified || shop.verified || false,
+      followers: shop.followers_count || shop.followers || 0,
+      products: shop.products_count || shop.total_products || 0,
+      isHot: shop.is_trending || shop.is_hot || false,
+      specialOffer: shop.special_offer || shop.promotion || undefined
+    }));
+  }, [shopsData, shopsLoading]);
+
+  // Transform API products data with fallback
+  const products = useMemo((): Product[] => {
+    if (productsLoading || !productsData) {
+      // Fallback data for loading/error states
+      return [
     {
       id: '1',
       name: 'Pad Thai Goong',
@@ -204,7 +264,27 @@ export function StoreTab({ user, onShopClick, onProductClick, onAddToCart, onLiv
       discount: 15,
       orders: 234
     }
-  ];
+      ];
+    }
+
+    // Transform API data to component format
+    return productsData.map((product: any) => ({
+      id: product.id || product.product_id || `product-${Math.random()}`,
+      name: product.name || product.product_name || product.title || 'Unknown Product',
+      price: parseFloat(product.price || product.unit_price || product.cost || '0'),
+      currency: product.currency || 'THB',
+      image: product.image_url || product.thumbnail_url || product.photo_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c',
+      merchant: product.merchant_name || product.shop_name || product.vendor || 'Unknown Merchant',
+      rating: product.rating || product.average_rating || 4.0,
+      deliveryTime: product.delivery_time || product.estimated_delivery || '30-45 min',
+      distance: product.distance || '1.0 km',
+      category: product.category || 'general',
+      isLive: product.is_live || product.live_stream || false,
+      discount: product.discount_percentage || product.discount || 0,
+      isHot: product.is_trending || product.is_hot || product.featured || false,
+      orders: product.orders_count || product.total_orders || 0
+    }));
+  }, [productsData, productsLoading]);
 
   const handleAddToCart = (productId: string) => {
     if (onAddToCart) {
@@ -331,8 +411,30 @@ export function StoreTab({ user, onShopClick, onProductClick, onAddToCart, onLiv
 
           <TabsContent value="shops" className="flex-1 overflow-hidden mt-4">
             <ScrollArea className="h-full px-4">
-              <div className="space-y-4 pb-4">
-                {filteredShops.map((shop) => (
+              {/* Loading State */}
+              {shopsLoading && (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-sm text-muted-foreground">Loading shops...</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Error State */}
+              {shopsError && (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center">
+                    <AlertTriangle className="w-8 h-8 text-destructive mx-auto mb-4" />
+                    <p className="text-sm text-muted-foreground">Failed to load shops</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Shops Content */}
+              {!shopsLoading && !shopsError && (
+                <div className="space-y-4 pb-4">
+                  {filteredShops.map((shop) => (
                   <Card 
                     key={shop.id} 
                     className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
@@ -417,12 +519,35 @@ export function StoreTab({ user, onShopClick, onProductClick, onAddToCart, onLiv
                     </CardContent>
                   </Card>
                 ))}
-              </div>
+                </div>
+              )}
             </ScrollArea>
           </TabsContent>
 
           <TabsContent value="products" className="flex-1 overflow-hidden mt-4">
             <ScrollArea className="h-full px-4">
+              {/* Loading State */}
+              {productsLoading && (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-sm text-muted-foreground">Loading products...</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Error State */}
+              {productsError && (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center">
+                    <AlertTriangle className="w-8 h-8 text-destructive mx-auto mb-4" />
+                    <p className="text-sm text-muted-foreground">Failed to load products</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Products Content */}
+              {!productsLoading && !productsError && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4">
                 {filteredProducts.map((product) => (
                   <Card key={product.id} className="overflow-hidden">
@@ -517,6 +642,7 @@ export function StoreTab({ user, onShopClick, onProductClick, onAddToCart, onLiv
                   </Card>
                 ))}
               </div>
+              )}
             </ScrollArea>
           </TabsContent>
 

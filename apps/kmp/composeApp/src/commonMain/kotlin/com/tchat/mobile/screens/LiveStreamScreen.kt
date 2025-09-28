@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.tchat.mobile.components.TchatNotFoundState
 import com.tchat.mobile.designsystem.TchatColors
 import com.tchat.mobile.designsystem.TchatSpacing
+import com.tchat.mobile.models.ShopItem
 
 data class LiveStreamData(
     val id: String,

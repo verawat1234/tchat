@@ -1,6 +1,7 @@
 package com.tchat.mobile.models
 
 import kotlinx.serialization.Serializable
+import kotlinx.datetime.Clock
 
 /**
  * KMP Data Model Extensions and Utilities
@@ -138,18 +139,8 @@ fun Post.validateForPlatform(): List<String> {
     return errors
 }
 
-// Cross-platform serialization helpers
-fun Post.toJsonString(): String {
-    return kotlinx.serialization.json.Json.encodeToString(Post.serializer(), this)
-}
-
-fun String.toPost(): Post? {
-    return try {
-        kotlinx.serialization.json.Json.decodeFromString(Post.serializer(), this)
-    } catch (e: Exception) {
-        null
-    }
-}
+// Cross-platform serialization helpers - use generic JsonExtensions.kt functions
+// Post.toJsonString() and String.fromJsonString<Post>() are available via JsonExtensions.kt
 
 // Platform-agnostic data transformation
 fun List<Post>.filterByPlatformCapabilities(platform: String): List<Post> {
@@ -197,11 +188,11 @@ object KmpDataUtils {
 
     fun generateId(): String {
         // Simple UUID-like generation for cross-platform compatibility
-        return "${kotlinx.datetime.Clock.System.now().toEpochMilliseconds()}-${(1000..9999).random()}"
+        return "${Clock.System.now().toEpochMilliseconds()}-${(1000..9999).random()}"
     }
 
     fun getCurrentTimestamp(): String {
-        return kotlinx.datetime.Clock.System.now().toString()
+        return Clock.System.now().toString()
     }
 
     fun isValidUrl(url: String): Boolean {

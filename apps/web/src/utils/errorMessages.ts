@@ -1,6 +1,19 @@
 import { store } from '../store';
 import { contentApi } from '../services/content';
 
+type FetchState = 'pending' | 'success' | 'failed';
+
+// Track fetch attempts so we don't refetch endlessly on hard failures like CORS
+const contentFetchStates = new Map<string, FetchState>();
+
+function trackFetchState(contentId: string, state: FetchState) {
+  contentFetchStates.set(contentId, state);
+}
+
+function getFetchState(contentId: string): FetchState | undefined {
+  return contentFetchStates.get(contentId);
+}
+
 /**
  * Error message content ID mapping
  *
@@ -78,15 +91,37 @@ export async function getDynamicErrorMessage(
   try {
     // Try to get from cache first
     const state = store.getState();
-    const cached = contentApi.endpoints.getContentItem.select(ERROR_CONTENT_IDS[contentId])(state);
+    const contentKey = ERROR_CONTENT_IDS[contentId];
+    const cached = contentApi.endpoints.getContentItem.select(contentKey)(state);
+    const fetchState = getFetchState(contentKey);
 
     if (cached.data?.data && typeof cached.data.data === 'string') {
+      if (fetchState !== 'success') {
+        trackFetchState(contentKey, 'success');
+      }
       return cached.data.data;
     }
 
-    // If not cached, initiate fetch but don't wait for critical errors
-    if (!cached.isLoading) {
-      store.dispatch(contentApi.endpoints.getContentItem.initiate(ERROR_CONTENT_IDS[contentId]));
+    if ((cached.isError || cached.error) && fetchState !== 'failed') {
+      trackFetchState(contentKey, 'failed');
+    }
+
+    // Kick off fetch only once to avoid retry loops when previous attempts failed
+    if (
+      cached.isUninitialized &&
+      fetchState !== 'pending' &&
+      fetchState !== 'failed'
+    ) {
+      const queryAction = store.dispatch(
+        contentApi.endpoints.getContentItem.initiate(contentKey)
+      );
+
+      trackFetchState(contentKey, 'pending');
+
+      queryAction
+        .unwrap()
+        .then(() => trackFetchState(contentKey, 'success'))
+        .catch(() => trackFetchState(contentKey, 'failed'));
     }
 
     // Return fallback immediately for error scenarios
@@ -112,15 +147,37 @@ export function getErrorMessageSync(
   try {
     // Check if we have cached content
     const state = store.getState();
-    const cached = contentApi.endpoints.getContentItem.select(ERROR_CONTENT_IDS[contentId])(state);
+    const contentKey = ERROR_CONTENT_IDS[contentId];
+    const cached = contentApi.endpoints.getContentItem.select(contentKey)(state);
+    const fetchState = getFetchState(contentKey);
 
     if (cached.data?.data && typeof cached.data.data === 'string') {
+      if (fetchState !== 'success') {
+        trackFetchState(contentKey, 'success');
+      }
       return cached.data.data;
     }
 
-    // If not cached and not loading, initiate background fetch
-    if (!cached.isLoading) {
-      store.dispatch(contentApi.endpoints.getContentItem.initiate(ERROR_CONTENT_IDS[contentId]));
+    if ((cached.isError || cached.error) && fetchState !== 'failed') {
+      trackFetchState(contentKey, 'failed');
+    }
+
+    // Avoid re-dispatching after failures by only initiating when uninitialized
+    if (
+      cached.isUninitialized &&
+      fetchState !== 'pending' &&
+      fetchState !== 'failed'
+    ) {
+      const queryAction = store.dispatch(
+        contentApi.endpoints.getContentItem.initiate(contentKey)
+      );
+
+      trackFetchState(contentKey, 'pending');
+
+      queryAction
+        .unwrap()
+        .then(() => trackFetchState(contentKey, 'success'))
+        .catch(() => trackFetchState(contentKey, 'failed'));
     }
 
     // Return fallback immediately

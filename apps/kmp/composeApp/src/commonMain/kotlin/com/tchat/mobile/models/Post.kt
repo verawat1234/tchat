@@ -117,22 +117,6 @@ data class PostPoll(
     val expiresAt: String? = null
 )
 
-/**
- * Enhanced Engagement System - 10 Reaction Types
- * Aligned with web platform for consistent user experience
- */
-enum class ReactionType {
-    LIKE,           // Like reaction
-    LOVE,           // Love reaction
-    HAHA,           // Funny reaction
-    WOW,            // Amazing reaction
-    SAD,            // Sad reaction
-    ANGRY,          // Angry reaction
-    CARE,           // Care reaction
-    FIRE,           // Trending/hot content
-    CLAP,           // Appreciation
-    CELEBRATE       // Achievements
-}
 
 @Serializable
 data class PostReaction(

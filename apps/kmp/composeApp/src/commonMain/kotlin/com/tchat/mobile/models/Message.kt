@@ -26,19 +26,11 @@ data class Message(
     val createdAt: String,
     val editedAt: String? = null,
     val deletedAt: String? = null,
-    val deliveryStatus: MessageDeliveryStatus = MessageDeliveryStatus.SENT,
+    val deliveryStatus: DeliveryStatus = DeliveryStatus.SENT,
     val readBy: List<String> = emptyList() // User IDs who have read this message
 )
 
 
-@Serializable
-enum class MessageDeliveryStatus {
-    SENDING,
-    SENT,
-    DELIVERED,
-    READ,
-    FAILED
-}
 
 @Serializable
 data class MessageAttachment(

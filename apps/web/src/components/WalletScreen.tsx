@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ArrowLeft, Wallet, Plus, Send, QrCode, History, CreditCard, TrendingUp, Eye, EyeOff, ArrowUpRight, ArrowDownLeft, Copy, Share, MoreVertical } from 'lucide-react';
+import { useGetUserWalletQuery, useGetTransactionHistoryQuery } from '../services/microservicesApi';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -38,73 +39,80 @@ export function WalletScreen({ user, onBack }: WalletScreenProps) {
   const [sendAmount, setSendAmount] = useState('');
   const [sendRecipient, setSendRecipient] = useState('');
 
-  const balance = 1250.00;
-  const currency = 'THB';
+  // RTK Query for wallet data
+  const {
+    data: walletData,
+    isLoading: walletLoading,
+    error: walletError
+  } = useGetUserWalletQuery();
 
-  // Mock transaction data
-  const transactions: Transaction[] = [
-    {
-      id: '1',
-      type: 'receive',
-      amount: 500,
-      currency: 'THB',
-      description: 'Payment from Mom',
-      timestamp: '2 hours ago',
-      status: 'completed',
-      counterpart: {
-        name: 'Mom',
-        avatar: ''
-      }
-    },
-    {
-      id: '2',
-      type: 'purchase',
-      amount: -45,
-      currency: 'THB',
-      description: 'Pad Thai Goong - Somtam Vendor',
-      timestamp: 'Yesterday',
-      status: 'completed',
-      counterpart: {
-        name: 'Somtam Vendor',
-        avatar: 'https://images.unsplash.com/photo-1743485753872-3b24372fcd24?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzb3V0aGVhc3QlMjBhc2lhJTIwbWFya2V0JTIwdmVuZG9yfGVufDF8fHx8MTc1ODM5NDUxNXww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral'
-      }
-    },
-    {
-      id: '3',
-      type: 'topup',
-      amount: 1000,
-      currency: 'THB',
-      description: 'Bank transfer from Kasikorn',
-      timestamp: '2 days ago',
-      status: 'completed'
-    },
-    {
-      id: '4',
-      type: 'send',
-      amount: -200,
-      currency: 'THB',
-      description: 'Lunch money for sister',
-      timestamp: '3 days ago',
-      status: 'completed',
-      counterpart: {
-        name: 'Sister',
-        avatar: ''
-      }
-    },
-    {
-      id: '5',
-      type: 'purchase',
-      amount: -35,
-      currency: 'THB',
-      description: 'Som Tam Thai - Street Food Palace',
-      timestamp: '1 week ago',
-      status: 'completed',
-      counterpart: {
-        name: 'Street Food Palace',
-        avatar: 'https://images.unsplash.com/photo-1628432021231-4bbd431e6a04?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0aGFpJTIwc3RyZWV0JTIwZm9vZCUyMGNvb2tpbmd8ZW58MXx8fHwxNzU4Mzk0NTE3fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral'
-      }
+  const {
+    data: transactionsData,
+    isLoading: transactionsLoading,
+    error: transactionsError
+  } = useGetTransactionHistoryQuery({
+    limit: 20,
+    page: 1,
+    type: 'all'
+  });
+
+  const balance = useMemo(() => {
+    if (walletLoading || !walletData) return 1250.00;
+    return walletData.balances?.THB || walletData.balance || 1250.00;
+  }, [walletData, walletLoading]);
+
+  const currency = useMemo(() => {
+    if (walletLoading || !walletData) return 'THB';
+    return walletData.primary_currency || 'THB';
+  }, [walletData, walletLoading]);
+
+  const transactions: Transaction[] = useMemo(() => {
+    if (transactionsLoading || !transactionsData) {
+      // Fallback data while loading
+      return [
+        {
+          id: '1',
+          type: 'receive',
+          amount: 500,
+          currency: 'THB',
+          description: 'Payment from Mom',
+          timestamp: '2 hours ago',
+          status: 'completed',
+          counterpart: {
+            name: 'Mom',
+            avatar: ''
+          }
+        },
+        {
+          id: '2',
+          type: 'purchase',
+          amount: -45,
+          currency: 'THB',
+          description: 'Pad Thai Goong - Somtam Vendor',
+          timestamp: 'Yesterday',
+          status: 'completed',
+          counterpart: {
+            name: 'Somtam Vendor',
+            avatar: 'https://images.unsplash.com/photo-1743485753872-3b24372fcd24?w=150'
+          }
+        }
+      ];
     }
-  ];
+
+    return transactionsData.map((transaction: any) => ({
+      id: transaction.id || transaction.transaction_id || `tx-${Math.random()}`,
+      type: transaction.type || transaction.transaction_type || 'purchase',
+      amount: transaction.amount || 0,
+      currency: transaction.currency || 'THB',
+      description: transaction.description || transaction.details || 'Transaction',
+      timestamp: transaction.timestamp || transaction.created_at || 'Recently',
+      status: transaction.status || 'completed',
+      counterpart: transaction.counterpart ? {
+        name: transaction.counterpart.name || transaction.counterpart.display_name || 'Unknown',
+        avatar: transaction.counterpart.avatar || transaction.counterpart.image || undefined
+      } : undefined
+    }));
+  }, [transactionsData, transactionsLoading]);
 
   const handleSendMoney = () => {
     if (!sendAmount || !sendRecipient) {

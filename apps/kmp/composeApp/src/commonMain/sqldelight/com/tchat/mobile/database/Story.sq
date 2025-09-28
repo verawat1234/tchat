@@ -1,0 +1,80 @@
+-- Stories table for social media stories
+CREATE TABLE IF NOT EXISTS stories (
+    id TEXT PRIMARY KEY NOT NULL,
+    author_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    preview TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    is_live INTEGER NOT NULL DEFAULT 0,
+    view_count INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (author_id) REFERENCES users(id)
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS stories_author_id_idx ON stories(author_id);
+CREATE INDEX IF NOT EXISTS stories_created_at_idx ON stories(created_at DESC);
+CREATE INDEX IF NOT EXISTS stories_expires_at_idx ON stories(expires_at);
+
+-- Story views tracking
+CREATE TABLE IF NOT EXISTS story_views (
+    id TEXT PRIMARY KEY NOT NULL,
+    story_id TEXT NOT NULL,
+    viewer_id TEXT NOT NULL,
+    viewed_at INTEGER NOT NULL,
+    FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE,
+    FOREIGN KEY (viewer_id) REFERENCES users(id),
+    UNIQUE(story_id, viewer_id)
+);
+
+CREATE INDEX IF NOT EXISTS story_views_story_id_idx ON story_views(story_id);
+CREATE INDEX IF NOT EXISTS story_views_viewer_id_idx ON story_views(viewer_id);
+
+-- Queries
+getAllStories:
+SELECT s.*,
+       CASE WHEN sv.story_id IS NOT NULL THEN 1 ELSE 0 END AS is_viewed,
+       COUNT(sv2.id) AS total_views
+FROM stories s
+LEFT JOIN story_views sv ON s.id = sv.story_id AND sv.viewer_id = ?
+LEFT JOIN story_views sv2 ON s.id = sv2.story_id
+WHERE s.expires_at > ?
+GROUP BY s.id
+ORDER BY s.created_at DESC;
+
+getStoriesByAuthor:
+SELECT s.*,
+       CASE WHEN sv.story_id IS NOT NULL THEN 1 ELSE 0 END AS is_viewed,
+       COUNT(sv2.id) AS total_views
+FROM stories s
+LEFT JOIN story_views sv ON s.id = sv.story_id AND sv.viewer_id = ?
+LEFT JOIN story_views sv2 ON s.id = sv2.story_id
+WHERE s.author_id = ? AND s.expires_at > ?
+GROUP BY s.id
+ORDER BY s.created_at DESC;
+
+getStoryById:
+SELECT s.*,
+       CASE WHEN sv.story_id IS NOT NULL THEN 1 ELSE 0 END AS is_viewed,
+       COUNT(sv2.id) AS total_views
+FROM stories s
+LEFT JOIN story_views sv ON s.id = sv.story_id AND sv.viewer_id = ?
+LEFT JOIN story_views sv2 ON s.id = sv2.story_id
+WHERE s.id = ?
+GROUP BY s.id;
+
+insertStory:
+INSERT INTO stories (id, author_id, content, preview, created_at, expires_at, is_live, view_count)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+markStoryViewed:
+INSERT OR REPLACE INTO story_views (id, story_id, viewer_id, viewed_at)
+VALUES (?, ?, ?, ?);
+
+deleteExpiredStories:
+DELETE FROM stories WHERE expires_at <= ?;
+
+updateStoryViewCount:
+UPDATE stories SET view_count = (
+    SELECT COUNT(*) FROM story_views WHERE story_id = ?
+) WHERE id = ?;
