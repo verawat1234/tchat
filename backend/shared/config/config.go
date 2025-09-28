@@ -14,6 +14,7 @@ type Config struct {
 	Environment string
 	Debug       bool
 	LogLevel    string
+	Version     string
 
 	// Server
 	Server ServerConfig
@@ -57,6 +58,7 @@ type ServerConfig struct {
 	WriteTimeout time.Duration
 	IdleTimeout  time.Duration
 	TLS          TLSConfig
+	CORS         CORSConfig
 }
 
 // TLSConfig holds TLS configuration
@@ -64,6 +66,16 @@ type TLSConfig struct {
 	Enabled  bool
 	CertFile string
 	KeyFile  string
+}
+
+// CORSConfig holds CORS configuration
+type CORSConfig struct {
+	AllowOrigins     []string
+	AllowMethods     []string
+	AllowHeaders     []string
+	ExposeHeaders    []string
+	AllowCredentials bool
+	MaxAge           int
 }
 
 // DatabaseConfig holds database configuration
@@ -234,6 +246,7 @@ func Load() (*Config, error) {
 	config.Environment = getEnv("ENVIRONMENT", "development")
 	config.Debug = getBoolEnv("DEBUG", true)
 	config.LogLevel = getEnv("LOG_LEVEL", "info")
+	config.Version = getEnv("APP_VERSION", "1.0.0")
 
 	// Server
 	config.Server = ServerConfig{
@@ -246,6 +259,14 @@ func Load() (*Config, error) {
 			Enabled:  getBoolEnv("TLS_ENABLED", false),
 			CertFile: getEnv("TLS_CERT_FILE", ""),
 			KeyFile:  getEnv("TLS_KEY_FILE", ""),
+		},
+		CORS: CORSConfig{
+			AllowOrigins:     strings.Split(getEnv("CORS_ALLOW_ORIGINS", "http://localhost:3000,http://localhost:5173"), ","),
+			AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
+			AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Request-ID", "X-User-ID", "X-Country-Code"},
+			ExposeHeaders:    []string{"X-Request-ID", "X-Rate-Limit-Remaining", "X-Rate-Limit-Reset"},
+			AllowCredentials: getBoolEnv("CORS_ALLOW_CREDENTIALS", true),
+			MaxAge:           getIntEnv("CORS_MAX_AGE", 3600),
 		},
 	}
 
@@ -573,6 +594,34 @@ func MustLoad() *Config {
 	config, err := Load()
 	if err != nil {
 		panic(fmt.Sprintf("Failed to load configuration: %v", err))
+	}
+	return config
+}
+
+// LoadWithServicePort loads configuration and overrides the port with service-specific environment variable
+func LoadWithServicePort(serviceName string, defaultPort int) (*Config, error) {
+	config, err := Load()
+	if err != nil {
+		return nil, err
+	}
+
+	// Try service-specific port environment variable first
+	envVar := fmt.Sprintf("%s_SERVICE_PORT", strings.ToUpper(serviceName))
+	if servicePort := getIntEnv(envVar, 0); servicePort != 0 {
+		config.Server.Port = servicePort
+	} else if config.Server.Port == 8080 && defaultPort != 8080 {
+		// If still using default 8080 and we have a different default, use it
+		config.Server.Port = defaultPort
+	}
+
+	return config, nil
+}
+
+// MustLoadWithServicePort loads configuration with service port and panics on error
+func MustLoadWithServicePort(serviceName string, defaultPort int) *Config {
+	config, err := LoadWithServicePort(serviceName, defaultPort)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to load configuration for %s: %v", serviceName, err))
 	}
 	return config
 }

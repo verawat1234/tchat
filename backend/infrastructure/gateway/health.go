@@ -6,13 +6,14 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"tchat.dev/shared/logger"
 )
 
 // HealthChecker monitors service health
 type HealthChecker struct {
 	service    *ServiceInstance
-	logger     *logger.Logger
+	logger     *logger.TchatLogger
 	interval   time.Duration
 	timeout    time.Duration
 	retryCount int
@@ -22,7 +23,7 @@ type HealthChecker struct {
 }
 
 // NewHealthChecker creates a new health checker
-func NewHealthChecker(service *ServiceInstance, log *logger.Logger) *HealthChecker {
+func NewHealthChecker(service *ServiceInstance, log *logger.TchatLogger) *HealthChecker {
 	return &HealthChecker{
 		service:    service,
 		logger:     log,
@@ -79,12 +80,12 @@ func (hc *HealthChecker) checkHealth(registry *ServiceRegistry) {
 			hc.markUnhealthy(registry, fmt.Sprintf("Health check failed after %d retries: %v", hc.maxRetries, err))
 			hc.retryCount = 0
 		} else {
-			hc.logger.Warn("Health check failed, retrying", logger.Fields{
+			hc.logger.WithFields(logrus.Fields{
 				"service":     hc.service.Name,
 				"service_id":  hc.service.ID,
 				"retry_count": hc.retryCount,
 				"error":       err.Error(),
-			})
+			}).Warn("Health check failed, retrying")
 		}
 		return
 	}
@@ -105,12 +106,12 @@ func (hc *HealthChecker) checkHealth(registry *ServiceRegistry) {
 // markHealthy marks the service as healthy
 func (hc *HealthChecker) markHealthy(registry *ServiceRegistry) {
 	if hc.service.Health != string(Healthy) {
-		hc.logger.Info("Service is now healthy", logger.Fields{
+		hc.logger.WithFields(logrus.Fields{
 			"service":    hc.service.Name,
 			"service_id": hc.service.ID,
 			"host":       hc.service.Host,
 			"port":       hc.service.Port,
-		})
+		}).Info("Service is now healthy")
 	}
 
 	registry.UpdateServiceHealth(hc.service.ID, Healthy)
@@ -119,13 +120,13 @@ func (hc *HealthChecker) markHealthy(registry *ServiceRegistry) {
 // markUnhealthy marks the service as unhealthy
 func (hc *HealthChecker) markUnhealthy(registry *ServiceRegistry, reason string) {
 	if hc.service.Health != string(Unhealthy) {
-		hc.logger.Error("Service is now unhealthy", logger.Fields{
+		hc.logger.WithFields(logrus.Fields{
 			"service":    hc.service.Name,
 			"service_id": hc.service.ID,
 			"host":       hc.service.Host,
 			"port":       hc.service.Port,
 			"reason":     reason,
-		})
+		}).Error("Service is now unhealthy")
 	}
 
 	registry.UpdateServiceHealth(hc.service.ID, Unhealthy)
@@ -221,11 +222,11 @@ func (cb *CircuitBreaker) GetState() CircuitState {
 // HealthMonitor aggregates health information across all services
 type HealthMonitor struct {
 	registry *ServiceRegistry
-	logger   *logger.Logger
+	logger   *logger.TchatLogger
 }
 
 // NewHealthMonitor creates a new health monitor
-func NewHealthMonitor(registry *ServiceRegistry, logger *logger.Logger) *HealthMonitor {
+func NewHealthMonitor(registry *ServiceRegistry, logger *logger.TchatLogger) *HealthMonitor {
 	return &HealthMonitor{
 		registry: registry,
 		logger:   logger,
@@ -286,11 +287,11 @@ func (hm *HealthMonitor) GetOverallHealth() map[string]interface{} {
 func (hm *HealthMonitor) LogHealthSummary() {
 	health := hm.GetOverallHealth()
 
-	hm.logger.Info("Health summary", logger.Fields{
+	hm.logger.WithFields(logrus.Fields{
 		"overall_status":     health["overall_status"],
 		"total_services":     health["total_services"],
 		"healthy_services":   health["healthy_services"],
 		"unhealthy_services": health["unhealthy_services"],
 		"unknown_services":   health["unknown_services"],
-	})
+	}).Info("Health summary")
 }

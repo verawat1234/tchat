@@ -390,8 +390,8 @@ func (m *mockInAppProvider) SendBatch(ctx context.Context, notifications []*mode
 }
 
 func main() {
-	// Load configuration
-	cfg, err := config.Load()
+	// Load configuration with notification service specific port (8089)
+	cfg, err := config.LoadWithServicePort("notification", 8089)
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}

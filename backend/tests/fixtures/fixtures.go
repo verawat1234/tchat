@@ -21,6 +21,7 @@ type MasterFixtures struct {
 	Transactions *TransactionFixtures
 	PaymentMethods *PaymentMethodFixtures
 	Messaging *MessagingFixtures
+	Commerce  *CommerceFixtures
 }
 
 // NewMasterFixtures creates a new master fixtures instance with all sub-fixtures
@@ -40,6 +41,7 @@ func NewMasterFixtures(seed ...int64) *MasterFixtures {
 		Transactions: NewTransactionFixtures(seed...),
 		PaymentMethods: NewPaymentMethodFixtures(seed...),
 		Messaging:   NewMessagingFixtures(seed...),
+		Commerce:    NewCommerceFixtures(seed...),
 	}
 }
 
@@ -139,6 +141,27 @@ func (m *MasterFixtures) ComprehensiveTestData() map[string]interface{} {
 		}
 	}
 
+	// Create commerce data
+	commerceData := make(map[string]interface{})
+	businesses := make([]interface{}, 0)
+	products := make([]interface{}, 0)
+
+	for _, country := range SEACountries {
+		// Create businesses for each country
+		business := m.Commerce.BasicBusiness(country)
+		businesses = append(businesses, business)
+
+		// Create products for each business
+		electronics := m.Commerce.ElectronicsProduct(business.ID, country)
+		fashion := m.Commerce.FashionProduct(business.ID, country)
+		food := m.Commerce.FoodProduct(business.ID, country)
+
+		products = append(products, electronics, fashion, food)
+	}
+
+	commerceData["businesses"] = businesses
+	commerceData["products"] = products
+
 	return map[string]interface{}{
 		"users":           users,
 		"sessions":        sessions,
@@ -146,6 +169,7 @@ func (m *MasterFixtures) ComprehensiveTestData() map[string]interface{} {
 		"content":         contentData,
 		"payments":        paymentData,
 		"messaging":       messagingData,
+		"commerce":        commerceData,
 		"metadata": map[string]interface{}{
 			"generated_at":    time.Now().UTC(),
 			"seed":            m.seed,
@@ -178,6 +202,10 @@ func (m *MasterFixtures) QuickTestData(country string) map[string]interface{} {
 	chat := m.Messaging.DirectChat(user.ID, m.UUID("test-recipient"))
 	message := m.Messaging.BasicTextMessage(chat.ID, user.ID, country)
 
+	// Basic commerce data
+	business := m.Commerce.BasicBusiness(country)
+	product := m.Commerce.BasicProduct(business.ID, country)
+
 	return map[string]interface{}{
 		"user":           user,
 		"session":        session,
@@ -189,6 +217,8 @@ func (m *MasterFixtures) QuickTestData(country string) map[string]interface{} {
 		"payment_method": paymentMethod,
 		"chat":           chat,
 		"message":        message,
+		"business":       business,
+		"product":        product,
 		"metadata": map[string]interface{}{
 			"generated_at": time.Now().UTC(),
 			"country":      country,

@@ -1,0 +1,220 @@
+package service
+
+import (
+	"fmt"
+	"log"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+
+	"tchat.dev/shared/config"
+	"tchat.dev/shared/service"
+	"tchat.dev/video/handlers"
+	"tchat.dev/video/models"
+	"tchat.dev/video/services"
+)
+
+// VideoRepositoryInitializer implements service.RepositoryInitializer for video service
+type VideoRepositoryInitializer struct {
+	repositories map[string]interface{}
+}
+
+// NewVideoRepositoryInitializer creates a new video repository initializer
+func NewVideoRepositoryInitializer() service.RepositoryInitializer {
+	return &VideoRepositoryInitializer{
+		repositories: make(map[string]interface{}),
+	}
+}
+
+// InitializeRepositories initializes all video-related repositories
+func (r *VideoRepositoryInitializer) InitializeRepositories(db *gorm.DB) error {
+	// Initialize video repository
+	videoRepo := services.NewPostgreSQLVideoRepository(db)
+	r.repositories["video"] = videoRepo
+
+	return nil
+}
+
+// GetRepositories returns all initialized repositories
+func (r *VideoRepositoryInitializer) GetRepositories() map[string]interface{} {
+	return r.repositories
+}
+
+// VideoServiceInitializer implements service.ServiceInitializer for video service
+type VideoServiceInitializer struct {
+	services map[string]interface{}
+}
+
+// NewVideoServiceInitializer creates a new video service initializer
+func NewVideoServiceInitializer() service.ServiceInitializer {
+	return &VideoServiceInitializer{
+		services: make(map[string]interface{}),
+	}
+}
+
+// InitializeServices initializes all video-related business services
+func (s *VideoServiceInitializer) InitializeServices(repos map[string]interface{}, db *gorm.DB) error {
+	// Get video repository
+	videoRepo, ok := repos["video"].(services.VideoRepository)
+	if !ok {
+		return fmt.Errorf("video repository not found or invalid type")
+	}
+
+	// Initialize video service
+	videoService := services.NewVideoService(videoRepo, db)
+	s.services["video"] = videoService
+
+	return nil
+}
+
+// GetServices returns all initialized services
+func (s *VideoServiceInitializer) GetServices() map[string]interface{} {
+	return s.services
+}
+
+// VideoHandlerInitializer implements service.HandlerInitializer for video service
+type VideoHandlerInitializer struct {
+	handlers map[string]interface{}
+}
+
+// NewVideoHandlerInitializer creates a new video handler initializer
+func NewVideoHandlerInitializer() service.HandlerInitializer {
+	return &VideoHandlerInitializer{
+		handlers: make(map[string]interface{}),
+	}
+}
+
+// InitializeHandlers initializes all video-related HTTP handlers
+func (h *VideoHandlerInitializer) InitializeHandlers(services map[string]interface{}) error {
+	// Get video service
+	videoServiceInterface, ok := services["video"]
+	if !ok {
+		return fmt.Errorf("video service not found")
+	}
+
+	videoService, ok := videoServiceInterface.(*services.VideoService)
+	if !ok {
+		return fmt.Errorf("video service invalid type")
+	}
+
+	// Initialize video handlers
+	videoHandlers := handlers.NewVideoHandlers(videoService)
+	h.handlers["video"] = videoHandlers
+
+	return nil
+}
+
+// GetHandlers returns all initialized handlers
+func (h *VideoHandlerInitializer) GetHandlers() map[string]interface{} {
+	return h.handlers
+}
+
+// VideoRouteRegistrar implements service.RouteRegistrar for video service
+type VideoRouteRegistrar struct{}
+
+// NewVideoRouteRegistrar creates a new video route registrar
+func NewVideoRouteRegistrar() service.RouteRegistrar {
+	return &VideoRouteRegistrar{}
+}
+
+// RegisterRoutes registers all video-related routes
+func (r *VideoRouteRegistrar) RegisterRoutes(router *gin.Engine, handlers map[string]interface{}) {
+	// Get video handlers
+	videoHandlers, ok := handlers["video"].(*handlers.VideoHandlers)
+	if !ok {
+		log.Printf("Warning: video handlers not found or invalid type")
+		return
+	}
+
+	// API routes
+	v1 := router.Group("/api/v1")
+	{
+		// Video routes
+		videos := v1.Group("/videos")
+		{
+			// Video CRUD operations
+			videos.GET("", videoHandlers.GetVideos)
+			videos.POST("", videoHandlers.CreateVideo)
+			videos.GET("/:id", videoHandlers.GetVideo)
+			videos.PUT("/:id", videoHandlers.UpdateVideo)
+			videos.DELETE("/:id", videoHandlers.DeleteVideo)
+
+			// Video interactions
+			videos.POST("/:id/like", videoHandlers.LikeVideo)
+			videos.POST("/:id/share", videoHandlers.ShareVideo)
+
+			// Video comments
+			videos.GET("/:id/comments", videoHandlers.GetVideoComments)
+			videos.POST("/:id/comments", videoHandlers.AddVideoComment)
+
+			// Video upload
+			videos.POST("/upload", videoHandlers.UploadVideo)
+
+			// Video search and filtering
+			videos.GET("/search", videoHandlers.SearchVideos)
+			videos.GET("/category/:category", videoHandlers.GetVideoByCategory)
+			videos.GET("/trending", videoHandlers.GetTrendingVideos)
+
+			// Short videos (TikTok style)
+			videos.GET("/shorts", videoHandlers.GetShortVideos)
+
+			// Health check
+			videos.GET("/health", videoHandlers.VideoHealth)
+		}
+
+		// Channel routes
+		channels := v1.Group("/channels")
+		{
+			channels.POST("", videoHandlers.CreateChannel)
+			channels.GET("/:id", videoHandlers.GetChannel)
+		}
+	}
+}
+
+// VideoHealthChecker provides video service specific health checks
+type VideoHealthChecker struct {
+	*service.DefaultHealthChecker
+}
+
+// NewVideoHealthChecker creates a new video health checker
+func NewVideoHealthChecker(db *gorm.DB, cfg *config.Config, registry service.ServiceRegistry) service.HealthChecker {
+	base := service.NewDefaultHealthChecker("video-service", "1.0.0", db, cfg, registry)
+	checker := &VideoHealthChecker{
+		DefaultHealthChecker: base.(*service.DefaultHealthChecker),
+	}
+
+	// Add video-specific health checks
+	checker.AddCustomCheck("video_models", checker.checkVideoModels)
+	checker.AddCustomCheck("video_storage", checker.checkVideoStorage)
+
+	return checker
+}
+
+// checkVideoModels verifies video models are properly migrated
+func (h *VideoHealthChecker) checkVideoModels() error {
+	// Check if video tables exist and are accessible
+	var count int64
+	if err := h.DefaultHealthChecker.GetDB().Model(&models.Video{}).Count(&count).Error; err != nil {
+		return fmt.Errorf("video model check failed: %w", err)
+	}
+
+	return nil
+}
+
+// checkVideoStorage verifies video storage is accessible
+func (h *VideoHealthChecker) checkVideoStorage() error {
+	// In a real implementation, you'd check storage connectivity
+	// For now, we'll just return success
+	return nil
+}
+
+// GetVideoModels returns all video-related models for migration
+func GetVideoModels() []interface{} {
+	return []interface{}{
+		&models.Video{},
+		&models.Channel{},
+		&models.VideoInteraction{},
+		&models.VideoComment{},
+		&models.VideoShare{},
+	}
+}

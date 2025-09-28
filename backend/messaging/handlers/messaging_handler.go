@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 	"tchat.dev/messaging/models"
 	"tchat.dev/messaging/services"
+	sharedModels "tchat.dev/shared/models"
 	"tchat.dev/shared/utils"
 )
 
@@ -159,12 +160,26 @@ func (h *MessagingHandler) CreateDialog(w http.ResponseWriter, r *http.Request) 
 	// Create service request
 	serviceReq := &services.CreateDialogRequest{
 		Type:           req.Type,
-		Name:           req.Name,
-		Description:    req.Description,
+		Title:          "",
+		Description:    "",
 		CreatorID:      user.ID,
 		ParticipantIDs: req.ParticipantIDs,
-		IsPublic:       req.IsPublic,
-		Settings:       req.Settings,
+		Settings:       models.DialogSettings{},
+	}
+
+	// Set title (Name -> Title mapping)
+	if req.Name != nil {
+		serviceReq.Title = *req.Name
+	}
+
+	// Set description if provided
+	if req.Description != nil {
+		serviceReq.Description = *req.Description
+	}
+
+	// Set settings if provided
+	if req.Settings != nil {
+		serviceReq.Settings = *req.Settings
 	}
 
 	// Create dialog
@@ -174,8 +189,16 @@ func (h *MessagingHandler) CreateDialog(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Broadcast dialog creation to participants
-	h.broadcastDialogEvent("dialog_created", dialog.ID, dialog.ParticipantIDs, dialog)
+	// Get participant IDs from dialog for broadcasting
+	participants, err := h.messagingService.GetDialogParticipants(ctx, dialog.ID)
+	if err == nil {
+		var participantIDs []uuid.UUID
+		for _, participant := range participants {
+			participantIDs = append(participantIDs, participant.UserID)
+		}
+		// Broadcast dialog creation to participants
+		h.broadcastDialogEvent("dialog_created", dialog.ID, participantIDs, dialog)
+	}
 
 	// Success response
 	h.respondSuccess(w, http.StatusCreated, "Dialog created successfully", h.sanitizeDialog(dialog))
@@ -216,9 +239,7 @@ func (h *MessagingHandler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		DialogID:  dialogID,
 		SenderID:  user.ID,
 		Type:      req.Type,
-		Content:   req.Content,
-		ParentID:  req.ParentID,
-		Mentions:  req.Mentions,
+		Content:   h.convertContentToString(req.Content),
 		ReplyToID: req.ReplyToID,
 	}
 
@@ -692,15 +713,15 @@ func (h *MessagingHandler) validateSendMessageRequest(req *SendMessageRequest) e
 	// Validate content based on message type
 	switch req.Type {
 	case models.MessageTypeText:
-		if req.Content.Text == nil || *req.Content.Text == "" {
+		if textContent, exists := req.Content["text"]; !exists || textContent == "" {
 			h.validator.AddError("content.text", "text content is required for text messages")
 		}
 	case models.MessageTypeFile, models.MessageTypeImage, models.MessageTypeVideo:
-		if req.Content.File == nil {
+		if _, exists := req.Content["file"]; !exists {
 			h.validator.AddError("content.file", "file content is required for file messages")
 		}
 	case models.MessageTypeVoice:
-		if req.Content.Voice == nil {
+		if _, exists := req.Content["voice"]; !exists {
 			h.validator.AddError("content.voice", "voice content is required for voice messages")
 		}
 	}
@@ -748,8 +769,8 @@ func (h *MessagingHandler) respondError(w http.ResponseWriter, statusCode int, m
 	json.NewEncoder(w).Encode(response)
 }
 
-func (h *MessagingHandler) getUserFromContext(ctx context.Context) *models.User {
-	if user, ok := ctx.Value("user").(*models.User); ok {
+func (h *MessagingHandler) getUserFromContext(ctx context.Context) *sharedModels.User {
+	if user, ok := ctx.Value("user").(*sharedModels.User); ok {
 		return user
 	}
 	return nil
@@ -764,13 +785,14 @@ func (h *MessagingHandler) sanitizeDialog(dialog *models.Dialog) map[string]inte
 		"id":               dialog.ID,
 		"type":             dialog.Type,
 		"name":             dialog.Name,
+		"title":            dialog.Title,
 		"description":      dialog.Description,
-		"creator_id":       dialog.CreatorID,
 		"participant_count": dialog.ParticipantCount,
-		"is_public":        dialog.IsPublic,
+		"is_public":        dialog.Settings.IsPublic,
 		"last_message_id":  dialog.LastMessageID,
-		"last_message_at":  dialog.LastMessageAt,
 		"settings":         dialog.Settings,
+		"is_archived":      dialog.IsArchived,
+		"is_muted":         dialog.IsMuted,
 		"created_at":       dialog.CreatedAt,
 		"updated_at":       dialog.UpdatedAt,
 	}
@@ -787,11 +809,12 @@ func (h *MessagingHandler) sanitizeMessage(message *models.Message) map[string]i
 		"sender_id":  message.SenderID,
 		"type":       message.Type,
 		"content":    message.Content,
-		"parent_id":  message.ParentID,
 		"reply_to_id": message.ReplyToID,
 		"mentions":   message.Mentions,
 		"reactions":  message.Reactions,
 		"is_edited":  message.IsEdited,
+		"is_deleted": message.IsDeleted,
+		"sent_at":    message.SentAt,
 		"edited_at":  message.EditedAt,
 		"deleted_at": message.DeletedAt,
 		"created_at": message.CreatedAt,
@@ -818,6 +841,17 @@ func (h *MessagingHandler) getPaginationParams(r *http.Request) (limit, offset i
 	}
 
 	return limit, offset
+}
+
+// convertContentToString converts MessageContent to string for service layer
+func (h *MessagingHandler) convertContentToString(content models.MessageContent) string {
+	if textContent, exists := content["text"]; exists {
+		if textStr, ok := textContent.(string); ok {
+			return textStr
+		}
+	}
+	// For non-text content, return empty string (content will be in other fields)
+	return ""
 }
 
 // Additional placeholder methods that would be implemented

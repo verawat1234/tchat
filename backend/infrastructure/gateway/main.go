@@ -7,9 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -17,6 +15,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 
 	"tchat.dev/shared/config"
 	"tchat.dev/shared/logger"
@@ -53,7 +52,7 @@ const (
 // Gateway represents the API Gateway
 type Gateway struct {
 	config          *config.Config
-	logger          *logger.Logger
+	logger          *logger.TchatLogger
 	registry        *ServiceRegistry
 	router          *gin.Engine
 	server          *http.Server
@@ -66,7 +65,17 @@ type Gateway struct {
 // NewGateway creates a new API Gateway instance
 func NewGateway(cfg *config.Config) *Gateway {
 	// Initialize logger
-	log := logger.NewLogger(cfg, "api-gateway")
+	logConfig := &logger.LoggerConfig{
+		Level:           logger.InfoLevel,
+		Format:          "json",
+		ServiceName:     "api-gateway",
+		ServiceVersion:  "1.0.0",
+		Environment:     cfg.Environment,
+		Region:          "sea-central",
+		OutputPath:      "stdout",
+		ComplianceConfig: logger.DefaultLoggerConfig().ComplianceConfig,
+	}
+	log := logger.NewTchatLogger(logConfig)
 
 	// Initialize service registry
 	registry := &ServiceRegistry{
@@ -118,10 +127,10 @@ func (g *Gateway) Start() error {
 		IdleTimeout:  g.config.Server.IdleTimeout,
 	}
 
-	g.logger.Info("Starting API Gateway", logger.Fields{
+	g.logger.WithFields(logrus.Fields{
 		"port": g.config.Server.Port,
-		"env":  g.config.App.Environment,
-	})
+		"env":  g.config.Environment,
+	}).Info("Starting API Gateway")
 
 	return g.server.ListenAndServe()
 }
@@ -189,6 +198,19 @@ func (g *Gateway) setupRoutes() {
 		{
 			content.Any("/*path", g.proxyHandler("content-service"))
 		}
+
+		// Video service routes
+		videos := v1.Group("/videos")
+		{
+			videos.Any("/*path", g.proxyHandler("video-service"))
+		}
+
+		// Channels service routes (also handled by video-service)
+		v1.GET("/channels", g.proxyHandler("video-service"))
+		channels := v1.Group("/channels")
+		{
+			channels.Any("/*path", g.proxyHandler("video-service"))
+		}
 	}
 
 	// WebSocket proxy for real-time messaging
@@ -226,21 +248,21 @@ func (g *Gateway) registerDefaultServices() {
 		},
 		{
 			ID:      uuid.New().String(),
-			Name:    "payment-service",
+			Name:    "commerce-service",
 			Host:    "localhost",
 			Port:    8083,
 			Health:  string(Unknown),
 			Version: "1.0.0",
-			Tags:    []string{"payment", "financial"},
+			Tags:    []string{"commerce", "business"},
 		},
 		{
 			ID:      uuid.New().String(),
-			Name:    "commerce-service",
+			Name:    "payment-service",
 			Host:    "localhost",
 			Port:    8084,
 			Health:  string(Unknown),
 			Version: "1.0.0",
-			Tags:    []string{"commerce", "business"},
+			Tags:    []string{"payment", "financial"},
 		},
 		{
 			ID:      uuid.New().String(),
@@ -260,15 +282,24 @@ func (g *Gateway) registerDefaultServices() {
 			Version: "1.0.0",
 			Tags:    []string{"content", "cms"},
 		},
+		{
+			ID:      uuid.New().String(),
+			Name:    "video-service",
+			Host:    "localhost",
+			Port:    8091,
+			Health:  string(Unknown),
+			Version: "1.0.0",
+			Tags:    []string{"video", "media"},
+		},
 	}
 
 	for _, service := range services {
 		g.registry.RegisterService(&service)
-		g.logger.Info("Registered service", logger.Fields{
+		g.logger.WithFields(logrus.Fields{
 			"service": service.Name,
 			"host":    service.Host,
 			"port":    service.Port,
-		})
+		}).Info("Registered service")
 	}
 }
 
@@ -278,10 +309,10 @@ func (g *Gateway) proxyHandler(serviceName string) gin.HandlerFunc {
 		// Get service instance
 		service := g.registry.GetHealthyService(serviceName)
 		if service == nil {
-			g.logger.Error("Service not available", logger.Fields{
+			g.logger.WithFields(logrus.Fields{
 				"service":    serviceName,
 				"request_id": c.GetString("request_id"),
-			})
+			}).Error("Service not available")
 			c.JSON(http.StatusServiceUnavailable, gin.H{
 				"error":   "service_unavailable",
 				"message": fmt.Sprintf("Service %s is not available", serviceName),
@@ -293,10 +324,10 @@ func (g *Gateway) proxyHandler(serviceName string) gin.HandlerFunc {
 		// Create proxy target
 		target, err := url.Parse(fmt.Sprintf("http://%s:%d", service.Host, service.Port))
 		if err != nil {
-			g.logger.Error("Failed to parse service URL", logger.Fields{
+			g.logger.WithFields(logrus.Fields{
 				"service": serviceName,
 				"error":   err.Error(),
-			})
+			}).Error("Failed to parse service URL")
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error":   "internal_error",
 				"message": "Failed to proxy request",
@@ -309,7 +340,7 @@ func (g *Gateway) proxyHandler(serviceName string) gin.HandlerFunc {
 		proxy := httputil.NewSingleHostReverseProxy(target)
 
 		// Configure proxy
-		proxy.ModifyRequest = func(req *http.Request) error {
+		proxy.Director = func(req *http.Request) {
 			req.URL.Host = target.Host
 			req.URL.Scheme = target.Scheme
 			req.Header.Set("X-Forwarded-Host", req.Header.Get("Host"))
@@ -328,16 +359,14 @@ func (g *Gateway) proxyHandler(serviceName string) gin.HandlerFunc {
 			if countryCode := c.GetString("country_code"); countryCode != "" {
 				req.Header.Set("X-Country-Code", countryCode)
 			}
-
-			return nil
 		}
 
 		proxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
-			g.logger.Error("Proxy error", logger.Fields{
+			g.logger.WithFields(logrus.Fields{
 				"service": serviceName,
 				"error":   err.Error(),
 				"path":    req.URL.Path,
-			})
+			}).Error("Proxy error")
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadGateway)
@@ -348,10 +377,13 @@ func (g *Gateway) proxyHandler(serviceName string) gin.HandlerFunc {
 		start := time.Now()
 		defer func() {
 			duration := time.Since(start)
-			g.logger.API(c.Request.Method, c.Request.URL.Path, c.Writer.Status(), duration, logger.Fields{
+			g.logger.PerformanceLog(fmt.Sprintf("%s %s", c.Request.Method, c.Request.URL.Path), duration, map[string]interface{}{
 				"service":      serviceName,
 				"service_host": service.Host,
 				"service_port": service.Port,
+				"status_code":  c.Writer.Status(),
+				"method":       c.Request.Method,
+				"path":         c.Request.URL.Path,
 			})
 		}()
 
@@ -376,10 +408,12 @@ func (g *Gateway) websocketProxyHandler(serviceName string) gin.HandlerFunc {
 		// Proxy WebSocket connection
 		target := fmt.Sprintf("ws://%s:%d/ws", service.Host, service.Port)
 
-		g.logger.WebSocket("connection_proxied", c.GetString("request_id"), logger.Fields{
-			"service": serviceName,
-			"target":  target,
-		})
+		g.logger.WithFields(logrus.Fields{
+			"service":    serviceName,
+			"target":     target,
+			"request_id": c.GetString("request_id"),
+			"event":      "connection_proxied",
+		}).Info("WebSocket connection proxied")
 
 		// In a real implementation, this would handle WebSocket proxying
 		// For now, return the target information
@@ -425,7 +459,7 @@ func (g *Gateway) healthHandler(c *gin.Context) {
 		"status":    "healthy",
 		"timestamp": time.Now().UTC(),
 		"service":   "api-gateway",
-		"version":   g.config.App.Version,
+		"version":   g.config.Version,
 	})
 }
 
@@ -481,12 +515,12 @@ func (g *Gateway) registerServiceHandler(c *gin.Context) {
 
 	g.registry.RegisterService(&service)
 
-	g.logger.Info("Service registered", logger.Fields{
+	g.logger.WithFields(logrus.Fields{
 		"service_id":   service.ID,
 		"service_name": service.Name,
 		"host":         service.Host,
 		"port":         service.Port,
-	})
+	}).Info("Service registered")
 
 	c.JSON(http.StatusCreated, service)
 }
@@ -494,9 +528,9 @@ func (g *Gateway) registerServiceHandler(c *gin.Context) {
 func (g *Gateway) deregisterServiceHandler(c *gin.Context) {
 	serviceID := c.Param("id")
 	if g.registry.DeregisterService(serviceID) {
-		g.logger.Info("Service deregistered", logger.Fields{
+		g.logger.WithFields(logrus.Fields{
 			"service_id": serviceID,
-		})
+		}).Info("Service deregistered")
 		c.JSON(http.StatusOK, gin.H{"message": "Service deregistered"})
 	} else {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -541,10 +575,10 @@ func (g *Gateway) restartServiceHandler(c *gin.Context) {
 	serviceName := c.Param("name")
 
 	// This would trigger service restart - implementation depends on orchestration
-	g.logger.Info("Service restart requested", logger.Fields{
+	g.logger.WithFields(logrus.Fields{
 		"service": serviceName,
 		"admin":   c.GetHeader("X-Admin-User"),
-	})
+	}).Info("Service restart requested")
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"message": fmt.Sprintf("Restart request submitted for %s", serviceName),
@@ -578,16 +612,17 @@ func requestIDMiddleware() gin.HandlerFunc {
 	}
 }
 
-func loggingMiddleware(logger *logger.Logger) gin.HandlerFunc {
+func loggingMiddleware(logger *logger.TchatLogger) gin.HandlerFunc {
 	return gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
-		logger.API(
-			param.Method,
-			param.Path,
-			param.StatusCode,
+		logger.PerformanceLog(
+			fmt.Sprintf("%s %s", param.Method, param.Path),
 			param.Latency,
-			logger.Fields{
-				"client_ip": param.ClientIP,
-				"user_agent": param.Request.UserAgent(),
+			map[string]interface{}{
+				"client_ip":   param.ClientIP,
+				"user_agent":  param.Request.UserAgent(),
+				"status_code": param.StatusCode,
+				"method":      param.Method,
+				"path":        param.Path,
 			},
 		)
 		return ""

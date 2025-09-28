@@ -2,827 +2,373 @@ package services
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"tchat.dev/payment/models"
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
+
+	sharedModels "tchat.dev/shared/models"
 )
 
-// PaymentService provides payment and wallet functionality
+// PaymentService handles payment operations
 type PaymentService struct {
-	walletRepo      WalletRepository
-	transactionRepo TransactionRepository
-	cache           CacheService
-	events          EventService
-	processor       PaymentProcessor
-	config          *PaymentConfig
+	walletRepo    WalletRepository
+	txRepo        TransactionRepository
+	eventPublisher EventPublisher
+	db            *gorm.DB
 }
 
-// PaymentConfig holds payment service configuration
-type PaymentConfig struct {
-	DefaultCurrency        models.Currency
-	MaxTransactionAmount   int64
-	MinTransactionAmount   int64
-	FeePercentage         float64
-	FixedFee              int64
-	MaxDailyTransactions  int
-	MaxMonthlyTransactions int
-	EnableFraudDetection  bool
-	TransactionTimeout    time.Duration
-	ProcessingRetries     int
-}
-
-// DefaultPaymentConfig returns default payment configuration
-func DefaultPaymentConfig() *PaymentConfig {
-	return &PaymentConfig{
-		DefaultCurrency:        models.CurrencyTHB,
-		MaxTransactionAmount:   100000000, // 1M THB in cents
-		MinTransactionAmount:   100,       // 1 THB in cents
-		FeePercentage:         0.025,     // 2.5%
-		FixedFee:              1000,      // 10 THB in cents
-		MaxDailyTransactions:  100,
-		MaxMonthlyTransactions: 1000,
-		EnableFraudDetection:  true,
-		TransactionTimeout:    30 * time.Minute,
-		ProcessingRetries:     3,
-	}
-}
-
-// WalletRepository interface for wallet data access
+// Repositories
 type WalletRepository interface {
-	Create(ctx context.Context, wallet *models.Wallet) error
-	GetByID(ctx context.Context, id uuid.UUID) (*models.Wallet, error)
-	GetByUserID(ctx context.Context, userID uuid.UUID, currency models.Currency) (*models.Wallet, error)
-	GetAllByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Wallet, error)
-	Update(ctx context.Context, wallet *models.Wallet) error
-	UpdateBalance(ctx context.Context, walletID uuid.UUID, amount int64, operation string) error
-	LockForUpdate(ctx context.Context, walletID uuid.UUID) (*models.Wallet, error)
+	Create(ctx context.Context, wallet *sharedModels.Wallet) error
+	GetByID(ctx context.Context, id uuid.UUID) (*sharedModels.Wallet, error)
+	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*sharedModels.Wallet, error)
+	GetByUserIDAndCurrency(ctx context.Context, userID uuid.UUID, currency string) (*sharedModels.Wallet, error)
+	Update(ctx context.Context, wallet *sharedModels.Wallet) error
+	UpdateBalance(ctx context.Context, walletID uuid.UUID, amount decimal.Decimal, txID uuid.UUID) error
 }
 
-// TransactionRepository interface for transaction data access
 type TransactionRepository interface {
-	Create(ctx context.Context, transaction *models.Transaction) error
-	GetByID(ctx context.Context, id uuid.UUID) (*models.Transaction, error)
-	GetByReference(ctx context.Context, reference string) (*models.Transaction, error)
-	GetByWalletID(ctx context.Context, walletID uuid.UUID, limit, offset int) ([]*models.Transaction, error)
-	GetByUserID(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.Transaction, error)
-	Update(ctx context.Context, transaction *models.Transaction) error
-	GetDailyTotal(ctx context.Context, walletID uuid.UUID, date time.Time) (int64, error)
-	GetMonthlyTotal(ctx context.Context, walletID uuid.UUID, year int, month time.Month) (int64, error)
-	GetPendingTransactions(ctx context.Context) ([]*models.Transaction, error)
-	UpdateStatus(ctx context.Context, transactionID uuid.UUID, status models.TransactionStatus) error
+	Create(ctx context.Context, tx *sharedModels.Transaction) error
+	GetByID(ctx context.Context, id uuid.UUID) (*sharedModels.Transaction, error)
+	GetByWalletID(ctx context.Context, walletID uuid.UUID, limit, offset int) ([]*sharedModels.Transaction, error)
+	GetByUserID(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*sharedModels.Transaction, error)
+	Update(ctx context.Context, tx *sharedModels.Transaction) error
 }
 
-// CacheService interface for caching operations
-type CacheService interface {
-	Set(ctx context.Context, key string, value interface{}, expiry time.Duration) error
-	Get(ctx context.Context, key string) (interface{}, error)
-	Delete(ctx context.Context, key string) error
-	Lock(ctx context.Context, key string, expiry time.Duration) (bool, error)
-	Unlock(ctx context.Context, key string) error
+type EventPublisher interface {
+	Publish(ctx context.Context, event *sharedModels.Event) error
 }
 
-// EventService interface for event publishing
-type EventService interface {
-	PublishTransaction(ctx context.Context, event *TransactionEvent) error
-	PublishWallet(ctx context.Context, event *WalletEvent) error
-}
-
-// PaymentProcessor interface for external payment processing
-type PaymentProcessor interface {
-	ProcessDeposit(ctx context.Context, req *DepositRequest) (*ProcessorResponse, error)
-	ProcessWithdrawal(ctx context.Context, req *WithdrawalRequest) (*ProcessorResponse, error)
-	ProcessTransfer(ctx context.Context, req *TransferRequest) (*ProcessorResponse, error)
-	GetStatus(ctx context.Context, externalID string) (*ProcessorStatus, error)
-}
-
-// Events
-type TransactionEvent struct {
-	Type         string                `json:"type"`
-	TransactionID uuid.UUID            `json:"transaction_id"`
-	WalletID     uuid.UUID             `json:"wallet_id"`
-	UserID       uuid.UUID             `json:"user_id"`
-	Transaction  *models.Transaction   `json:"transaction,omitempty"`
-	Timestamp    time.Time             `json:"timestamp"`
-}
-
-type WalletEvent struct {
-	Type      string         `json:"type"`
-	WalletID  uuid.UUID      `json:"wallet_id"`
-	UserID    uuid.UUID      `json:"user_id"`
-	Wallet    *models.Wallet `json:"wallet,omitempty"`
-	Timestamp time.Time      `json:"timestamp"`
+// NewPaymentService creates a new payment service instance
+func NewPaymentService(
+	walletRepo WalletRepository,
+	txRepo TransactionRepository,
+	eventPublisher EventPublisher,
+	db *gorm.DB,
+) *PaymentService {
+	return &PaymentService{
+		walletRepo:     walletRepo,
+		txRepo:         txRepo,
+		eventPublisher: eventPublisher,
+		db:             db,
+	}
 }
 
 // Request/Response types
 type CreateWalletRequest struct {
-	UserID   uuid.UUID       `json:"user_id"`
-	Currency models.Currency `json:"currency"`
-	Name     *string         `json:"name,omitempty"`
+	UserID            uuid.UUID              `json:"user_id" binding:"required"`
+	Currency          string                 `json:"currency" binding:"required"`
+	DailySpendLimit   decimal.Decimal        `json:"daily_spend_limit"`
+	MonthlySpendLimit decimal.Decimal        `json:"monthly_spend_limit"`
+	Metadata          map[string]interface{} `json:"metadata"`
 }
 
-type DepositRequest struct {
-	WalletID     uuid.UUID       `json:"wallet_id"`
-	Amount       int64           `json:"amount"`
-	Currency     models.Currency `json:"currency"`
-	PaymentMethod string         `json:"payment_method"`
-	ExternalID   *string         `json:"external_id,omitempty"`
-	Description  *string         `json:"description,omitempty"`
+type CreateTransactionRequest struct {
+	WalletID    uuid.UUID              `json:"wallet_id" binding:"required"`
+	Amount      decimal.Decimal        `json:"amount" binding:"required"`
+	Currency    string                 `json:"currency" binding:"required"`
+	Type        string                 `json:"type" binding:"required"`
+	Description string                 `json:"description"`
+	Gateway     string                 `json:"gateway"`
+	Metadata    map[string]interface{} `json:"metadata"`
 }
 
-type WithdrawalRequest struct {
-	WalletID      uuid.UUID       `json:"wallet_id"`
-	Amount        int64           `json:"amount"`
-	Currency      models.Currency `json:"currency"`
-	Destination   string          `json:"destination"`
-	ExternalID    *string         `json:"external_id,omitempty"`
-	Description   *string         `json:"description,omitempty"`
+type WalletResponse struct {
+	ID          uuid.UUID              `json:"id"`
+	UserID      uuid.UUID              `json:"user_id"`
+	Currency    string                 `json:"currency"`
+	Balance     decimal.Decimal        `json:"balance"`
+	Status      string                 `json:"status"`
+	Metadata    map[string]interface{} `json:"metadata"`
+	CreatedAt   time.Time              `json:"created_at"`
+	UpdatedAt   time.Time              `json:"updated_at"`
 }
 
-type TransferRequest struct {
-	FromWalletID uuid.UUID       `json:"from_wallet_id"`
-	ToWalletID   uuid.UUID       `json:"to_wallet_id"`
-	Amount       int64           `json:"amount"`
-	Currency     models.Currency `json:"currency"`
-	Description  *string         `json:"description,omitempty"`
-}
-
-type ProcessorResponse struct {
-	ExternalID string                 `json:"external_id"`
-	Status     string                 `json:"status"`
-	Message    string                 `json:"message"`
-	Data       map[string]interface{} `json:"data,omitempty"`
-}
-
-type ProcessorStatus struct {
-	ExternalID string `json:"external_id"`
-	Status     string `json:"status"`
-	Message    string `json:"message"`
-}
-
-// NewPaymentService creates a new payment service
-func NewPaymentService(
-	walletRepo WalletRepository,
-	transactionRepo TransactionRepository,
-	cache CacheService,
-	events EventService,
-	processor PaymentProcessor,
-	config *PaymentConfig,
-) *PaymentService {
-	if config == nil {
-		config = DefaultPaymentConfig()
-	}
-
-	return &PaymentService{
-		walletRepo:      walletRepo,
-		transactionRepo: transactionRepo,
-		cache:           cache,
-		events:          events,
-		processor:       processor,
-		config:          config,
-	}
+type TransactionResponse struct {
+	ID          uuid.UUID              `json:"id"`
+	UserID      uuid.UUID              `json:"user_id"`
+	WalletID    uuid.UUID              `json:"wallet_id"`
+	Amount      decimal.Decimal        `json:"amount"`
+	Currency    string                 `json:"currency"`
+	Type        string                 `json:"type"`
+	Status      string                 `json:"status"`
+	Description string                 `json:"description"`
+	Gateway     string                 `json:"gateway"`
+	Metadata    map[string]interface{} `json:"metadata"`
+	CreatedAt   time.Time              `json:"created_at"`
+	UpdatedAt   time.Time              `json:"updated_at"`
 }
 
 // CreateWallet creates a new wallet for a user
-func (p *PaymentService) CreateWallet(ctx context.Context, req *CreateWalletRequest) (*models.Wallet, error) {
-	// Validate request
-	if err := p.validateCreateWalletRequest(req); err != nil {
-		return nil, fmt.Errorf("invalid create wallet request: %v", err)
+func (ps *PaymentService) CreateWallet(ctx context.Context, req *CreateWalletRequest) (*WalletResponse, error) {
+	wallet := &sharedModels.Wallet{
+		ID:     uuid.New(),
+		UserID: &req.UserID,
+		Name:   fmt.Sprintf("%s Wallet", req.Currency),
+		Type:   sharedModels.WalletTypePersonal,
+		Status: sharedModels.WalletStatusActive,
+		Settings: sharedModels.WalletSettings{
+			DefaultCurrency:   req.Currency,
+			AllowedCurrencies: []string{req.Currency},
+		},
+		Security: sharedModels.WalletSecurity{
+			SecurityLevel:          "basic",
+			DailyWithdrawalLimit:   req.DailySpendLimit,
+			MonthlyWithdrawalLimit: req.MonthlySpendLimit,
+		},
+		Metadata:  req.Metadata,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
-	// Check if wallet already exists for this user and currency
-	existingWallet, err := p.walletRepo.GetByUserID(ctx, req.UserID, req.Currency)
-	if err == nil && existingWallet != nil {
-		return nil, fmt.Errorf("wallet already exists for user %s and currency %s", req.UserID, req.Currency)
+	if err := ps.walletRepo.Create(ctx, wallet); err != nil {
+		return nil, fmt.Errorf("failed to create wallet: %w", err)
 	}
 
-	// Create wallet
-	walletManager := models.NewWalletManager()
-	wallet, err := walletManager.CreateWallet(&models.WalletCreateRequest{
-		UserID:   req.UserID,
-		Currency: req.Currency,
-		Name:     req.Name,
+	// Publish wallet created event
+	eventData, _ := json.Marshal(map[string]interface{}{
+		"user_id":  wallet.UserID,
+		"currency": wallet.Settings.DefaultCurrency,
 	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create wallet: %v", err)
+
+	event := &sharedModels.Event{
+		ID:           uuid.New(),
+		Type:         sharedModels.EventType("wallet.created"),
+		Category:     sharedModels.EventCategoryDomain,
+		Severity:     sharedModels.SeverityInfo,
+		Subject:      "Wallet Created",
+		Description:  fmt.Sprintf("New wallet created for user %s", wallet.UserID),
+		Data:         json.RawMessage(eventData),
+		AggregateID:  wallet.ID.String(),
+		OccurredAt:   time.Now(),
 	}
 
-	// Save wallet
-	if err := p.walletRepo.Create(ctx, wallet); err != nil {
-		return nil, fmt.Errorf("failed to save wallet: %v", err)
+	if err := ps.eventPublisher.Publish(ctx, event); err != nil {
+		// Log error but don't fail the operation
+		fmt.Printf("Failed to publish wallet created event: %v\n", err)
 	}
 
-	// Publish wallet creation event
-	event := &WalletEvent{
-		Type:      "wallet_created",
-		WalletID:  wallet.ID,
-		UserID:    req.UserID,
-		Wallet:    wallet,
-		Timestamp: time.Now().UTC(),
-	}
-	p.events.PublishWallet(ctx, event)
-
-	return wallet, nil
-}
-
-// Deposit processes a deposit transaction
-func (p *PaymentService) Deposit(ctx context.Context, req *DepositRequest) (*models.Transaction, error) {
-	// Validate request
-	if err := p.validateDepositRequest(req); err != nil {
-		return nil, fmt.Errorf("invalid deposit request: %v", err)
-	}
-
-	// Get wallet
-	wallet, err := p.walletRepo.GetByID(ctx, req.WalletID)
-	if err != nil {
-		return nil, fmt.Errorf("wallet not found: %v", err)
-	}
-
-	// Validate currency match
-	if wallet.Currency != req.Currency {
-		return nil, fmt.Errorf("currency mismatch: wallet currency %s, request currency %s", wallet.Currency, req.Currency)
-	}
-
-	// Calculate fees
-	feeAmount := p.calculateFee(req.Amount)
-
-	// Create transaction
-	transactionManager := models.NewTransactionManager()
-	transaction, err := transactionManager.CreateTransaction(&models.TransactionCreateRequest{
-		WalletID:   req.WalletID,
-		Type:       models.TransactionTypeDeposit,
-		Currency:   req.Currency,
-		Amount:     req.Amount,
-		FeeAmount:  feeAmount,
-		ExternalID: req.ExternalID,
-		Description: req.Description,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction: %v", err)
-	}
-
-	// Validate transaction limits
-	if err := transactionManager.ValidateTransactionLimits(transaction, wallet); err != nil {
-		return nil, fmt.Errorf("transaction validation failed: %v", err)
-	}
-
-	// Save transaction
-	if err := p.transactionRepo.Create(ctx, transaction); err != nil {
-		return nil, fmt.Errorf("failed to save transaction: %v", err)
-	}
-
-	// Process with external payment processor
-	if err := p.processDeposit(ctx, transaction, req); err != nil {
-		// Mark transaction as failed
-		transaction.Fail(err.Error())
-		p.transactionRepo.Update(ctx, transaction)
-		return nil, fmt.Errorf("deposit processing failed: %v", err)
-	}
-
-	return transaction, nil
-}
-
-// Withdraw processes a withdrawal transaction
-func (p *PaymentService) Withdraw(ctx context.Context, req *WithdrawalRequest) (*models.Transaction, error) {
-	// Validate request
-	if err := p.validateWithdrawalRequest(req); err != nil {
-		return nil, fmt.Errorf("invalid withdrawal request: %v", err)
-	}
-
-	// Lock wallet for update
-	lockKey := fmt.Sprintf("wallet_lock:%s", req.WalletID)
-	locked, err := p.cache.Lock(ctx, lockKey, 30*time.Second)
-	if !locked || err != nil {
-		return nil, fmt.Errorf("failed to acquire wallet lock")
-	}
-	defer p.cache.Unlock(ctx, lockKey)
-
-	// Get wallet
-	wallet, err := p.walletRepo.LockForUpdate(ctx, req.WalletID)
-	if err != nil {
-		return nil, fmt.Errorf("wallet not found: %v", err)
-	}
-
-	// Validate currency match
-	if wallet.Currency != req.Currency {
-		return nil, fmt.Errorf("currency mismatch: wallet currency %s, request currency %s", wallet.Currency, req.Currency)
-	}
-
-	// Calculate fees
-	feeAmount := p.calculateFee(req.Amount)
-	totalAmount := req.Amount + feeAmount
-
-	// Check available balance
-	availableBalance := wallet.Balance - wallet.FrozenBalance
-	if totalAmount > availableBalance {
-		return nil, fmt.Errorf("insufficient balance: required %d, available %d", totalAmount, availableBalance)
-	}
-
-	// Check daily limit
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-	dailyTotal, err := p.transactionRepo.GetDailyTotal(ctx, req.WalletID, today)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check daily limits: %v", err)
-	}
-
-	if dailyTotal+totalAmount > wallet.DailyLimit {
-		return nil, fmt.Errorf("daily limit exceeded: current %d, limit %d, requested %d",
-			dailyTotal, wallet.DailyLimit, totalAmount)
-	}
-
-	// Create transaction
-	transactionManager := models.NewTransactionManager()
-	transaction, err := transactionManager.CreateTransaction(&models.TransactionCreateRequest{
-		WalletID:   req.WalletID,
-		Type:       models.TransactionTypeWithdrawal,
-		Currency:   req.Currency,
-		Amount:     req.Amount,
-		FeeAmount:  feeAmount,
-		ExternalID: req.ExternalID,
-		Description: req.Description,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction: %v", err)
-	}
-
-	// Freeze balance for withdrawal
-	wallet.FrozenBalance += totalAmount
-	if err := p.walletRepo.Update(ctx, wallet); err != nil {
-		return nil, fmt.Errorf("failed to freeze balance: %v", err)
-	}
-
-	// Save transaction
-	if err := p.transactionRepo.Create(ctx, transaction); err != nil {
-		// Rollback frozen balance
-		wallet.FrozenBalance -= totalAmount
-		p.walletRepo.Update(ctx, wallet)
-		return nil, fmt.Errorf("failed to save transaction: %v", err)
-	}
-
-	// Process withdrawal
-	if err := p.processWithdrawal(ctx, transaction, req); err != nil {
-		// Mark transaction as failed and unfreeze balance
-		transaction.Fail(err.Error())
-		p.transactionRepo.Update(ctx, transaction)
-
-		wallet.FrozenBalance -= totalAmount
-		p.walletRepo.Update(ctx, wallet)
-
-		return nil, fmt.Errorf("withdrawal processing failed: %v", err)
-	}
-
-	return transaction, nil
-}
-
-// Transfer processes a transfer between wallets
-func (p *PaymentService) Transfer(ctx context.Context, req *TransferRequest) (*models.Transaction, error) {
-	// Validate request
-	if err := p.validateTransferRequest(req); err != nil {
-		return nil, fmt.Errorf("invalid transfer request: %v", err)
-	}
-
-	// Prevent self-transfer
-	if req.FromWalletID == req.ToWalletID {
-		return nil, fmt.Errorf("cannot transfer to the same wallet")
-	}
-
-	// Lock both wallets in a consistent order to prevent deadlock
-	walletIDs := []uuid.UUID{req.FromWalletID, req.ToWalletID}
-	if req.FromWalletID.String() > req.ToWalletID.String() {
-		walletIDs[0], walletIDs[1] = walletIDs[1], walletIDs[0]
-	}
-
-	lockKey1 := fmt.Sprintf("wallet_lock:%s", walletIDs[0])
-	lockKey2 := fmt.Sprintf("wallet_lock:%s", walletIDs[1])
-
-	locked1, err1 := p.cache.Lock(ctx, lockKey1, 30*time.Second)
-	locked2, err2 := p.cache.Lock(ctx, lockKey2, 30*time.Second)
-
-	if !locked1 || !locked2 || err1 != nil || err2 != nil {
-		p.cache.Unlock(ctx, lockKey1)
-		p.cache.Unlock(ctx, lockKey2)
-		return nil, fmt.Errorf("failed to acquire wallet locks")
-	}
-	defer func() {
-		p.cache.Unlock(ctx, lockKey1)
-		p.cache.Unlock(ctx, lockKey2)
-	}()
-
-	// Get both wallets
-	fromWallet, err := p.walletRepo.LockForUpdate(ctx, req.FromWalletID)
-	if err != nil {
-		return nil, fmt.Errorf("source wallet not found: %v", err)
-	}
-
-	toWallet, err := p.walletRepo.LockForUpdate(ctx, req.ToWalletID)
-	if err != nil {
-		return nil, fmt.Errorf("destination wallet not found: %v", err)
-	}
-
-	// Validate currency match
-	if fromWallet.Currency != req.Currency || toWallet.Currency != req.Currency {
-		return nil, fmt.Errorf("currency mismatch")
-	}
-
-	// Calculate fees
-	feeAmount := p.calculateFee(req.Amount)
-	totalAmount := req.Amount + feeAmount
-
-	// Check available balance
-	availableBalance := fromWallet.Balance - fromWallet.FrozenBalance
-	if totalAmount > availableBalance {
-		return nil, fmt.Errorf("insufficient balance: required %d, available %d", totalAmount, availableBalance)
-	}
-
-	// Create transaction
-	transactionManager := models.NewTransactionManager()
-	transaction, err := transactionManager.CreateTransaction(&models.TransactionCreateRequest{
-		WalletID:       req.FromWalletID,
-		CounterpartyID: &req.ToWalletID,
-		Type:           models.TransactionTypeTransfer,
-		Currency:       req.Currency,
-		Amount:         req.Amount,
-		FeeAmount:      feeAmount,
-		Description:    req.Description,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction: %v", err)
-	}
-
-	// Save transaction
-	if err := p.transactionRepo.Create(ctx, transaction); err != nil {
-		return nil, fmt.Errorf("failed to save transaction: %v", err)
-	}
-
-	// Start processing
-	if err := transaction.StartProcessing(); err != nil {
-		return nil, fmt.Errorf("failed to start processing: %v", err)
-	}
-	p.transactionRepo.Update(ctx, transaction)
-
-	// Execute transfer
-	if err := p.executeTransfer(ctx, transaction, fromWallet, toWallet); err != nil {
-		// Mark transaction as failed
-		transaction.Fail(err.Error())
-		p.transactionRepo.Update(ctx, transaction)
-		return nil, fmt.Errorf("transfer execution failed: %v", err)
-	}
-
-	// Complete transaction
-	transaction.Complete()
-	p.transactionRepo.Update(ctx, transaction)
-
-	// Publish transaction event
-	event := &TransactionEvent{
-		Type:          "transfer_completed",
-		TransactionID: transaction.ID,
-		WalletID:      req.FromWalletID,
-		UserID:        fromWallet.UserID,
-		Transaction:   transaction,
-		Timestamp:     time.Now().UTC(),
-	}
-	p.events.PublishTransaction(ctx, event)
-
-	return transaction, nil
+	return &WalletResponse{
+		ID:        wallet.ID,
+		UserID:    *wallet.UserID,
+		Currency:  wallet.Settings.DefaultCurrency,
+		Balance:   wallet.GetTotalBalance(wallet.Settings.DefaultCurrency),
+		Status:    string(wallet.Status),
+		Metadata:  wallet.Metadata,
+		CreatedAt: wallet.CreatedAt,
+		UpdatedAt: wallet.UpdatedAt,
+	}, nil
 }
 
 // GetWallet retrieves a wallet by ID
-func (p *PaymentService) GetWallet(ctx context.Context, walletID uuid.UUID) (*models.Wallet, error) {
-	return p.walletRepo.GetByID(ctx, walletID)
+func (ps *PaymentService) GetWallet(ctx context.Context, walletID uuid.UUID) (*WalletResponse, error) {
+	wallet, err := ps.walletRepo.GetByID(ctx, walletID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get wallet: %w", err)
+	}
+
+	var userID uuid.UUID
+	if wallet.UserID != nil {
+		userID = *wallet.UserID
+	}
+
+	return &WalletResponse{
+		ID:        wallet.ID,
+		UserID:    userID,
+		Currency:  wallet.Settings.DefaultCurrency,
+		Balance:   wallet.GetTotalBalance(wallet.Settings.DefaultCurrency),
+		Status:    string(wallet.Status),
+		Metadata:  wallet.Metadata,
+		CreatedAt: wallet.CreatedAt,
+		UpdatedAt: wallet.UpdatedAt,
+	}, nil
 }
 
 // GetUserWallets retrieves all wallets for a user
-func (p *PaymentService) GetUserWallets(ctx context.Context, userID uuid.UUID) ([]*models.Wallet, error) {
-	return p.walletRepo.GetAllByUserID(ctx, userID)
-}
-
-// GetTransaction retrieves a transaction by ID
-func (p *PaymentService) GetTransaction(ctx context.Context, transactionID uuid.UUID) (*models.Transaction, error) {
-	return p.transactionRepo.GetByID(ctx, transactionID)
-}
-
-// GetWalletTransactions retrieves transactions for a wallet
-func (p *PaymentService) GetWalletTransactions(ctx context.Context, walletID uuid.UUID, limit, offset int) ([]*models.Transaction, error) {
-	return p.transactionRepo.GetByWalletID(ctx, walletID, limit, offset)
-}
-
-// ProcessPendingTransactions processes all pending transactions
-func (p *PaymentService) ProcessPendingTransactions(ctx context.Context) error {
-	transactions, err := p.transactionRepo.GetPendingTransactions(ctx)
+func (ps *PaymentService) GetUserWallets(ctx context.Context, userID uuid.UUID) ([]*WalletResponse, error) {
+	wallets, err := ps.walletRepo.GetByUserID(ctx, userID)
 	if err != nil {
-		return fmt.Errorf("failed to get pending transactions: %v", err)
+		return nil, fmt.Errorf("failed to get user wallets: %w", err)
 	}
 
-	for _, transaction := range transactions {
-		// Check if transaction is expired
-		if transaction.IsExpired() {
-			transaction.Expire()
-			p.transactionRepo.Update(ctx, transaction)
-			continue
+	responses := make([]*WalletResponse, len(wallets))
+	for i, wallet := range wallets {
+		var walletUserID uuid.UUID
+		if wallet.UserID != nil {
+			walletUserID = *wallet.UserID
 		}
 
-		// Process based on transaction type
-		switch transaction.Type {
-		case models.TransactionTypeDeposit:
-			p.processPendingDeposit(ctx, transaction)
-		case models.TransactionTypeWithdrawal:
-			p.processPendingWithdrawal(ctx, transaction)
+		responses[i] = &WalletResponse{
+			ID:        wallet.ID,
+			UserID:    walletUserID,
+			Currency:  wallet.Settings.DefaultCurrency,
+			Balance:   wallet.GetTotalBalance(wallet.Settings.DefaultCurrency),
+			Status:    string(wallet.Status),
+			Metadata:  wallet.Metadata,
+			CreatedAt: wallet.CreatedAt,
+			UpdatedAt: wallet.UpdatedAt,
 		}
 	}
 
-	return nil
+	return responses, nil
 }
 
-// Helper methods
-
-func (p *PaymentService) validateCreateWalletRequest(req *CreateWalletRequest) error {
-	if req.UserID == uuid.Nil {
-		return errors.New("user_id is required")
-	}
-
-	if !req.Currency.IsValid() {
-		return fmt.Errorf("invalid currency: %s", req.Currency)
-	}
-
-	return nil
-}
-
-func (p *PaymentService) validateDepositRequest(req *DepositRequest) error {
-	if req.WalletID == uuid.Nil {
-		return errors.New("wallet_id is required")
-	}
-
-	if req.Amount <= 0 {
-		return errors.New("amount must be positive")
-	}
-
-	if req.Amount < p.config.MinTransactionAmount {
-		return fmt.Errorf("amount below minimum: %d", p.config.MinTransactionAmount)
-	}
-
-	if req.Amount > p.config.MaxTransactionAmount {
-		return fmt.Errorf("amount exceeds maximum: %d", p.config.MaxTransactionAmount)
-	}
-
-	if !req.Currency.IsValid() {
-		return fmt.Errorf("invalid currency: %s", req.Currency)
-	}
-
-	return nil
-}
-
-func (p *PaymentService) validateWithdrawalRequest(req *WithdrawalRequest) error {
-	if req.WalletID == uuid.Nil {
-		return errors.New("wallet_id is required")
-	}
-
-	if req.Amount <= 0 {
-		return errors.New("amount must be positive")
-	}
-
-	if req.Amount < p.config.MinTransactionAmount {
-		return fmt.Errorf("amount below minimum: %d", p.config.MinTransactionAmount)
-	}
-
-	if req.Amount > p.config.MaxTransactionAmount {
-		return fmt.Errorf("amount exceeds maximum: %d", p.config.MaxTransactionAmount)
-	}
-
-	if !req.Currency.IsValid() {
-		return fmt.Errorf("invalid currency: %s", req.Currency)
-	}
-
-	if strings.TrimSpace(req.Destination) == "" {
-		return errors.New("destination is required")
-	}
-
-	return nil
-}
-
-func (p *PaymentService) validateTransferRequest(req *TransferRequest) error {
-	if req.FromWalletID == uuid.Nil {
-		return errors.New("from_wallet_id is required")
-	}
-
-	if req.ToWalletID == uuid.Nil {
-		return errors.New("to_wallet_id is required")
-	}
-
-	if req.Amount <= 0 {
-		return errors.New("amount must be positive")
-	}
-
-	if req.Amount < p.config.MinTransactionAmount {
-		return fmt.Errorf("amount below minimum: %d", p.config.MinTransactionAmount)
-	}
-
-	if req.Amount > p.config.MaxTransactionAmount {
-		return fmt.Errorf("amount exceeds maximum: %d", p.config.MaxTransactionAmount)
-	}
-
-	if !req.Currency.IsValid() {
-		return fmt.Errorf("invalid currency: %s", req.Currency)
-	}
-
-	return nil
-}
-
-func (p *PaymentService) calculateFee(amount int64) int64 {
-	percentageFee := int64(float64(amount) * p.config.FeePercentage)
-	totalFee := percentageFee + p.config.FixedFee
-
-	// Ensure fee doesn't exceed 50% of amount
-	maxFee := amount / 2
-	if totalFee > maxFee {
-		totalFee = maxFee
-	}
-
-	return totalFee
-}
-
-func (p *PaymentService) processDeposit(ctx context.Context, transaction *models.Transaction, req *DepositRequest) error {
-	// Start processing
-	if err := transaction.StartProcessing(); err != nil {
-		return err
-	}
-	p.transactionRepo.Update(ctx, transaction)
-
-	// Process with external processor
-	processorReq := &DepositRequest{
-		WalletID:      req.WalletID,
-		Amount:        req.Amount,
-		Currency:      req.Currency,
-		PaymentMethod: req.PaymentMethod,
-		ExternalID:    &transaction.ID.String(),
-		Description:   req.Description,
-	}
-
-	response, err := p.processor.ProcessDeposit(ctx, processorReq)
+// CreateTransaction creates a new transaction
+func (ps *PaymentService) CreateTransaction(ctx context.Context, req *CreateTransactionRequest) (*TransactionResponse, error) {
+	// Get wallet to extract UserID
+	wallet, err := ps.walletRepo.GetByID(ctx, req.WalletID)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to get wallet: %w", err)
 	}
 
-	// Update transaction with processor response
-	transaction.ExternalID = &response.ExternalID
-	processorResponseStr := fmt.Sprintf("Status: %s, Message: %s", response.Status, response.Message)
-	transaction.ProcessorResponse = &processorResponseStr
-
-	if response.Status == "completed" {
-		// Complete the deposit
-		return p.completeDeposit(ctx, transaction)
+	var userID uuid.UUID
+	if wallet.UserID != nil {
+		userID = *wallet.UserID
 	}
 
-	return nil // Will be processed later by background job
-}
+	// Start database transaction
+	tx := ps.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
 
-func (p *PaymentService) processWithdrawal(ctx context.Context, transaction *models.Transaction, req *WithdrawalRequest) error {
-	// Start processing
-	if err := transaction.StartProcessing(); err != nil {
-		return err
+	gateway := req.Gateway
+	if gateway == "" {
+		gateway = "internal"
 	}
-	p.transactionRepo.Update(ctx, transaction)
 
-	// Process with external processor
-	processorReq := &WithdrawalRequest{
+	transaction := &sharedModels.Transaction{
+		ID:          uuid.New(),
+		UserID:      userID,
 		WalletID:    req.WalletID,
 		Amount:      req.Amount,
 		Currency:    req.Currency,
-		Destination: req.Destination,
-		ExternalID:  &transaction.ID.String(),
+		Type:        sharedModels.TransactionType(req.Type),
+		Status:      sharedModels.TransactionStatusPending,
 		Description: req.Description,
+		Gateway:     sharedModels.PaymentGateway(gateway),
+		Metadata:    req.Metadata,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}
 
-	response, err := p.processor.ProcessWithdrawal(ctx, processorReq)
-	if err != nil {
-		return err
+	if err := ps.txRepo.Create(ctx, transaction); err != nil {
+		tx.Rollback()
+		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
-	// Update transaction with processor response
-	transaction.ExternalID = &response.ExternalID
-	processorResponseStr := fmt.Sprintf("Status: %s, Message: %s", response.Status, response.Message)
-	transaction.ProcessorResponse = &processorResponseStr
-
-	if response.Status == "completed" {
-		// Complete the withdrawal
-		return p.completeWithdrawal(ctx, transaction)
+	// Update wallet balance
+	if err := ps.walletRepo.UpdateBalance(ctx, req.WalletID, req.Amount, transaction.ID); err != nil {
+		tx.Rollback()
+		return nil, fmt.Errorf("failed to update wallet balance: %w", err)
 	}
 
-	return nil // Will be processed later by background job
+	// Update transaction status to completed
+	transaction.Status = sharedModels.TransactionStatusCompleted
+	transaction.UpdatedAt = time.Now()
+
+	if err := ps.txRepo.Update(ctx, transaction); err != nil {
+		tx.Rollback()
+		return nil, fmt.Errorf("failed to update transaction: %w", err)
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Publish transaction completed event
+	eventData, _ := json.Marshal(map[string]interface{}{
+		"amount":   transaction.Amount,
+		"currency": transaction.Currency,
+		"type":     transaction.Type,
+	})
+
+	event := &sharedModels.Event{
+		ID:           uuid.New(),
+		Type:         sharedModels.EventTypeTransactionCreated,
+		Category:     sharedModels.EventCategoryDomain,
+		Severity:     sharedModels.SeverityInfo,
+		Subject:      "Transaction Completed",
+		Description:  fmt.Sprintf("Transaction %s completed", transaction.ID),
+		Data:         json.RawMessage(eventData),
+		AggregateID:  transaction.ID.String(),
+		OccurredAt:   time.Now(),
+	}
+
+	if err := ps.eventPublisher.Publish(ctx, event); err != nil {
+		// Log error but don't fail the operation
+		fmt.Printf("Failed to publish transaction completed event: %v\n", err)
+	}
+
+	return &TransactionResponse{
+		ID:          transaction.ID,
+		UserID:      transaction.UserID,
+		WalletID:    transaction.WalletID,
+		Amount:      transaction.Amount,
+		Currency:    transaction.Currency,
+		Type:        string(transaction.Type),
+		Status:      string(transaction.Status),
+		Description: transaction.Description,
+		Gateway:     string(transaction.Gateway),
+		Metadata:    transaction.Metadata,
+		CreatedAt:   transaction.CreatedAt,
+		UpdatedAt:   transaction.UpdatedAt,
+	}, nil
 }
 
-func (p *PaymentService) executeTransfer(ctx context.Context, transaction *models.Transaction, fromWallet, toWallet *models.Wallet) error {
-	totalAmount := transaction.Amount + transaction.FeeAmount
-
-	// Deduct from source wallet
-	fromWallet.Balance -= totalAmount
-	if err := p.walletRepo.Update(ctx, fromWallet); err != nil {
-		return fmt.Errorf("failed to update source wallet: %v", err)
+// GetTransaction retrieves a transaction by ID
+func (ps *PaymentService) GetTransaction(ctx context.Context, transactionID uuid.UUID) (*TransactionResponse, error) {
+	transaction, err := ps.txRepo.GetByID(ctx, transactionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transaction: %w", err)
 	}
 
-	// Add to destination wallet (excluding fee)
-	toWallet.Balance += transaction.Amount
-	if err := p.walletRepo.Update(ctx, toWallet); err != nil {
-		// Rollback source wallet
-		fromWallet.Balance += totalAmount
-		p.walletRepo.Update(ctx, fromWallet)
-		return fmt.Errorf("failed to update destination wallet: %v", err)
-	}
-
-	return nil
+	return &TransactionResponse{
+		ID:          transaction.ID,
+		UserID:      transaction.UserID,
+		WalletID:    transaction.WalletID,
+		Amount:      transaction.Amount,
+		Currency:    transaction.Currency,
+		Type:        string(transaction.Type),
+		Status:      string(transaction.Status),
+		Description: transaction.Description,
+		Gateway:     string(transaction.Gateway),
+		Metadata:    transaction.Metadata,
+		CreatedAt:   transaction.CreatedAt,
+		UpdatedAt:   transaction.UpdatedAt,
+	}, nil
 }
 
-func (p *PaymentService) completeDeposit(ctx context.Context, transaction *models.Transaction) error {
-	// Get wallet
-	wallet, err := p.walletRepo.LockForUpdate(ctx, transaction.WalletID)
+// GetWalletTransactions retrieves transactions for a wallet
+func (ps *PaymentService) GetWalletTransactions(ctx context.Context, walletID uuid.UUID, limit, offset int) ([]*TransactionResponse, error) {
+	transactions, err := ps.txRepo.GetByWalletID(ctx, walletID, limit, offset)
 	if err != nil {
-		return fmt.Errorf("failed to get wallet: %v", err)
+		return nil, fmt.Errorf("failed to get wallet transactions: %w", err)
 	}
 
-	// Add balance (excluding fee)
-	wallet.Balance += transaction.NetAmount
-	if err := p.walletRepo.Update(ctx, wallet); err != nil {
-		return fmt.Errorf("failed to update wallet balance: %v", err)
-	}
-
-	// Complete transaction
-	if err := transaction.Complete(); err != nil {
-		return fmt.Errorf("failed to complete transaction: %v", err)
-	}
-
-	return p.transactionRepo.Update(ctx, transaction)
-}
-
-func (p *PaymentService) completeWithdrawal(ctx context.Context, transaction *models.Transaction) error {
-	// Get wallet
-	wallet, err := p.walletRepo.LockForUpdate(ctx, transaction.WalletID)
-	if err != nil {
-		return fmt.Errorf("failed to get wallet: %v", err)
-	}
-
-	totalAmount := transaction.Amount + transaction.FeeAmount
-
-	// Unfreeze and deduct balance
-	wallet.FrozenBalance -= totalAmount
-	wallet.Balance -= totalAmount
-	if err := p.walletRepo.Update(ctx, wallet); err != nil {
-		return fmt.Errorf("failed to update wallet balance: %v", err)
-	}
-
-	// Complete transaction
-	if err := transaction.Complete(); err != nil {
-		return fmt.Errorf("failed to complete transaction: %v", err)
-	}
-
-	return p.transactionRepo.Update(ctx, transaction)
-}
-
-func (p *PaymentService) processPendingDeposit(ctx context.Context, transaction *models.Transaction) {
-	if transaction.ExternalID == nil {
-		return
-	}
-
-	// Check status with processor
-	status, err := p.processor.GetStatus(ctx, *transaction.ExternalID)
-	if err != nil {
-		return
-	}
-
-	switch status.Status {
-	case "completed":
-		p.completeDeposit(ctx, transaction)
-	case "failed":
-		transaction.Fail(status.Message)
-		p.transactionRepo.Update(ctx, transaction)
-	}
-}
-
-func (p *PaymentService) processPendingWithdrawal(ctx context.Context, transaction *models.Transaction) {
-	if transaction.ExternalID == nil {
-		return
-	}
-
-	// Check status with processor
-	status, err := p.processor.GetStatus(ctx, *transaction.ExternalID)
-	if err != nil {
-		return
-	}
-
-	switch status.Status {
-	case "completed":
-		p.completeWithdrawal(ctx, transaction)
-	case "failed":
-		// Unfreeze balance and mark as failed
-		wallet, err := p.walletRepo.LockForUpdate(ctx, transaction.WalletID)
-		if err == nil {
-			totalAmount := transaction.Amount + transaction.FeeAmount
-			wallet.FrozenBalance -= totalAmount
-			p.walletRepo.Update(ctx, wallet)
+	responses := make([]*TransactionResponse, len(transactions))
+	for i, tx := range transactions {
+		responses[i] = &TransactionResponse{
+			ID:          tx.ID,
+			UserID:      tx.UserID,
+			WalletID:    tx.WalletID,
+			Amount:      tx.Amount,
+			Currency:    tx.Currency,
+			Type:        string(tx.Type),
+			Status:      string(tx.Status),
+			Description: tx.Description,
+			Gateway:     string(tx.Gateway),
+			Metadata:    tx.Metadata,
+			CreatedAt:   tx.CreatedAt,
+			UpdatedAt:   tx.UpdatedAt,
 		}
-
-		transaction.Fail(status.Message)
-		p.transactionRepo.Update(ctx, transaction)
 	}
+
+	return responses, nil
 }

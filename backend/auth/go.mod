@@ -7,7 +7,6 @@ require (
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
-	github.com/pact-foundation/pact-go v1.10.0
 	github.com/pact-foundation/pact-go/v2 v2.4.1
 	github.com/stretchr/testify v1.11.1
 	gorm.io/driver/postgres v1.6.0

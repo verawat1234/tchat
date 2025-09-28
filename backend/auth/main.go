@@ -712,8 +712,8 @@ func (m *mockKYCRepository) GetStatistics(ctx context.Context) (*services.KYCSta
 }
 
 func main() {
-	// Load configuration
-	cfg, err := config.Load()
+	// Load configuration with auth service specific port (8081)
+	cfg, err := config.LoadWithServicePort("auth", 8081)
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}

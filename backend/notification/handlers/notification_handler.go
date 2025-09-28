@@ -11,11 +11,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"tchat/notification/services"
-	"tchat/shared/utils"
-	"tchat/shared/config"
-	"tchat/shared/middleware"
-	"tchat/shared/events"
+	"tchat.dev/notification/services"
+	"tchat.dev/shared/utils"
+	"tchat.dev/shared/config"
+	"tchat.dev/shared/middleware"
+	"tchat.dev/shared/events"
 )
 
 // NotificationHandler handles notification-related HTTP requests

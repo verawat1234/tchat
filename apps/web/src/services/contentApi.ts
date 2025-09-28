@@ -250,7 +250,7 @@ export const contentApi = api.injectEndpoints({
      */
     getContentItems: builder.query<GetContentItemsResponse, GetContentItemsRequest>({
       query: (params) => ({
-        url: '/v1/content',
+        url: '/content',
         method: 'GET',
         params: {
           ...params,
@@ -279,7 +279,7 @@ export const contentApi = api.injectEndpoints({
      * - Automatic fallback content population
      */
     getContentItem: builder.query<ContentItem, string>({
-      query: (id) => `/v1/content/${encodeURIComponent(id)}`,
+      query: (id) => `/content/${encodeURIComponent(id)}`,
       providesTags: (result, error, id) => [
         { type: 'ContentItem', id },
         'ContentItem',
@@ -296,7 +296,7 @@ export const contentApi = api.injectEndpoints({
      * - Optimized for category-specific UI components
      */
     getContentByCategory: builder.query<GetContentItemsResponse, string>({
-      query: (category) => `/v1/content/category/${encodeURIComponent(category)}`,
+      query: (category) => `/content/category/${encodeURIComponent(category)}`,
       providesTags: (result, error, category) => [
         { type: 'ContentCategory', id: category },
         'ContentItem',

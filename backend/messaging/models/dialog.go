@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // Dialog represents a conversation between users (direct message, group, channel, or business)
@@ -19,16 +20,16 @@ type Dialog struct {
 	Title            *string     `json:"title,omitempty" db:"title"` // Alias for name for compatibility
 	Avatar           *string     `json:"avatar,omitempty" db:"avatar"`
 	Description      *string     `json:"description,omitempty" db:"description"`
-	Participants     UUIDSlice   `json:"participants" db:"participants"`
+	Participants     UUIDSlice   `json:"participants" gorm:"type:json"`
 	ParticipantCount int         `json:"participant_count" db:"participant_count"`
-	AdminIDs         UUIDSlice   `json:"admin_ids,omitempty" db:"admin_ids"`
+	AdminIDs         UUIDSlice   `json:"admin_ids,omitempty" gorm:"type:json"`
 	LastMessageID    *uuid.UUID  `json:"last_message_id,omitempty" db:"last_message_id"`
 	UnreadCount      int         `json:"unread_count" db:"unread_count"`
 	IsPinned         bool        `json:"is_pinned" db:"is_pinned"`
 	IsArchived       bool        `json:"is_archived" db:"is_archived"`
 	IsMuted          bool        `json:"is_muted" db:"is_muted"`
-	Settings         DialogSettings `json:"settings" db:"settings"`
-	Metadata         map[string]interface{} `json:"metadata,omitempty" db:"metadata"`
+	Settings         DialogSettings `json:"settings" gorm:"type:json"`
+	Metadata         JSON `json:"metadata,omitempty" gorm:"type:json"`
 	CreatedAt        time.Time   `json:"created_at" db:"created_at"`
 	UpdatedAt        time.Time   `json:"updated_at" db:"updated_at"`
 }
@@ -86,7 +87,7 @@ type DialogSettings struct {
 	WhoCanInvite      InvitePermission       `json:"who_can_invite"`
 	WhoCanMessage     MessagePermission      `json:"who_can_message"`
 	AutoDeleteAfter   *time.Duration         `json:"auto_delete_after,omitempty"`
-	CustomFields      map[string]interface{} `json:"custom_fields,omitempty"`
+	CustomFields      JSON `json:"custom_fields,omitempty"`
 }
 
 // MessageHistoryAccess controls who can see message history
@@ -115,6 +116,42 @@ const (
 	MessagePermissionMembers  MessagePermission = "members"
 	MessagePermissionAdmins   MessagePermission = "admins"
 )
+
+// JSON is a custom type for handling JSON fields in the database
+type JSON map[string]interface{}
+
+// Value implements the driver.Valuer interface for JSON
+func (j JSON) Value() (driver.Value, error) {
+	if j == nil {
+		return nil, nil
+	}
+	return json.Marshal(j)
+}
+
+// Scan implements the sql.Scanner interface for JSON
+func (j *JSON) Scan(value interface{}) error {
+	if value == nil {
+		*j = nil
+		return nil
+	}
+
+	var jsonData []byte
+	switch v := value.(type) {
+	case []byte:
+		jsonData = v
+	case string:
+		jsonData = []byte(v)
+	default:
+		return fmt.Errorf("cannot scan %T into JSON", value)
+	}
+
+	return json.Unmarshal(jsonData, j)
+}
+
+// GormDataType returns the data type for GORM migration
+func (JSON) GormDataType() string {
+	return "json"
+}
 
 // UUIDSlice is a custom type for handling UUID arrays in the database
 type UUIDSlice []uuid.UUID
@@ -168,6 +205,11 @@ func (us *UUIDSlice) Scan(value interface{}) error {
 	return nil
 }
 
+// GormDataType returns the data type for GORM migration
+func (UUIDSlice) GormDataType() string {
+	return "json"
+}
+
 // Value implements the driver.Valuer interface for DialogSettings
 func (ds DialogSettings) Value() (driver.Value, error) {
 	return json.Marshal(ds)
@@ -190,6 +232,11 @@ func (ds *DialogSettings) Scan(value interface{}) error {
 	}
 
 	return json.Unmarshal(jsonData, ds)
+}
+
+// GormDataType returns the data type for GORM migration
+func (DialogSettings) GormDataType() string {
+	return "json"
 }
 
 // ValidDialogTypes returns all supported dialog types
@@ -243,7 +290,7 @@ func (pr ParticipantRole) String() string {
 }
 
 // BeforeCreate sets up the DialogParticipant before database creation
-func (dp *DialogParticipant) BeforeCreate() error {
+func (dp *DialogParticipant) BeforeCreate(tx *gorm.DB) error {
 	if dp.ID == uuid.Nil {
 		dp.ID = uuid.New()
 	}
@@ -428,7 +475,7 @@ func (d *Dialog) validateSettings() error {
 }
 
 // BeforeCreate sets up the dialog before database creation
-func (d *Dialog) BeforeCreate() error {
+func (d *Dialog) BeforeCreate(tx *gorm.DB) error {
 	// Generate UUID if not set
 	if d.ID == uuid.Nil {
 		d.ID = uuid.New()
@@ -447,7 +494,7 @@ func (d *Dialog) BeforeCreate() error {
 }
 
 // BeforeUpdate sets up the dialog before database update
-func (d *Dialog) BeforeUpdate() error {
+func (d *Dialog) BeforeUpdate(tx *gorm.DB) error {
 	// Update timestamp
 	d.UpdatedAt = time.Now().UTC()
 

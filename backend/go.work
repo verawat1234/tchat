@@ -19,4 +19,5 @@ use (
 	./tests/performance
 	./tests/security
 	./tests/testutil
+	./video
 )

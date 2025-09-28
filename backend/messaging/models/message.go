@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // Message represents a message in a dialog/conversation
@@ -21,14 +22,14 @@ type Message struct {
 	MediaURL     *string           `json:"media_url,omitempty" db:"media_url"`
 	ThumbnailURL *string           `json:"thumbnail_url,omitempty" db:"thumbnail_url"`
 	Status       MessageStatus     `json:"status" db:"status"`
-	Metadata     map[string]interface{} `json:"metadata,omitempty" db:"metadata"`
+	Metadata     JSON `json:"metadata,omitempty" gorm:"type:json"`
 	ReplyToID    *uuid.UUID        `json:"reply_to_id,omitempty" db:"reply_to_id"`
 	ReplyTo      *MessageReply     `json:"reply_to,omitempty" db:"reply_to"`
 	IsEdited     bool              `json:"is_edited" db:"is_edited"`
 	IsPinned     bool              `json:"is_pinned" db:"is_pinned"`
 	IsDeleted    bool              `json:"is_deleted" db:"is_deleted"`
-	Mentions     UUIDSlice         `json:"mentions,omitempty" db:"mentions"`
-	Reactions    MessageReactions  `json:"reactions,omitempty" db:"reactions"`
+	Mentions     UUIDSlice         `json:"mentions,omitempty" gorm:"type:json"`
+	Reactions    MessageReactions  `json:"reactions,omitempty" gorm:"type:json"`
 	SentAt       time.Time         `json:"sent_at" db:"sent_at"`
 	CreatedAt    time.Time         `json:"created_at" db:"created_at"`
 	UpdatedAt    time.Time         `json:"updated_at" db:"updated_at"`
@@ -196,6 +197,11 @@ func (mc *MessageContent) Scan(value interface{}) error {
 	return json.Unmarshal(jsonData, mc)
 }
 
+// GormDataType returns the data type for GORM migration
+func (MessageContent) GormDataType() string {
+	return "json"
+}
+
 // Value implements the driver.Valuer interface for MessageReactions
 func (mr MessageReactions) Value() (driver.Value, error) {
 	if mr == nil {
@@ -222,6 +228,11 @@ func (mr *MessageReactions) Scan(value interface{}) error {
 	}
 
 	return json.Unmarshal(jsonData, mr)
+}
+
+// GormDataType returns the data type for GORM migration
+func (MessageReactions) GormDataType() string {
+	return "json"
 }
 
 // ValidMessageTypes returns all supported message types
@@ -633,7 +644,7 @@ func (m *Message) validateReactions() error {
 }
 
 // BeforeCreate sets up the message before database creation
-func (m *Message) BeforeCreate() error {
+func (m *Message) BeforeCreate(tx *gorm.DB) error {
 	// Generate UUID if not set
 	if m.ID == uuid.Nil {
 		m.ID = uuid.New()
@@ -655,7 +666,7 @@ func (m *Message) BeforeCreate() error {
 }
 
 // BeforeUpdate sets up the message before database update
-func (m *Message) BeforeUpdate() error {
+func (m *Message) BeforeUpdate(tx *gorm.DB) error {
 	// Set edited timestamp if content changed
 	if m.IsEdited {
 		now := time.Now().UTC()

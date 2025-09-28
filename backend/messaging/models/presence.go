@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // Presence represents a user's online presence and activity status
@@ -167,6 +168,11 @@ func (di *DeviceInfo) Scan(value interface{}) error {
 	return json.Unmarshal(jsonData, di)
 }
 
+// GormDataType returns the data type for GORM migration
+func (DeviceInfo) GormDataType() string {
+	return "json"
+}
+
 // Value implements the driver.Valuer interface for UserLocation
 func (ul UserLocation) Value() (driver.Value, error) {
 	return json.Marshal(ul)
@@ -189,6 +195,11 @@ func (ul *UserLocation) Scan(value interface{}) error {
 	}
 
 	return json.Unmarshal(jsonData, ul)
+}
+
+// GormDataType returns the data type for GORM migration
+func (UserLocation) GormDataType() string {
+	return "json"
 }
 
 // Value implements the driver.Valuer interface for PresencePrivacy
@@ -215,6 +226,11 @@ func (pp *PresencePrivacy) Scan(value interface{}) error {
 	return json.Unmarshal(jsonData, pp)
 }
 
+// GormDataType returns the data type for GORM migration
+func (PresencePrivacy) GormDataType() string {
+	return "json"
+}
+
 // Value implements the driver.Valuer interface for PresenceMetadata
 func (pm PresenceMetadata) Value() (driver.Value, error) {
 	return json.Marshal(pm)
@@ -237,6 +253,11 @@ func (pm *PresenceMetadata) Scan(value interface{}) error {
 	}
 
 	return json.Unmarshal(jsonData, pm)
+}
+
+// GormDataType returns the data type for GORM migration
+func (PresenceMetadata) GormDataType() string {
+	return "json"
 }
 
 // ValidPresenceStatuses returns all supported presence statuses
@@ -555,7 +576,7 @@ func (p *Presence) validateBusinessLogic() error {
 }
 
 // BeforeCreate sets up the presence before database creation
-func (p *Presence) BeforeCreate() error {
+func (p *Presence) BeforeCreate(tx *gorm.DB) error {
 	// Generate UUID if not set
 	if p.ID == uuid.Nil {
 		p.ID = uuid.New()
@@ -574,7 +595,7 @@ func (p *Presence) BeforeCreate() error {
 }
 
 // BeforeUpdate sets up the presence before database update
-func (p *Presence) BeforeUpdate() error {
+func (p *Presence) BeforeUpdate(tx *gorm.DB) error {
 	// Update timestamp
 	p.UpdatedAt = time.Now().UTC()
 

@@ -189,13 +189,31 @@ func (a *App) initRouter() error {
 	// API routes
 	v1 := router.Group("/api/v1")
 	{
-		// Content routes - registered directly for reliability
+		// Content routes - complete registration
 		content := v1.Group("/content")
 		{
+			// Content CRUD operations
 			content.GET("", a.contentHandlers.GetContentItems)
 			content.POST("", a.contentHandlers.CreateContent)
-			content.GET("/items", a.contentHandlers.GetContentItems)
+			content.GET("/:id", a.contentHandlers.GetContent)
+			content.PUT("/:id", a.contentHandlers.UpdateContent)
+			content.DELETE("/:id", a.contentHandlers.DeleteContent)
+
+			// Content operations
+			content.POST("/:id/publish", a.contentHandlers.PublishContent)
+			content.POST("/:id/archive", a.contentHandlers.ArchiveContent)
+			content.PUT("/bulk", a.contentHandlers.BulkUpdateContent)
+			content.POST("/sync", a.contentHandlers.SyncContent)
+
+			// Category operations
 			content.GET("/categories", a.contentHandlers.GetContentCategories)
+			content.GET("/category/:category", a.contentHandlers.GetContentByCategory)
+
+			// Version operations
+			content.GET("/:id/versions", a.contentHandlers.GetContentVersions)
+			content.POST("/:id/versions/:version/revert", a.contentHandlers.RevertContentVersion)
+
+			// Health check
 			content.GET("/health", a.contentHealth)
 		}
 	}
