@@ -233,7 +233,25 @@ export const api = createApi({
     'SocialFollowers',
     'SocialFollowing',
     'SocialAnalytics',
-    'UserRelationship'
+    'UserRelationship',
+    // Commerce service tags
+    'Business',
+    'Product',
+    'Cart',
+    'Category',
+    'Review',
+    'Wishlist',
+    'Order',
+    'Payment',
+    'Inventory',
+    // Stream service tags
+    'StreamCategory',
+    'StreamContent',
+    'StreamSubtab',
+    'StreamFeatured',
+    'StreamNavigation',
+    'StreamPreferences',
+    'StreamPurchase'
   ],
   endpoints: () => ({}),
   refetchOnMountOrArgChange: false, // Disable automatic refetch

@@ -26,6 +26,7 @@ import (
 	"tchat.dev/tests/fixtures"
 
 	"tchat.dev/commerce/handlers"
+	commerceMiddleware "tchat.dev/commerce/middleware"
 	"tchat.dev/commerce/models"
 	"tchat.dev/commerce/repository"
 	"tchat.dev/commerce/services"
@@ -39,6 +40,9 @@ type App struct {
 	server    *http.Server
 	validator *validator.Validate
 
+	// Performance middleware
+	performanceMiddleware *commerceMiddleware.PerformanceMiddleware
+
 	// Repositories
 	businessRepo         repository.BusinessRepository
 	productRepo          repository.ProductRepository
@@ -51,6 +55,7 @@ type App struct {
 	categoryRepo         repository.CategoryRepository
 	productCategoryRepo  repository.ProductCategoryRepository
 	categoryViewRepo     repository.CategoryViewRepository
+	streamRepo           repository.StreamRepository
 
 	// Services
 	businessService services.BusinessService
@@ -59,6 +64,11 @@ type App struct {
 	wishlistService services.WishlistService
 	cartService     services.CartService
 	categoryService services.CategoryService
+	// Stream services
+	streamCategoryService *services.StreamCategoryService
+	streamContentService  *services.StreamContentService
+	streamSessionService  *services.StreamSessionService
+	streamPurchaseService *services.StreamPurchaseService
 
 	// Handlers
 	businessHandler *handlers.BusinessHandler
@@ -67,6 +77,7 @@ type App struct {
 	wishlistHandler *handlers.WishlistHandler
 	cartHandler     *handlers.CartHandler
 	categoryHandler *handlers.CategoryHandler
+	streamHandler   *handlers.StreamHandler
 }
 
 // NewApp creates a new commerce application instance
@@ -170,6 +181,14 @@ func (a *App) runMigrations(db *gorm.DB) error {
 		&models.Category{},
 		&models.ProductCategory{},
 		&models.CategoryView{},
+		// Stream models
+		&models.StreamCategory{},
+		&models.StreamSubtab{},
+		&models.StreamContentItem{},
+		&models.TabNavigationState{},
+		&models.StreamUserSession{},
+		&models.StreamContentView{},
+		&models.StreamUserPreference{},
 	)
 }
 
@@ -186,6 +205,7 @@ func (a *App) initRepositories() error {
 	a.categoryRepo = repository.NewCategoryRepository(a.db)
 	a.productCategoryRepo = repository.NewProductCategoryRepository(a.db)
 	a.categoryViewRepo = repository.NewCategoryViewRepository(a.db)
+	a.streamRepo = repository.NewStreamRepository(a.db)
 
 	log.Println("Repositories initialized successfully")
 	return nil
@@ -199,6 +219,11 @@ func (a *App) initServices() error {
 	a.wishlistService = services.NewWishlistService(a.wishlistRepo, a.productFollowRepo, a.wishlistShareRepo, a.db)
 	a.cartService = services.NewCartService(a.cartRepo, a.cartAbandonmentRepo, a.db)
 	a.categoryService = services.NewCategoryService(a.categoryRepo, a.productCategoryRepo, a.categoryViewRepo, a.db)
+	// Initialize stream services
+	a.streamCategoryService = services.NewStreamCategoryService(a.streamRepo)
+	a.streamContentService = services.NewStreamContentService(a.streamRepo)
+	a.streamSessionService = services.NewStreamSessionService(a.streamRepo)
+	a.streamPurchaseService = services.NewStreamPurchaseService(a.streamRepo)
 
 	log.Println("Services initialized successfully")
 	return nil
@@ -212,6 +237,12 @@ func (a *App) initHandlers() error {
 	a.wishlistHandler = handlers.NewWishlistHandler(a.wishlistService)
 	a.cartHandler = handlers.NewCartHandler(a.cartService)
 	a.categoryHandler = handlers.NewCategoryHandler(a.categoryService)
+	a.streamHandler = handlers.NewStreamHandler(
+		a.streamCategoryService,
+		a.streamContentService,
+		a.streamSessionService,
+		a.streamPurchaseService,
+	)
 
 	log.Println("Handlers initialized successfully")
 	return nil
@@ -226,15 +257,29 @@ func (a *App) initRouter() error {
 
 	a.router = gin.New()
 
+	// Initialize performance middleware
+	performanceConfig := commerceMiddleware.DefaultPerformanceConfig()
+	a.performanceMiddleware = commerceMiddleware.NewPerformanceMiddleware(performanceConfig)
+
 	// Add middleware
 	a.router.Use(gin.Logger())
 	a.router.Use(gin.Recovery())
 	a.router.Use(middleware.CORS())
 	a.router.Use(middleware.SecurityHeaders())
+	a.router.Use(a.performanceMiddleware.Handler()) // Add performance middleware
 
 	// Health check endpoints
 	a.router.GET("/health", a.healthCheck)
 	a.router.GET("/ready", a.readinessCheck)
+
+	// Performance monitoring endpoints
+	perf := a.router.Group("/performance")
+	{
+		perf.GET("/metrics", a.getPerformanceMetrics)
+		perf.GET("/cache/stats", a.getCacheStats)
+		perf.POST("/cache/clear", a.clearCache)
+		perf.POST("/metrics/reset", a.resetMetrics)
+	}
 
 	// Commerce API endpoints
 	v1 := a.router.Group("/api/v1")
@@ -318,6 +363,9 @@ func (a *App) initRouter() error {
 			carts.GET("/abandoned", a.cartHandler.GetAbandonedCarts)
 			carts.POST("/abandonment", a.cartHandler.CreateAbandonmentTracking)
 			carts.GET("/abandonment/analytics", a.cartHandler.GetAbandonmentAnalytics)
+			carts.POST("/:cartId/coupons", a.cartHandler.ApplyCoupon)
+			carts.DELETE("/:cartId/coupons", a.cartHandler.RemoveCoupon)
+			carts.GET("/:cartId/validate", a.cartHandler.ValidateCart)
 		}
 
 		// Category routes
@@ -338,6 +386,34 @@ func (a *App) initRouter() error {
 			categories.DELETE("/:categoryId/products/:productId", a.categoryHandler.RemoveProductFromCategory)
 			categories.POST("/:categoryId/views", a.categoryHandler.TrackCategoryView)
 			categories.GET("/:categoryId/analytics", a.categoryHandler.GetCategoryAnalytics)
+		}
+
+		// Stream routes
+		stream := v1.Group("/stream")
+		{
+			// Category routes
+			stream.GET("/categories", a.streamHandler.GetStreamCategories)
+			stream.GET("/categories/:id", a.streamHandler.GetStreamCategoryDetail)
+
+			// Content routes
+			stream.GET("/content", a.streamHandler.GetStreamContent)
+			stream.GET("/content/:id", a.streamHandler.GetStreamContentDetail)
+			stream.GET("/featured", a.streamHandler.GetStreamFeatured)
+			stream.GET("/search", a.streamHandler.SearchStreamContent)
+
+			// Purchase routes
+			stream.POST("/content/purchase", a.streamHandler.PostStreamContentPurchase)
+
+			// Navigation routes
+			stream.GET("/navigation", a.streamHandler.GetUserNavigationState)
+			stream.PUT("/navigation", a.streamHandler.UpdateUserNavigationState)
+
+			// Progress tracking routes
+			stream.PUT("/content/:id/progress", a.streamHandler.UpdateContentViewProgress)
+
+			// User preferences routes
+			stream.GET("/preferences", a.streamHandler.GetUserPreferences)
+			stream.PUT("/preferences", a.streamHandler.UpdateUserPreferences)
 		}
 	}
 
@@ -569,6 +645,63 @@ func (a *App) clearCommerceData(c *gin.Context) {
 		"message":           "Commerce data cleared successfully",
 		"products_deleted":  productResult.RowsAffected,
 		"businesses_deleted": businessResult.RowsAffected,
+	})
+}
+
+// Performance monitoring handlers
+func (a *App) getPerformanceMetrics(c *gin.Context) {
+	if a.performanceMiddleware == nil {
+		responses.SendErrorResponse(c, http.StatusServiceUnavailable, "Performance monitoring not available", "PERF_NOT_AVAILABLE")
+		return
+	}
+
+	metrics := a.performanceMiddleware.GetMetrics()
+	responses.SendSuccessResponse(c, map[string]interface{}{
+		"metrics": metrics,
+		"service": "commerce-service",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+func (a *App) getCacheStats(c *gin.Context) {
+	if a.performanceMiddleware == nil {
+		responses.SendErrorResponse(c, http.StatusServiceUnavailable, "Performance monitoring not available", "PERF_NOT_AVAILABLE")
+		return
+	}
+
+	stats := a.performanceMiddleware.GetCacheStats()
+	responses.SendSuccessResponse(c, map[string]interface{}{
+		"cache_stats": stats,
+		"service": "commerce-service",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+func (a *App) clearCache(c *gin.Context) {
+	if a.performanceMiddleware == nil {
+		responses.SendErrorResponse(c, http.StatusServiceUnavailable, "Performance monitoring not available", "PERF_NOT_AVAILABLE")
+		return
+	}
+
+	a.performanceMiddleware.ClearCache()
+	responses.SendSuccessResponse(c, map[string]interface{}{
+		"message": "Cache cleared successfully",
+		"service": "commerce-service",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+func (a *App) resetMetrics(c *gin.Context) {
+	if a.performanceMiddleware == nil {
+		responses.SendErrorResponse(c, http.StatusServiceUnavailable, "Performance monitoring not available", "PERF_NOT_AVAILABLE")
+		return
+	}
+
+	a.performanceMiddleware.ResetMetrics()
+	responses.SendSuccessResponse(c, map[string]interface{}{
+		"message": "Performance metrics reset successfully",
+		"service": "commerce-service",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
 }
 

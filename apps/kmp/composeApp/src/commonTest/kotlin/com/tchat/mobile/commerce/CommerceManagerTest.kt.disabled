@@ -1,0 +1,448 @@
+package com.tchat.mobile.commerce
+
+import com.tchat.mobile.commerce.data.api.CommerceApiClient
+import com.tchat.mobile.commerce.data.models.*
+import com.tchat.mobile.commerce.domain.managers.CommerceManager
+import com.tchat.mobile.commerce.domain.managers.CommerceManagerImpl
+import com.tchat.mobile.commerce.domain.repositories.*
+import com.tchat.mobile.commerce.platform.storage.CommerceStorage
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+import kotlin.test.*
+
+/**
+ * Comprehensive test suite for CommerceManager
+ * Tests the main orchestration layer that coordinates all commerce functionality
+ */
+class CommerceManagerTest {
+
+    private lateinit var mockApiClient: MockCommerceApiClient
+    private lateinit var mockStorage: MockCommerceStorage
+    private lateinit var cartRepository: CartRepository
+    private lateinit var productRepository: ProductRepository
+    private lateinit var categoryRepository: CategoryRepository
+    private lateinit var commerceManager: CommerceManager
+
+    @BeforeTest
+    fun setup() {
+        mockApiClient = MockCommerceApiClient()
+        mockStorage = MockCommerceStorage()
+
+        cartRepository = CartRepositoryImpl(mockApiClient, mockStorage)
+        productRepository = ProductRepositoryImpl(mockApiClient, mockStorage)
+        categoryRepository = CategoryRepositoryImpl(mockApiClient, mockStorage)
+
+        commerceManager = CommerceManagerImpl(
+            cartRepository = cartRepository,
+            productRepository = productRepository,
+            categoryRepository = categoryRepository,
+            apiClient = mockApiClient,
+            storage = mockStorage
+        )
+    }
+
+    @Test
+    fun testInitialization() = runTest {
+        val result = commerceManager.initialize()
+        assertTrue(result.isSuccess)
+        assertTrue(commerceManager.isInitialized.first())
+    }
+
+    @Test
+    fun testAddToCart() = runTest {
+        // Setup
+        commerceManager.initialize()
+        val productId = "test-product-1"
+        val quantity = 2
+
+        // Execute
+        val result = commerceManager.addToCart(productId, quantity = quantity)
+
+        // Verify
+        assertTrue(result.isSuccess)
+        val cart = result.getOrNull()
+        assertNotNull(cart)
+        assertEquals(1, cart.items.size)
+        assertEquals(productId, cart.items.first().productId)
+        assertEquals(quantity, cart.items.first().quantity)
+    }
+
+    @Test
+    fun testRemoveFromCart() = runTest {
+        // Setup
+        commerceManager.initialize()
+        val productId = "test-product-1"
+
+        // Add item first
+        commerceManager.addToCart(productId, quantity = 1)
+
+        // Execute
+        val result = commerceManager.removeFromCart(productId)
+
+        // Verify
+        assertTrue(result.isSuccess)
+        val cart = result.getOrNull()
+        assertNotNull(cart)
+        assertEquals(0, cart.items.size)
+    }
+
+    @Test
+    fun testGetProducts() = runTest {
+        // Setup
+        commerceManager.initialize()
+
+        // Execute
+        val result = commerceManager.getProducts()
+
+        // Verify
+        assertTrue(result.isSuccess)
+        val products = result.getOrNull()
+        assertNotNull(products)
+        assertTrue(products.isNotEmpty())
+    }
+
+    @Test
+    fun testSearchProducts() = runTest {
+        // Setup
+        commerceManager.initialize()
+        val query = "test"
+
+        // Execute
+        val result = commerceManager.searchProducts(query)
+
+        // Verify
+        assertTrue(result.isSuccess)
+        val products = result.getOrNull()
+        assertNotNull(products)
+        // Mock should return products containing the search term
+        assertTrue(products.all { it.name.contains(query, ignoreCase = true) })
+    }
+
+    @Test
+    fun testGetCategories() = runTest {
+        // Setup
+        commerceManager.initialize()
+
+        // Execute
+        val result = commerceManager.getCategories()
+
+        // Verify
+        assertTrue(result.isSuccess)
+        val categories = result.getOrNull()
+        assertNotNull(categories)
+        assertTrue(categories.isNotEmpty())
+    }
+
+    @Test
+    fun testClearCache() = runTest {
+        // Setup
+        commerceManager.initialize()
+        commerceManager.getProducts() // Load some data
+
+        // Execute
+        commerceManager.clearCache()
+
+        // Verify - should be able to reload data
+        val result = commerceManager.getProducts()
+        assertTrue(result.isSuccess)
+    }
+
+    @Test
+    fun testGetCommerceStats() = runTest {
+        // Setup
+        commerceManager.initialize()
+        commerceManager.addToCart("test-product-1", quantity = 2)
+
+        // Execute
+        val stats = commerceManager.getCommerceStats()
+
+        // Verify
+        assertTrue(stats.cartItems > 0)
+        assertTrue(stats.cartValue > 0.0)
+        assertEquals("USD", stats.currency)
+    }
+}
+
+/**
+ * Mock implementations for testing
+ */
+class MockCommerceApiClient : CommerceApiClient {
+    private val mockProducts = listOf(
+        Product(
+            id = "test-product-1",
+            name = "Test Product 1",
+            description = "A test product",
+            price = 10.0,
+            currency = "USD",
+            category = "test-category",
+            businessId = "test-business",
+            images = emptyList(),
+            variants = emptyList(),
+            tags = listOf("test"),
+            inventory = ProductInventory(quantity = 100, isInStock = true),
+            isVisible = true,
+            averageRating = 4.5,
+            reviewCount = 10,
+            createdAt = kotlinx.datetime.Clock.System.now(),
+            updatedAt = kotlinx.datetime.Clock.System.now()
+        ),
+        Product(
+            id = "test-product-2",
+            name = "Another Test Product",
+            description = "Another test product",
+            price = 20.0,
+            currency = "USD",
+            category = "test-category",
+            businessId = "test-business",
+            images = emptyList(),
+            variants = emptyList(),
+            tags = listOf("test"),
+            inventory = ProductInventory(quantity = 50, isInStock = true),
+            isVisible = true,
+            averageRating = 4.0,
+            reviewCount = 5,
+            createdAt = kotlinx.datetime.Clock.System.now(),
+            updatedAt = kotlinx.datetime.Clock.System.now()
+        )
+    )
+
+    private val mockCategories = listOf(
+        Category(
+            id = "test-category",
+            name = "Test Category",
+            description = "A test category",
+            businessId = "test-business",
+            parentId = null,
+            level = 0,
+            imageUrl = null,
+            isVisible = true,
+            isFeatured = true,
+            productCount = 2,
+            createdAt = kotlinx.datetime.Clock.System.now(),
+            updatedAt = kotlinx.datetime.Clock.System.now()
+        )
+    )
+
+    private var mockCart = Cart(
+        id = "test-cart",
+        sessionId = "test-session",
+        items = emptyList(),
+        lastActivity = kotlinx.datetime.Clock.System.now(),
+        dataRegion = "US",
+        createdAt = kotlinx.datetime.Clock.System.now(),
+        updatedAt = kotlinx.datetime.Clock.System.now()
+    )
+
+    override suspend fun getCart(sessionId: String?): Result<Cart> {
+        return Result.success(mockCart)
+    }
+
+    override suspend fun addToCart(request: AddToCartRequest): Result<Cart> {
+        val product = mockProducts.find { it.id == request.productId }
+            ?: return Result.failure(Exception("Product not found"))
+
+        val newItem = CartItem(
+            id = "item-${System.currentTimeMillis()}",
+            productId = request.productId,
+            variantId = request.variantId,
+            businessId = product.businessId,
+            quantity = request.quantity,
+            unitPrice = product.price,
+            totalPrice = product.price * request.quantity,
+            currency = product.currency,
+            productName = product.name,
+            businessName = "Test Business",
+            addedAt = kotlinx.datetime.Clock.System.now(),
+            updatedAt = kotlinx.datetime.Clock.System.now()
+        )
+
+        mockCart = mockCart.copy(
+            items = mockCart.items + newItem,
+            itemCount = mockCart.items.size + 1,
+            subtotalAmount = mockCart.items.sumOf { it.totalPrice } + newItem.totalPrice,
+            totalAmount = mockCart.items.sumOf { it.totalPrice } + newItem.totalPrice,
+            updatedAt = kotlinx.datetime.Clock.System.now()
+        )
+
+        return Result.success(mockCart)
+    }
+
+    override suspend fun updateCartItem(itemId: String, request: UpdateCartItemRequest): Result<Cart> {
+        val updatedItems = mockCart.items.map { item ->
+            if (item.id == itemId) {
+                item.copy(
+                    quantity = request.quantity ?: item.quantity,
+                    totalPrice = (request.quantity ?: item.quantity) * item.unitPrice,
+                    updatedAt = kotlinx.datetime.Clock.System.now()
+                )
+            } else item
+        }
+
+        mockCart = mockCart.copy(
+            items = updatedItems,
+            itemCount = updatedItems.sumOf { it.quantity },
+            subtotalAmount = updatedItems.sumOf { it.totalPrice },
+            totalAmount = updatedItems.sumOf { it.totalPrice },
+            updatedAt = kotlinx.datetime.Clock.System.now()
+        )
+
+        return Result.success(mockCart)
+    }
+
+    override suspend fun removeCartItem(itemId: String): Result<Cart> {
+        val updatedItems = mockCart.items.filter { it.id != itemId }
+
+        mockCart = mockCart.copy(
+            items = updatedItems,
+            itemCount = updatedItems.sumOf { it.quantity },
+            subtotalAmount = updatedItems.sumOf { it.totalPrice },
+            totalAmount = updatedItems.sumOf { it.totalPrice },
+            updatedAt = kotlinx.datetime.Clock.System.now()
+        )
+
+        return Result.success(mockCart)
+    }
+
+    override suspend fun clearCart(sessionId: String?): Result<Cart> {
+        mockCart = mockCart.copy(
+            items = emptyList(),
+            itemCount = 0,
+            subtotalAmount = 0.0,
+            totalAmount = 0.0,
+            updatedAt = kotlinx.datetime.Clock.System.now()
+        )
+        return Result.success(mockCart)
+    }
+
+    override suspend fun getProducts(filters: ProductFilters?): Result<List<Product>> {
+        var filteredProducts = mockProducts
+
+        filters?.let { f ->
+            f.search?.let { search ->
+                filteredProducts = filteredProducts.filter {
+                    it.name.contains(search, ignoreCase = true) ||
+                    it.description.contains(search, ignoreCase = true)
+                }
+            }
+            f.category?.let { category ->
+                filteredProducts = filteredProducts.filter { it.category == category }
+            }
+        }
+
+        return Result.success(filteredProducts)
+    }
+
+    override suspend fun getProduct(productId: String): Result<Product> {
+        val product = mockProducts.find { it.id == productId }
+            ?: return Result.failure(Exception("Product not found"))
+        return Result.success(product)
+    }
+
+    override suspend fun getFeaturedProducts(limit: Int?): Result<List<Product>> {
+        return Result.success(mockProducts.take(limit ?: mockProducts.size))
+    }
+
+    override suspend fun getCategories(filters: CategoryFilters?): Result<List<Category>> {
+        return Result.success(mockCategories)
+    }
+
+    override suspend fun getCategory(categoryId: String): Result<Category> {
+        val category = mockCategories.find { it.id == categoryId }
+            ?: return Result.failure(Exception("Category not found"))
+        return Result.success(category)
+    }
+
+    override suspend fun getFeaturedCategories(limit: Int?): Result<List<Category>> {
+        return Result.success(mockCategories.take(limit ?: mockCategories.size))
+    }
+
+    override suspend fun getCategoryTree(businessId: String?): Result<List<Category>> {
+        return Result.success(mockCategories)
+    }
+}
+
+class MockCommerceStorage : CommerceStorage {
+    private val storage = mutableMapOf<String, String>()
+
+    override suspend fun saveString(key: String, value: String) {
+        storage[key] = value
+    }
+
+    override suspend fun getString(key: String): String? {
+        return storage[key]
+    }
+
+    override suspend fun saveSecureString(key: String, value: String) {
+        storage["secure_$key"] = value
+    }
+
+    override suspend fun getSecureString(key: String): String? {
+        return storage["secure_$key"]
+    }
+
+    override suspend fun remove(key: String) {
+        storage.remove(key)
+        storage.remove("secure_$key")
+    }
+
+    override suspend fun clear() {
+        storage.clear()
+    }
+
+    override suspend fun getCart(): Cart? {
+        return getString("cart")?.let {
+            // In real implementation, would deserialize JSON
+            null // Simplified for mock
+        }
+    }
+
+    override suspend fun saveCart(cart: Cart) {
+        // In real implementation, would serialize to JSON
+        saveString("cart", cart.id)
+    }
+
+    override suspend fun getProducts(): List<Product> {
+        return emptyList() // Simplified for mock
+    }
+
+    override suspend fun saveProducts(products: List<Product>) {
+        // Simplified for mock
+    }
+
+    override suspend fun getCategories(): List<Category> {
+        return emptyList() // Simplified for mock
+    }
+
+    override suspend fun saveCategories(categories: List<Category>) {
+        // Simplified for mock
+    }
+
+    override suspend fun addPendingChange(change: PendingCartChange) {
+        // Simplified for mock
+    }
+
+    override suspend fun getPendingChanges(): List<PendingCartChange> {
+        return emptyList()
+    }
+
+    override suspend fun removePendingChange(changeId: String) {
+        // Simplified for mock
+    }
+
+    override suspend fun clearPendingChanges() {
+        // Simplified for mock
+    }
+
+    override suspend fun needsSync(maxAge: Long): Boolean {
+        return false
+    }
+
+    override suspend fun getLastSyncTime(): Long {
+        return getString("last_sync_time")?.toLongOrNull() ?: 0L
+    }
+
+    override suspend fun setLastSyncTime(timestamp: Long) {
+        saveString("last_sync_time", timestamp.toString())
+    }
+}

@@ -21,20 +21,20 @@ export const SERVICE_CONFIG = {
       apiPrefix: '/api/v1'
     },
     commerce: {
-      port: 8082,
-      baseUrl: 'http://localhost:8082',
-      healthEndpoint: '/health',
-      apiPrefix: '/api/v1'
-    },
-    content: {
       port: 8083,
       baseUrl: 'http://localhost:8083',
       healthEndpoint: '/health',
       apiPrefix: '/api/v1'
     },
+    content: {
+      port: 8086,
+      baseUrl: 'http://localhost:8086',
+      healthEndpoint: '/health',
+      apiPrefix: '/api/v1'
+    },
     messaging: {
-      port: 8084,
-      baseUrl: 'http://localhost:8084',
+      port: 8082,
+      baseUrl: 'http://localhost:8082',
       healthEndpoint: '/health',
       apiPrefix: '/api/v1'
     },
@@ -45,8 +45,8 @@ export const SERVICE_CONFIG = {
       apiPrefix: '/api/v1'
     },
     payment: {
-      port: 8086,
-      baseUrl: 'http://localhost:8086',
+      port: 8084,
+      baseUrl: 'http://localhost:8084',
       healthEndpoint: '/health',
       apiPrefix: '/api/v1'
     },
@@ -69,14 +69,21 @@ export const SERVICE_ROUTES = {
   '/profiles': 'auth',
 
   // Commerce & Products
+  '/commerce': 'commerce',
   '/products': 'commerce',
   '/orders': 'commerce',
+  '/carts': 'commerce',
   '/cart': 'commerce',
+  '/businesses': 'commerce',
+  '/business': 'commerce',
+  '/commerce/categories': 'commerce',
+  '/reviews': 'commerce',
+  '/wishlists': 'commerce',
   '/shop': 'commerce',
 
   // Content Management
   '/content': 'content',
-  '/categories': 'content',
+  '/content/categories': 'content',
   '/versions': 'content',
 
   // Messaging & Chat

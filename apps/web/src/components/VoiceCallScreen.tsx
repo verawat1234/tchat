@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Phone, 
-  PhoneOff, 
-  Mic, 
-  MicOff, 
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Phone,
+  PhoneOff,
+  Mic,
+  MicOff,
   Speaker,
   MessageSquare,
   Users,
@@ -16,6 +16,7 @@ import { Button } from './ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { Card, CardContent } from './ui/card';
+import { callService, CallState, CallSession } from '../services/webrtc/CallService';
 
 interface VoiceCallScreenProps {
   user: any;
@@ -26,39 +27,137 @@ interface VoiceCallScreenProps {
     isGroup?: boolean;
     members?: number;
   };
+  callId?: string;
   isIncoming?: boolean;
   onEndCall: () => void;
   onBack: () => void;
+  onCallAccept?: () => void;
+  onCallDecline?: () => void;
 }
 
-export function VoiceCallScreen({ user, callee, isIncoming = false, onEndCall, onBack }: VoiceCallScreenProps) {
+export function VoiceCallScreen({
+  user,
+  callee,
+  callId,
+  isIncoming = false,
+  onEndCall,
+  onBack,
+  onCallAccept,
+  onCallDecline
+}: VoiceCallScreenProps) {
+  // WebRTC state
+  const [callState, setCallState] = useState<CallState>('idle');
+  const [currentCall, setCurrentCall] = useState<CallSession | null>(null);
+  const [isAudioMuted, setIsAudioMuted] = useState(false);
+  const [networkQuality, setNetworkQuality] = useState<'poor' | 'fair' | 'good' | 'excellent'>('good');
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Legacy UI state for compatibility
   const [isConnected, setIsConnected] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [audioLevel, setAudioLevel] = useState(0);
 
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Initialize WebRTC call service
+  useEffect(() => {
+    const initializeCallService = async () => {
+      try {
+        await callService.initialize();
+
+        callService.setEventHandlers({
+          onStateChange: (state) => {
+            setCallState(state);
+            setIsConnected(state === 'connected');
+
+            if (state === 'ended' || state === 'error') {
+              stopDurationTimer();
+              onEndCall?.();
+            } else if (state === 'connected') {
+              startDurationTimer();
+            }
+          },
+          onMediaToggle: (participantId, type, enabled) => {
+            if (participantId === 'local' && type === 'audio') {
+              setIsAudioMuted(!enabled);
+              setIsMuted(!enabled);
+            }
+          },
+          onNetworkQualityChange: (quality) => {
+            setNetworkQuality(quality);
+          },
+          onError: (error) => {
+            setError(error.message);
+            setIsLoading(false);
+          }
+        });
+
+      } catch (error) {
+        setError('Failed to initialize call service');
+        console.error('Call service initialization failed:', error);
+      }
+    };
+
+    initializeCallService();
+
+    return () => {
+      stopDurationTimer();
+    };
+  }, [onEndCall]);
+
+  // Update current call state
+  useEffect(() => {
+    const call = callService.getCurrentCall();
+    setCurrentCall(call);
+  }, [callState]);
+
+  // Setup audio output when call connects
+  useEffect(() => {
+    if (callState === 'connected') {
+      const remoteStream = callService.getRemoteStream();
+      if (remoteStream && audioRef.current) {
+        audioRef.current.srcObject = remoteStream;
+        audioRef.current.play().catch(console.error);
+      }
+    }
+  }, [callState]);
+
+  // Handle incoming call setup
+  useEffect(() => {
+    if (isIncoming && callId && !currentCall) {
+      setCallState('ringing');
+    }
+  }, [isIncoming, callId, currentCall]);
+
+  // Legacy audio level simulation for UI animations
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isConnected) {
       interval = setInterval(() => {
-        setCallDuration(prev => prev + 1);
-        // Simulate audio level animation
         setAudioLevel(Math.random() * 100);
-      }, 1000);
+      }, 500);
     }
     return () => clearInterval(interval);
   }, [isConnected]);
 
-  useEffect(() => {
-    if (!isIncoming) {
-      // Auto-connect for outgoing calls after 2 seconds
-      const timer = setTimeout(() => {
-        setIsConnected(true);
-      }, 2000);
-      return () => clearTimeout(timer);
+  const startDurationTimer = useCallback(() => {
+    if (durationIntervalRef.current) return;
+
+    durationIntervalRef.current = setInterval(() => {
+      setCallDuration(prev => prev + 1);
+    }, 1000);
+  }, []);
+
+  const stopDurationTimer = useCallback(() => {
+    if (durationIntervalRef.current) {
+      clearInterval(durationIntervalRef.current);
+      durationIntervalRef.current = null;
     }
-  }, [isIncoming]);
+  }, []);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -66,21 +165,72 @@ export function VoiceCallScreen({ user, callee, isIncoming = false, onEndCall, o
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleAnswer = () => {
-    setIsConnected(true);
-  };
+  const handleAnswer = useCallback(async () => {
+    if (!callId) return;
 
-  const handleDecline = () => {
-    onEndCall();
-  };
+    setIsLoading(true);
+    setError(null);
 
-  const handleEndCall = () => {
-    onEndCall();
-  };
+    try {
+      await callService.answerCall(callId, {
+        type: 'voice',
+        enableVideo: false,
+        enableAudio: true,
+        quality: 'auto'
+      });
 
-  if (isIncoming && !isConnected) {
+      onCallAccept?.();
+    } catch (error) {
+      setError('Failed to accept call');
+      console.error('Failed to accept call:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [callId, onCallAccept]);
+
+  const handleDecline = useCallback(async () => {
+    if (!callId) return;
+
+    try {
+      await callService.declineCall(callId);
+      onCallDecline?.();
+    } catch (error) {
+      console.error('Failed to decline call:', error);
+      onCallDecline?.();
+    }
+  }, [callId, onCallDecline]);
+
+  const handleEndCall = useCallback(async () => {
+    try {
+      await callService.endCall();
+    } catch (error) {
+      console.error('Failed to end call:', error);
+    }
+  }, []);
+
+  const handleToggleAudio = useCallback(() => {
+    const newState = callService.toggleAudio();
+    setIsMuted(!newState);
+    setIsAudioMuted(!newState);
+  }, []);
+
+  if (isIncoming && (callState === 'ringing' || !isConnected)) {
     return (
-      <div className="h-screen bg-gradient-to-br from-chart-1/20 to-chart-3/20 flex flex-col items-center justify-center relative">
+      <div
+        className="h-screen bg-gradient-to-br from-chart-1/20 to-chart-3/20 flex flex-col items-center justify-center relative"
+        data-testid="incoming-call-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="incoming-call-title"
+      >
+        {/* Hidden audio element for remote stream */}
+        <audio
+          ref={audioRef}
+          autoPlay
+          playsInline
+          className="hidden"
+        />
+
         {/* Background pattern */}
         <div className="absolute inset-0 bg-black/10 backdrop-blur-sm"></div>
         
@@ -111,15 +261,33 @@ export function VoiceCallScreen({ user, callee, isIncoming = false, onEndCall, o
             </div>
             
             <div className="space-y-2">
-              <h2 className="text-3xl">{callee.name}</h2>
+              <h2
+                id="incoming-call-title"
+                className="text-3xl"
+                data-testid="caller-name"
+              >
+                {callee.name}
+              </h2>
               {callee.isGroup && (
                 <Badge variant="secondary" className="bg-white/20">
                   {callee.members} members
                 </Badge>
               )}
-              <p className="text-muted-foreground text-lg">Incoming call...</p>
+              <p
+                className="text-muted-foreground text-lg"
+                data-testid="call-type"
+              >
+                Voice Call
+              </p>
             </div>
           </div>
+
+          {/* Error message */}
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              {error}
+            </div>
+          )}
 
           {/* Call actions */}
           <div className="flex items-center justify-center gap-12">
@@ -128,18 +296,31 @@ export function VoiceCallScreen({ user, callee, isIncoming = false, onEndCall, o
               variant="destructive"
               className="w-20 h-20 rounded-full bg-red-500 hover:bg-red-600 shadow-lg"
               onClick={handleDecline}
+              disabled={isLoading}
+              aria-label="Decline call"
+              data-testid="decline-call-button"
             >
               <PhoneOff className="w-10 h-10" />
             </Button>
-            
+
             <Button
               size="lg"
               className="w-20 h-20 rounded-full bg-green-500 hover:bg-green-600 shadow-lg"
               onClick={handleAnswer}
+              disabled={isLoading}
+              aria-label="Accept call"
+              data-testid="accept-voice-call-button"
             >
               <Phone className="w-10 h-10" />
             </Button>
           </div>
+
+          {/* Loading indicator */}
+          {isLoading && (
+            <div className="mt-4 text-gray-600">
+              Connecting...
+            </div>
+          )}
 
           {/* Quick message */}
           <div className="space-y-3">
@@ -159,7 +340,48 @@ export function VoiceCallScreen({ user, callee, isIncoming = false, onEndCall, o
   }
 
   return (
-    <div className="h-screen bg-gradient-to-br from-background to-muted flex flex-col">
+    <div
+      className="h-screen bg-gradient-to-br from-background to-muted flex flex-col"
+      data-testid="voice-call-screen"
+    >
+      {/* Hidden audio element for remote stream */}
+      <audio
+        ref={audioRef}
+        autoPlay
+        playsInline
+        className="hidden"
+      />
+
+      {/* Network warning */}
+      {networkQuality === 'poor' && (
+        <div
+          className="absolute top-4 left-4 bg-red-500 bg-opacity-90 px-3 py-2 rounded-lg text-sm text-white z-10"
+          data-testid="network-warning"
+        >
+          Poor network connection
+        </div>
+      )}
+
+      {/* Error message */}
+      {error && (
+        <div
+          className="absolute top-4 right-4 bg-red-500 bg-opacity-90 px-3 py-2 rounded-lg text-sm text-white z-10 max-w-xs"
+          data-testid="call-error-message"
+        >
+          {error}
+        </div>
+      )}
+
+      {/* Call timeout message */}
+      {callState === 'error' && error?.includes('timeout') && (
+        <div
+          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-yellow-500 bg-opacity-90 px-4 py-3 rounded-lg text-center z-20"
+          data-testid="call-timeout-message"
+        >
+          Call timed out
+        </div>
+      )}
+
       {/* Header */}
       <div className="p-4 flex items-center justify-between border-b">
         <Button
@@ -172,9 +394,22 @@ export function VoiceCallScreen({ user, callee, isIncoming = false, onEndCall, o
         
         <div className="text-center">
           <p className="text-sm text-muted-foreground">Voice call</p>
-          <p className="text-sm">
-            {isConnected ? formatDuration(callDuration) : 'Connecting...'}
+          <p
+            className="text-sm"
+            data-testid="call-status"
+          >
+            {callState === 'connected' ? formatDuration(callDuration) :
+             callState === 'calling' ? 'Calling...' :
+             callState === 'ringing' ? 'Ringing...' : 'Connecting...'}
           </p>
+          {callState === 'connected' && (
+            <p
+              className="text-xs text-muted-foreground mt-1"
+              data-testid="call-duration"
+            >
+              Duration: {formatDuration(callDuration)}
+            </p>
+          )}
         </div>
 
         <Button
@@ -252,14 +487,21 @@ export function VoiceCallScreen({ user, callee, isIncoming = false, onEndCall, o
       </div>
 
       {/* Call controls */}
-      <div className="p-6 bg-card border-t">
+      <div
+        className="p-6 bg-card border-t"
+        data-testid="voice-controls"
+      >
         <div className="flex items-center justify-center gap-6">
           {/* Mute button */}
           <Button
             size="lg"
             variant={isMuted ? "destructive" : "secondary"}
             className="w-16 h-16 rounded-full"
-            onClick={() => setIsMuted(!isMuted)}
+            onClick={handleToggleAudio}
+            disabled={callState !== 'connected' && callState !== 'calling'}
+            aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+            aria-pressed={isMuted}
+            data-testid="mute-audio-button"
           >
             {isMuted ? <MicOff className="w-7 h-7" /> : <Mic className="w-7 h-7" />}
           </Button>
@@ -270,6 +512,9 @@ export function VoiceCallScreen({ user, callee, isIncoming = false, onEndCall, o
             variant="destructive"
             className="w-20 h-20 rounded-full bg-red-500 hover:bg-red-600"
             onClick={handleEndCall}
+            disabled={callState === 'ended'}
+            aria-label="End call"
+            data-testid="end-call-button"
           >
             <PhoneOff className="w-10 h-10" />
           </Button>

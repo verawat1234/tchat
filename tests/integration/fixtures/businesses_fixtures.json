@@ -1,0 +1,81 @@
+{
+  "table": "businesses",
+  "data": [
+    {
+      "id": 1,
+      "name": "TechCorp Electronics",
+      "slug": "techcorp-electronics",
+      "description": "Leading provider of electronic devices and accessories",
+      "owner_id": 3,
+      "email": "contact@techcorp.com",
+      "phone": "+1234567890",
+      "website": "https://techcorp.com",
+      "logo_url": "https://example.com/logos/techcorp.jpg",
+      "cover_image_url": "https://example.com/covers/techcorp.jpg",
+      "status": "active",
+      "verification_status": "verified",
+      "verified_at": "2024-01-01T00:00:00Z",
+      "address": {
+        "street": "123 Tech Street",
+        "city": "San Francisco",
+        "state": "CA",
+        "postal_code": "94105",
+        "country": "US"
+      },
+      "business_hours": {
+        "monday": {"open": "09:00", "close": "18:00"},
+        "tuesday": {"open": "09:00", "close": "18:00"},
+        "wednesday": {"open": "09:00", "close": "18:00"},
+        "thursday": {"open": "09:00", "close": "18:00"},
+        "friday": {"open": "09:00", "close": "18:00"},
+        "saturday": {"open": "10:00", "close": "16:00"},
+        "sunday": {"closed": true}
+      },
+      "settings": {
+        "auto_accept_orders": true,
+        "payment_methods": ["credit_card", "paypal", "bank_transfer"],
+        "shipping_options": ["standard", "express", "overnight"]
+      },
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 2,
+      "name": "Fashion Forward",
+      "slug": "fashion-forward",
+      "description": "Trendy fashion and accessories for modern lifestyle",
+      "owner_id": 3,
+      "email": "info@fashionforward.com",
+      "phone": "+1234567891",
+      "website": "https://fashionforward.com",
+      "logo_url": "https://example.com/logos/fashionforward.jpg",
+      "cover_image_url": "https://example.com/covers/fashionforward.jpg",
+      "status": "active",
+      "verification_status": "pending",
+      "verified_at": null,
+      "address": {
+        "street": "456 Fashion Ave",
+        "city": "New York",
+        "state": "NY",
+        "postal_code": "10001",
+        "country": "US"
+      },
+      "business_hours": {
+        "monday": {"open": "10:00", "close": "20:00"},
+        "tuesday": {"open": "10:00", "close": "20:00"},
+        "wednesday": {"open": "10:00", "close": "20:00"},
+        "thursday": {"open": "10:00", "close": "20:00"},
+        "friday": {"open": "10:00", "close": "21:00"},
+        "saturday": {"open": "10:00", "close": "21:00"},
+        "sunday": {"open": "12:00", "close": "18:00"}
+      },
+      "settings": {
+        "auto_accept_orders": false,
+        "payment_methods": ["credit_card", "paypal"],
+        "shipping_options": ["standard", "express"]
+      },
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  ]
+}

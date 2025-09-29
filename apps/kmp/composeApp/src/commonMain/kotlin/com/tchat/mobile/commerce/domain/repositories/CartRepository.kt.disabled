@@ -1,0 +1,316 @@
+package com.tchat.mobile.commerce.domain.repositories
+
+import com.tchat.mobile.commerce.data.api.CommerceApiClient
+import com.tchat.mobile.commerce.data.models.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+/**
+ * Repository interface for cart operations
+ * Provides both local and remote cart management
+ */
+interface CartRepository {
+    val currentCart: StateFlow<Cart?>
+    val cartLoading: StateFlow<Boolean>
+    val cartError: StateFlow<String?>
+
+    suspend fun getCurrentCart(): Result<Cart>
+    suspend fun addToCart(request: AddToCartRequest): Result<Cart>
+    suspend fun updateCartItem(itemId: String, request: UpdateCartItemRequest): Result<Cart>
+    suspend fun removeCartItem(itemId: String): Result<Cart>
+    suspend fun clearCart(): Result<Cart>
+    suspend fun applyCoupon(couponCode: String): Result<Cart>
+    suspend fun removeCoupon(): Result<Cart>
+    suspend fun validateCart(): Result<CartValidation>
+    suspend fun refreshCart(): Result<Cart>
+
+    // Offline support
+    suspend fun syncWithServer(): Result<Cart>
+    suspend fun getCachedCart(): Cart?
+    suspend fun cacheCart(cart: Cart)
+}
+
+/**
+ * Implementation of CartRepository
+ * Manages cart state with online/offline synchronization
+ */
+class CartRepositoryImpl(
+    private val apiClient: CommerceApiClient,
+    private val cartStorage: CartStorage
+) : CartRepository {
+
+    private val _currentCart = MutableStateFlow<Cart?>(null)
+    override val currentCart: StateFlow<Cart?> = _currentCart.asStateFlow()
+
+    private val _cartLoading = MutableStateFlow(false)
+    override val cartLoading: StateFlow<Boolean> = _cartLoading.asStateFlow()
+
+    private val _cartError = MutableStateFlow<String?>(null)
+    override val cartError: StateFlow<String?> = _cartError.asStateFlow()
+
+    private var currentCartId: String? = null
+    private var currentSessionId: String? = null
+
+    init {
+        // Load cached cart on initialization
+        loadCachedCart()
+    }
+
+    override suspend fun getCurrentCart(): Result<Cart> {
+        _cartLoading.value = true
+        _cartError.value = null
+
+        return try {
+            val result = apiClient.getCart(currentCartId, currentSessionId)
+            result.onSuccess { cart ->
+                _currentCart.value = cart
+                currentCartId = cart.id
+                currentSessionId = cart.sessionId
+                cacheCart(cart)
+            }.onFailure { error ->
+                _cartError.value = error.message
+                // Try to load from cache on network error
+                getCachedCart()?.let { cachedCart ->
+                    _currentCart.value = cachedCart
+                    return Result.success(cachedCart)
+                }
+            }
+            _cartLoading.value = false
+            result
+        } catch (e: Exception) {
+            _cartLoading.value = false
+            _cartError.value = e.message
+            // Fallback to cached cart
+            getCachedCart()?.let { cachedCart ->
+                _currentCart.value = cachedCart
+                Result.success(cachedCart)
+            } ?: Result.failure(e)
+        }
+    }
+
+    override suspend fun addToCart(request: AddToCartRequest): Result<Cart> {
+        _cartLoading.value = true
+        _cartError.value = null
+
+        return try {
+            val result = apiClient.addToCart(request, currentCartId, currentSessionId)
+            result.onSuccess { cart ->
+                _currentCart.value = cart
+                currentCartId = cart.id
+                currentSessionId = cart.sessionId
+                cacheCart(cart)
+            }.onFailure { error ->
+                _cartError.value = error.message
+                // Add to pending changes for offline support
+                addToPendingChanges("addToCart", request)
+            }
+            _cartLoading.value = false
+            result
+        } catch (e: Exception) {
+            _cartLoading.value = false
+            _cartError.value = e.message
+            addToPendingChanges("addToCart", request)
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun updateCartItem(itemId: String, request: UpdateCartItemRequest): Result<Cart> {
+        _cartLoading.value = true
+        _cartError.value = null
+
+        return try {
+            val cartId = currentCartId ?: return Result.failure(Exception("No active cart"))
+            val result = apiClient.updateCartItem(cartId, itemId, request)
+            result.onSuccess { cart ->
+                _currentCart.value = cart
+                cacheCart(cart)
+            }.onFailure { error ->
+                _cartError.value = error.message
+                addToPendingChanges("updateCartItem", mapOf("itemId" to itemId, "request" to request))
+            }
+            _cartLoading.value = false
+            result
+        } catch (e: Exception) {
+            _cartLoading.value = false
+            _cartError.value = e.message
+            addToPendingChanges("updateCartItem", mapOf("itemId" to itemId, "request" to request))
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun removeCartItem(itemId: String): Result<Cart> {
+        _cartLoading.value = true
+        _cartError.value = null
+
+        return try {
+            val cartId = currentCartId ?: return Result.failure(Exception("No active cart"))
+            val result = apiClient.removeCartItem(cartId, itemId)
+            result.onSuccess { cart ->
+                _currentCart.value = cart
+                cacheCart(cart)
+            }.onFailure { error ->
+                _cartError.value = error.message
+                addToPendingChanges("removeCartItem", itemId)
+            }
+            _cartLoading.value = false
+            result
+        } catch (e: Exception) {
+            _cartLoading.value = false
+            _cartError.value = e.message
+            addToPendingChanges("removeCartItem", itemId)
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun clearCart(): Result<Cart> {
+        _cartLoading.value = true
+        _cartError.value = null
+
+        return try {
+            val cartId = currentCartId ?: return Result.failure(Exception("No active cart"))
+            val result = apiClient.clearCart(cartId)
+            result.onSuccess { cart ->
+                _currentCart.value = cart
+                cacheCart(cart)
+            }.onFailure { error ->
+                _cartError.value = error.message
+            }
+            _cartLoading.value = false
+            result
+        } catch (e: Exception) {
+            _cartLoading.value = false
+            _cartError.value = e.message
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun applyCoupon(couponCode: String): Result<Cart> {
+        _cartLoading.value = true
+        _cartError.value = null
+
+        return try {
+            val cartId = currentCartId ?: return Result.failure(Exception("No active cart"))
+            val result = apiClient.applyCoupon(cartId, ApplyCouponRequest(couponCode))
+            result.onSuccess { cart ->
+                _currentCart.value = cart
+                cacheCart(cart)
+            }.onFailure { error ->
+                _cartError.value = error.message
+            }
+            _cartLoading.value = false
+            result
+        } catch (e: Exception) {
+            _cartLoading.value = false
+            _cartError.value = e.message
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun removeCoupon(): Result<Cart> {
+        return applyCoupon("") // Remove coupon by sending empty code
+    }
+
+    override suspend fun validateCart(): Result<CartValidation> {
+        val cartId = currentCartId ?: return Result.failure(Exception("No active cart"))
+        return apiClient.validateCart(cartId)
+    }
+
+    override suspend fun refreshCart(): Result<Cart> {
+        return getCurrentCart()
+    }
+
+    override suspend fun syncWithServer(): Result<Cart> {
+        // Process pending changes
+        val pendingChanges = cartStorage.getPendingChanges()
+        for (change in pendingChanges) {
+            try {
+                when (change.type) {
+                    "addToCart" -> {
+                        val request = change.data as AddToCartRequest
+                        apiClient.addToCart(request, currentCartId, currentSessionId)
+                    }
+                    "updateCartItem" -> {
+                        val data = change.data as Map<String, Any>
+                        val itemId = data["itemId"] as String
+                        val request = data["request"] as UpdateCartItemRequest
+                        val cartId = currentCartId ?: continue
+                        apiClient.updateCartItem(cartId, itemId, request)
+                    }
+                    "removeCartItem" -> {
+                        val itemId = change.data as String
+                        val cartId = currentCartId ?: continue
+                        apiClient.removeCartItem(cartId, itemId)
+                    }
+                }
+                cartStorage.removePendingChange(change.id)
+            } catch (e: Exception) {
+                // Keep pending change for next sync attempt
+                continue
+            }
+        }
+
+        // Refresh cart after sync
+        return refreshCart()
+    }
+
+    override suspend fun getCachedCart(): Cart? {
+        return cartStorage.getCart()
+    }
+
+    override suspend fun cacheCart(cart: Cart) {
+        cartStorage.saveCart(cart)
+    }
+
+    private fun loadCachedCart() {
+        val cachedCart = cartStorage.getCart()
+        if (cachedCart != null) {
+            _currentCart.value = cachedCart
+            currentCartId = cachedCart.id
+            currentSessionId = cachedCart.sessionId
+        }
+    }
+
+    private suspend fun addToPendingChanges(type: String, data: Any) {
+        val change = PendingCartChange(
+            id = generateId(),
+            type = type,
+            data = data,
+            timestamp = getCurrentTimestamp()
+        )
+        cartStorage.addPendingChange(change)
+    }
+
+    private fun generateId(): String {
+        return "pending_${System.currentTimeMillis()}_${(0..999).random()}"
+    }
+
+    private fun getCurrentTimestamp(): Long {
+        return System.currentTimeMillis()
+    }
+}
+
+/**
+ * Storage interface for cart data and offline support
+ */
+interface CartStorage {
+    fun getCart(): Cart?
+    fun saveCart(cart: Cart)
+    fun clearCart()
+
+    fun getPendingChanges(): List<PendingCartChange>
+    fun addPendingChange(change: PendingCartChange)
+    fun removePendingChange(changeId: String)
+    fun clearPendingChanges()
+}
+
+/**
+ * Represents a pending cart change for offline support
+ */
+data class PendingCartChange(
+    val id: String,
+    val type: String,
+    val data: Any,
+    val timestamp: Long
+)

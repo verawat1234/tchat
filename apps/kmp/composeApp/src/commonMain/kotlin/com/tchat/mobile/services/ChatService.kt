@@ -12,8 +12,7 @@ import kotlinx.coroutines.flow.first
  * validation, and complex operations that involve multiple data sources.
  */
 class ChatService(
-    private val chatRepository: ChatRepository,
-    private val callService: CallService? = null
+    private val chatRepository: ChatRepository
 ) {
 
     // Message operations
@@ -125,16 +124,14 @@ class ChatService(
         }
     }
 
-    // Call operations
-    suspend fun startVideoCall(chatId: String, participants: List<ChatParticipant>): Result<Boolean> {
-        return callService?.startVideoCall(chatId, participants)
-            ?: Result.failure(IllegalStateException("Call service not available"))
-    }
+    // Call operations (temporarily disabled)
+    // suspend fun startVideoCall(chatId: String, participants: List<ChatParticipant>): Result<Boolean> {
+    //     return Result.failure(IllegalStateException("Call service not available"))
+    // }
 
-    suspend fun startVoiceCall(chatId: String, participants: List<ChatParticipant>): Result<Boolean> {
-        return callService?.startVoiceCall(chatId, participants)
-            ?: Result.failure(IllegalStateException("Call service not available"))
-    }
+    // suspend fun startVoiceCall(chatId: String, participants: List<ChatParticipant>): Result<Boolean> {
+    //     return Result.failure(IllegalStateException("Call service not available"))
+    // }
 
     // Chat info operations
     suspend fun getChatInfo(chatId: String): Result<ChatInfo> {
@@ -180,12 +177,12 @@ class ChatService(
 }
 
 /**
- * CallService - Handles video and voice call operations
+ * CallService - Handles video and voice call operations (temporarily disabled)
  */
-interface CallService {
-    suspend fun startVideoCall(chatId: String, participants: List<ChatParticipant>): Result<Boolean>
-    suspend fun startVoiceCall(chatId: String, participants: List<ChatParticipant>): Result<Boolean>
-}
+// interface CallService {
+//     suspend fun startVideoCall(chatId: String, participants: List<ChatParticipant>): Result<Boolean>
+//     suspend fun startVoiceCall(chatId: String, participants: List<ChatParticipant>): Result<Boolean>
+// }
 
 /**
  * ChatInfo - Comprehensive chat information

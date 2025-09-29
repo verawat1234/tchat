@@ -1,0 +1,298 @@
+package com.tchat.mobile.commerce.sync
+
+import com.tchat.mobile.commerce.domain.managers.CommerceManager
+import com.tchat.mobile.commerce.platform.storage.CommerceStorage
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+
+/**
+ * Cross-platform synchronization manager for commerce data
+ * Handles offline support, conflict resolution, and background sync
+ */
+interface SyncManager {
+    val syncStatus: StateFlow<SyncStatus>
+    val isOnline: StateFlow<Boolean>
+    val lastSyncTime: StateFlow<Long>
+
+    suspend fun initialize()
+    suspend fun syncNow(): Result<SyncResult>
+    suspend fun enableAutoSync(intervalMs: Long = 300000) // 5 minutes default
+    suspend fun disableAutoSync()
+    suspend fun forceSyncAll(): Result<SyncResult>
+    suspend fun resolveConflicts(): Result<ConflictResolution>
+
+    // Network state management
+    fun setNetworkAvailable(isAvailable: Boolean)
+    fun setDataSaverMode(enabled: Boolean)
+}
+
+/**
+ * Implementation of SyncManager with intelligent synchronization
+ */
+class SyncManagerImpl(
+    private val commerceManager: CommerceManager,
+    private val storage: CommerceStorage,
+    private val networkMonitor: NetworkMonitor,
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+) : SyncManager {
+
+    private val _syncStatus = MutableStateFlow(SyncStatus.IDLE)
+    override val syncStatus: StateFlow<SyncStatus> = _syncStatus.asStateFlow()
+
+    private val _isOnline = MutableStateFlow(false)
+    override val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
+
+    private val _lastSyncTime = MutableStateFlow(0L)
+    override val lastSyncTime: StateFlow<Long> = _lastSyncTime.asStateFlow()
+
+    private var autoSyncJob: Job? = null
+    private var dataSaverMode = false
+    private val conflictResolver = ConflictResolver()
+
+    override suspend fun initialize() {
+        try {
+            _lastSyncTime.value = storage.getLastSyncTime()
+
+            // Monitor network state
+            networkMonitor.isConnected.collect { isConnected ->
+                _isOnline.value = isConnected
+                if (isConnected && storage.needsSync()) {
+                    // Auto-sync when coming back online
+                    scope.launch {
+                        syncNow()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // Handle initialization error
+        }
+    }
+
+    override suspend fun syncNow(): Result<SyncResult> {
+        if (!_isOnline.value) {
+            return Result.failure(Exception("No network connection"))
+        }
+
+        if (_syncStatus.value == SyncStatus.SYNCING) {
+            return Result.failure(Exception("Sync already in progress"))
+        }
+
+        return try {
+            _syncStatus.value = SyncStatus.SYNCING
+
+            val result = performSync()
+
+            if (result.isSuccess) {
+                _lastSyncTime.value = System.currentTimeMillis()
+                storage.setLastSyncTime(_lastSyncTime.value)
+                _syncStatus.value = SyncStatus.SUCCESS
+            } else {
+                _syncStatus.value = SyncStatus.ERROR
+            }
+
+            // Reset status after delay
+            delay(2000)
+            _syncStatus.value = SyncStatus.IDLE
+
+            result
+        } catch (e: Exception) {
+            _syncStatus.value = SyncStatus.ERROR
+            delay(2000)
+            _syncStatus.value = SyncStatus.IDLE
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun enableAutoSync(intervalMs: Long) {
+        disableAutoSync() // Cancel existing auto-sync
+
+        autoSyncJob = scope.launch {
+            while (isActive) {
+                delay(intervalMs)
+
+                if (_isOnline.value && !dataSaverMode && storage.needsSync()) {
+                    try {
+                        syncNow()
+                    } catch (e: Exception) {
+                        // Log error but continue auto-sync
+                    }
+                }
+            }
+        }
+    }
+
+    override suspend fun disableAutoSync() {
+        autoSyncJob?.cancel()
+        autoSyncJob = null
+    }
+
+    override suspend fun forceSyncAll(): Result<SyncResult> {
+        if (!_isOnline.value) {
+            return Result.failure(Exception("No network connection"))
+        }
+
+        return try {
+            _syncStatus.value = SyncStatus.SYNCING
+
+            // Clear all cache and sync from server
+            commerceManager.clearAllCache()
+            commerceManager.refreshAllData()
+
+            val result = SyncResult(
+                cartSynced = true,
+                productsSynced = true,
+                categoriesSynced = true,
+                conflictsResolved = 0,
+                syncTime = System.currentTimeMillis()
+            )
+
+            _lastSyncTime.value = result.syncTime
+            storage.setLastSyncTime(_lastSyncTime.value)
+            _syncStatus.value = SyncStatus.SUCCESS
+
+            delay(2000)
+            _syncStatus.value = SyncStatus.IDLE
+
+            Result.success(result)
+        } catch (e: Exception) {
+            _syncStatus.value = SyncStatus.ERROR
+            delay(2000)
+            _syncStatus.value = SyncStatus.IDLE
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun resolveConflicts(): Result<ConflictResolution> {
+        return try {
+            val resolution = conflictResolver.resolveAllConflicts()
+            Result.success(resolution)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override fun setNetworkAvailable(isAvailable: Boolean) {
+        _isOnline.value = isAvailable
+    }
+
+    override fun setDataSaverMode(enabled: Boolean) {
+        dataSaverMode = enabled
+    }
+
+    private suspend fun performSync(): Result<SyncResult> {
+        return try {
+            var cartSynced = false
+            var productsSynced = false
+            var categoriesSynced = false
+
+            // Sync cart with pending changes
+            try {
+                commerceManager.cartManager.syncCartWithServer()
+                cartSynced = true
+            } catch (e: Exception) {
+                // Continue with other syncs
+            }
+
+            // Sync products if needed
+            try {
+                if (storage.needsSync(maxAge = 1800000)) { // 30 minutes
+                    commerceManager.productManager.getFeaturedProducts(forceRefresh = true)
+                    productsSynced = true
+                }
+            } catch (e: Exception) {
+                // Continue with other syncs
+            }
+
+            // Sync categories if needed
+            try {
+                if (storage.needsSync(maxAge = 3600000)) { // 1 hour
+                    commerceManager.categoryManager.getFeaturedCategories(forceRefresh = true)
+                    commerceManager.categoryManager.getCategoryTree(forceRefresh = true)
+                    categoriesSynced = true
+                }
+            } catch (e: Exception) {
+                // Continue with other syncs
+            }
+
+            val result = SyncResult(
+                cartSynced = cartSynced,
+                productsSynced = productsSynced,
+                categoriesSynced = categoriesSynced,
+                conflictsResolved = 0,
+                syncTime = System.currentTimeMillis()
+            )
+
+            Result.success(result)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}
+
+/**
+ * Sync status enumeration
+ */
+enum class SyncStatus {
+    IDLE,
+    SYNCING,
+    SUCCESS,
+    ERROR
+}
+
+/**
+ * Sync result data class
+ */
+data class SyncResult(
+    val cartSynced: Boolean,
+    val productsSynced: Boolean,
+    val categoriesSynced: Boolean,
+    val conflictsResolved: Int,
+    val syncTime: Long
+)
+
+/**
+ * Conflict resolution result
+ */
+data class ConflictResolution(
+    val conflictsFound: Int,
+    val conflictsResolved: Int,
+    val resolutionStrategy: String
+)
+
+/**
+ * Network monitor interface for platform-specific implementations
+ */
+interface NetworkMonitor {
+    val isConnected: Flow<Boolean>
+    val connectionType: Flow<ConnectionType>
+}
+
+/**
+ * Connection type enumeration
+ */
+enum class ConnectionType {
+    NONE,
+    WIFI,
+    CELLULAR,
+    ETHERNET
+}
+
+/**
+ * Conflict resolver for handling data conflicts
+ */
+class ConflictResolver {
+    suspend fun resolveAllConflicts(): ConflictResolution {
+        // Simplified conflict resolution
+        // In a real implementation, this would handle various conflict types:
+        // - Cart item conflicts (quantity, availability)
+        // - Product price conflicts
+        // - Category structure conflicts
+        // - Timestamp-based resolution
+
+        return ConflictResolution(
+            conflictsFound = 0,
+            conflictsResolved = 0,
+            resolutionStrategy = "server_wins"
+        )
+    }
+}

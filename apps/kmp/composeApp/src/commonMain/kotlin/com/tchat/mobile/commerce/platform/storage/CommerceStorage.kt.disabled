@@ -1,0 +1,442 @@
+package com.tchat.mobile.commerce.platform.storage
+
+import com.tchat.mobile.commerce.data.models.*
+import com.tchat.mobile.commerce.domain.repositories.CartStorage
+import com.tchat.mobile.commerce.domain.repositories.CategoryStorage
+import com.tchat.mobile.commerce.domain.repositories.PendingCartChange
+import com.tchat.mobile.commerce.domain.repositories.ProductStorage
+
+/**
+ * Common interface for platform-specific storage implementations
+ * Provides unified storage across iOS and Android platforms
+ */
+interface CommerceStorage : CartStorage, ProductStorage, CategoryStorage {
+    // General storage operations
+    suspend fun initialize()
+    suspend fun clear()
+    suspend fun getStorageSize(): Long
+    suspend fun compact()
+
+    // Sync operations
+    suspend fun getLastSyncTime(): Long
+    suspend fun setLastSyncTime(timestamp: Long)
+    suspend fun needsSync(maxAge: Long = 3600000): Boolean // 1 hour default
+}
+
+/**
+ * Abstract base class for platform-specific storage implementations
+ * Provides common functionality and structure
+ */
+abstract class BaseCommerceStorage : CommerceStorage {
+
+    // Cart storage implementation
+    private var cachedCart: Cart? = null
+    private val pendingChanges = mutableListOf<PendingCartChange>()
+
+    // Product storage implementation
+    private val productCache = mutableMapOf<String, Product>()
+    private var cachedProducts = listOf<Product>()
+    private var cachedFeaturedProducts = listOf<Product>()
+
+    // Category storage implementation
+    private val categoryCache = mutableMapOf<String, Category>()
+    private var cachedCategories = listOf<Category>()
+    private var cachedCategoryTree = listOf<CategoryTree>()
+    private var cachedFeaturedCategories = listOf<Category>()
+
+    // Abstract methods for platform-specific implementations
+    protected abstract suspend fun saveToSecureStorage(key: String, value: String)
+    protected abstract suspend fun getFromSecureStorage(key: String): String?
+    protected abstract suspend fun removeFromSecureStorage(key: String)
+    protected abstract suspend fun saveToStorage(key: String, value: String)
+    protected abstract suspend fun getFromStorage(key: String): String?
+    protected abstract suspend fun removeFromStorage(key: String)
+    protected abstract suspend fun getAllStorageKeys(): List<String>
+
+    override suspend fun initialize() {
+        loadCachedData()
+    }
+
+    override suspend fun clear() {
+        // Clear all cached data
+        cachedCart = null
+        pendingChanges.clear()
+        productCache.clear()
+        cachedProducts = emptyList()
+        cachedFeaturedProducts = emptyList()
+        categoryCache.clear()
+        cachedCategories = emptyList()
+        cachedCategoryTree = emptyList()
+        cachedFeaturedCategories = emptyList()
+
+        // Clear storage
+        val keys = getAllStorageKeys()
+        keys.forEach { key ->
+            if (key.startsWith("commerce_")) {
+                removeFromStorage(key)
+            }
+        }
+    }
+
+    override suspend fun getStorageSize(): Long {
+        val keys = getAllStorageKeys()
+        return keys.filter { it.startsWith("commerce_") }.size.toLong()
+    }
+
+    override suspend fun compact() {
+        // Remove expired data and optimize storage
+        val currentTime = System.currentTimeMillis()
+        val maxAge = 7 * 24 * 60 * 60 * 1000L // 7 days
+
+        // Remove old pending changes
+        val oldChanges = pendingChanges.filter { currentTime - it.timestamp > maxAge }
+        oldChanges.forEach { change ->
+            pendingChanges.remove(change)
+        }
+        savePendingChangesToStorage()
+    }
+
+    // Cart storage implementation
+    override fun getCart(): Cart? = cachedCart
+
+    override fun saveCart(cart: Cart) {
+        cachedCart = cart
+        saveCartToStorage(cart)
+    }
+
+    override fun clearCart() {
+        cachedCart = null
+        removeFromStorage("commerce_cart")
+    }
+
+    override fun getPendingChanges(): List<PendingCartChange> = pendingChanges.toList()
+
+    override fun addPendingChange(change: PendingCartChange) {
+        pendingChanges.add(change)
+        savePendingChangesToStorage()
+    }
+
+    override fun removePendingChange(changeId: String) {
+        pendingChanges.removeAll { it.id == changeId }
+        savePendingChangesToStorage()
+    }
+
+    override fun clearPendingChanges() {
+        pendingChanges.clear()
+        removeFromStorage("commerce_pending_changes")
+    }
+
+    // Product storage implementation
+    override fun getProduct(productId: String): Product? = productCache[productId]
+
+    override fun saveProduct(product: Product) {
+        productCache[product.id] = product
+        saveProductToStorage(product)
+    }
+
+    override fun getProducts(): List<Product> = cachedProducts
+
+    override fun saveProducts(products: List<Product>) {
+        cachedProducts = products
+        products.forEach { product ->
+            productCache[product.id] = product
+        }
+        saveProductsToStorage(products)
+    }
+
+    override fun getFeaturedProducts(): List<Product> = cachedFeaturedProducts
+
+    override fun saveFeaturedProducts(products: List<Product>) {
+        cachedFeaturedProducts = products
+        saveFeaturedProductsToStorage(products)
+    }
+
+    override fun clearProducts() {
+        productCache.clear()
+        cachedProducts = emptyList()
+        cachedFeaturedProducts = emptyList()
+        removeFromStorage("commerce_products")
+        removeFromStorage("commerce_featured_products")
+    }
+
+    // Category storage implementation
+    override fun getCategory(categoryId: String): Category? = categoryCache[categoryId]
+
+    override fun saveCategory(category: Category) {
+        categoryCache[category.id] = category
+        saveCategoryToStorage(category)
+    }
+
+    override fun getCategories(): List<Category> = cachedCategories
+
+    override fun saveCategories(categories: List<Category>) {
+        cachedCategories = categories
+        categories.forEach { category ->
+            categoryCache[category.id] = category
+        }
+        saveCategoriesToStorage(categories)
+    }
+
+    override fun getCategoryTree(): List<CategoryTree> = cachedCategoryTree
+
+    override fun saveCategoryTree(tree: List<CategoryTree>) {
+        cachedCategoryTree = tree
+        saveCategoryTreeToStorage(tree)
+    }
+
+    override fun getFeaturedCategories(): List<Category> = cachedFeaturedCategories
+
+    override fun saveFeaturedCategories(categories: List<Category>) {
+        cachedFeaturedCategories = categories
+        saveFeaturedCategoriesToStorage(categories)
+    }
+
+    override fun clearCategories() {
+        categoryCache.clear()
+        cachedCategories = emptyList()
+        cachedCategoryTree = emptyList()
+        cachedFeaturedCategories = emptyList()
+        removeFromStorage("commerce_categories")
+        removeFromStorage("commerce_category_tree")
+        removeFromStorage("commerce_featured_categories")
+    }
+
+    // Sync operations
+    override suspend fun getLastSyncTime(): Long {
+        return getFromStorage("commerce_last_sync")?.toLongOrNull() ?: 0L
+    }
+
+    override suspend fun setLastSyncTime(timestamp: Long) {
+        saveToStorage("commerce_last_sync", timestamp.toString())
+    }
+
+    override suspend fun needsSync(maxAge: Long): Boolean {
+        val lastSync = getLastSyncTime()
+        val currentTime = System.currentTimeMillis()
+        return (currentTime - lastSync) > maxAge
+    }
+
+    // Private helper methods
+    private suspend fun loadCachedData() {
+        loadCartFromStorage()
+        loadPendingChangesFromStorage()
+        loadProductsFromStorage()
+        loadFeaturedProductsFromStorage()
+        loadCategoriesFromStorage()
+        loadCategoryTreeFromStorage()
+        loadFeaturedCategoriesFromStorage()
+    }
+
+    private suspend fun saveCartToStorage(cart: Cart) {
+        try {
+            val json = kotlinx.serialization.json.Json.encodeToString(Cart.serializer(), cart)
+            saveToSecureStorage("commerce_cart", json)
+        } catch (e: Exception) {
+            // Handle serialization error
+        }
+    }
+
+    private suspend fun loadCartFromStorage() {
+        try {
+            val json = getFromSecureStorage("commerce_cart")
+            if (json != null) {
+                cachedCart = kotlinx.serialization.json.Json.decodeFromString(Cart.serializer(), json)
+            }
+        } catch (e: Exception) {
+            // Handle deserialization error
+        }
+    }
+
+    private suspend fun savePendingChangesToStorage() {
+        try {
+            val json = kotlinx.serialization.json.Json.encodeToString(
+                kotlinx.serialization.builtins.ListSerializer(PendingCartChange.serializer()),
+                pendingChanges
+            )
+            saveToStorage("commerce_pending_changes", json)
+        } catch (e: Exception) {
+            // Handle serialization error
+        }
+    }
+
+    private suspend fun loadPendingChangesFromStorage() {
+        try {
+            val json = getFromStorage("commerce_pending_changes")
+            if (json != null) {
+                val changes = kotlinx.serialization.json.Json.decodeFromString(
+                    kotlinx.serialization.builtins.ListSerializer(PendingCartChange.serializer()),
+                    json
+                )
+                pendingChanges.clear()
+                pendingChanges.addAll(changes)
+            }
+        } catch (e: Exception) {
+            // Handle deserialization error
+        }
+    }
+
+    private suspend fun saveProductToStorage(product: Product) {
+        try {
+            val json = kotlinx.serialization.json.Json.encodeToString(Product.serializer(), product)
+            saveToStorage("commerce_product_${product.id}", json)
+        } catch (e: Exception) {
+            // Handle serialization error
+        }
+    }
+
+    private suspend fun saveProductsToStorage(products: List<Product>) {
+        try {
+            val json = kotlinx.serialization.json.Json.encodeToString(
+                kotlinx.serialization.builtins.ListSerializer(Product.serializer()),
+                products
+            )
+            saveToStorage("commerce_products", json)
+        } catch (e: Exception) {
+            // Handle serialization error
+        }
+    }
+
+    private suspend fun loadProductsFromStorage() {
+        try {
+            val json = getFromStorage("commerce_products")
+            if (json != null) {
+                cachedProducts = kotlinx.serialization.json.Json.decodeFromString(
+                    kotlinx.serialization.builtins.ListSerializer(Product.serializer()),
+                    json
+                )
+                cachedProducts.forEach { product ->
+                    productCache[product.id] = product
+                }
+            }
+        } catch (e: Exception) {
+            // Handle deserialization error
+        }
+    }
+
+    private suspend fun saveFeaturedProductsToStorage(products: List<Product>) {
+        try {
+            val json = kotlinx.serialization.json.Json.encodeToString(
+                kotlinx.serialization.builtins.ListSerializer(Product.serializer()),
+                products
+            )
+            saveToStorage("commerce_featured_products", json)
+        } catch (e: Exception) {
+            // Handle serialization error
+        }
+    }
+
+    private suspend fun loadFeaturedProductsFromStorage() {
+        try {
+            val json = getFromStorage("commerce_featured_products")
+            if (json != null) {
+                cachedFeaturedProducts = kotlinx.serialization.json.Json.decodeFromString(
+                    kotlinx.serialization.builtins.ListSerializer(Product.serializer()),
+                    json
+                )
+            }
+        } catch (e: Exception) {
+            // Handle deserialization error
+        }
+    }
+
+    private suspend fun saveCategoryToStorage(category: Category) {
+        try {
+            val json = kotlinx.serialization.json.Json.encodeToString(Category.serializer(), category)
+            saveToStorage("commerce_category_${category.id}", json)
+        } catch (e: Exception) {
+            // Handle serialization error
+        }
+    }
+
+    private suspend fun saveCategoriesToStorage(categories: List<Category>) {
+        try {
+            val json = kotlinx.serialization.json.Json.encodeToString(
+                kotlinx.serialization.builtins.ListSerializer(Category.serializer()),
+                categories
+            )
+            saveToStorage("commerce_categories", json)
+        } catch (e: Exception) {
+            // Handle serialization error
+        }
+    }
+
+    private suspend fun loadCategoriesFromStorage() {
+        try {
+            val json = getFromStorage("commerce_categories")
+            if (json != null) {
+                cachedCategories = kotlinx.serialization.json.Json.decodeFromString(
+                    kotlinx.serialization.builtins.ListSerializer(Category.serializer()),
+                    json
+                )
+                cachedCategories.forEach { category ->
+                    categoryCache[category.id] = category
+                }
+            }
+        } catch (e: Exception) {
+            // Handle deserialization error
+        }
+    }
+
+    private suspend fun saveCategoryTreeToStorage(tree: List<CategoryTree>) {
+        try {
+            val json = kotlinx.serialization.json.Json.encodeToString(
+                kotlinx.serialization.builtins.ListSerializer(CategoryTree.serializer()),
+                tree
+            )
+            saveToStorage("commerce_category_tree", json)
+        } catch (e: Exception) {
+            // Handle serialization error
+        }
+    }
+
+    private suspend fun loadCategoryTreeFromStorage() {
+        try {
+            val json = getFromStorage("commerce_category_tree")
+            if (json != null) {
+                cachedCategoryTree = kotlinx.serialization.json.Json.decodeFromString(
+                    kotlinx.serialization.builtins.ListSerializer(CategoryTree.serializer()),
+                    json
+                )
+            }
+        } catch (e: Exception) {
+            // Handle deserialization error
+        }
+    }
+
+    private suspend fun saveFeaturedCategoriesToStorage(categories: List<Category>) {
+        try {
+            val json = kotlinx.serialization.json.Json.encodeToString(
+                kotlinx.serialization.builtins.ListSerializer(Category.serializer()),
+                categories
+            )
+            saveToStorage("commerce_featured_categories", json)
+        } catch (e: Exception) {
+            // Handle serialization error
+        }
+    }
+
+    private suspend fun loadFeaturedCategoriesFromStorage() {
+        try {
+            val json = getFromStorage("commerce_featured_categories")
+            if (json != null) {
+                cachedFeaturedCategories = kotlinx.serialization.json.Json.decodeFromString(
+                    kotlinx.serialization.builtins.ListSerializer(Category.serializer()),
+                    json
+                )
+            }
+        } catch (e: Exception) {
+            // Handle deserialization error
+        }
+    }
+}
+
+/**
+ * Make PendingCartChange serializable
+ */
+@kotlinx.serialization.Serializable
+data class SerializablePendingCartChange(
+    val id: String,
+    val type: String,
+    val dataJson: String,
+    val timestamp: Long
+)

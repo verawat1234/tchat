@@ -1,0 +1,309 @@
+package com.tchat.mobile.services
+
+import kotlinx.coroutines.flow.StateFlow
+
+/**
+ * Common interface for voice and video calling functionality
+ * This interface provides a platform-agnostic API for WebRTC-based calling
+ */
+
+/**
+ * Represents the current state of a call
+ */
+enum class CallState {
+    IDLE,          // No active call
+    INITIALIZED,   // Service is ready
+    CONNECTING,    // Establishing connection
+    INCOMING,      // Incoming call received
+    CONNECTED,     // Call is active
+    DISCONNECTED,  // Call ended or failed
+    FAILED         // Call failed to connect
+}
+
+/**
+ * Configuration options for initiating or answering calls
+ */
+data class CallOptions(
+    val enableVideo: Boolean = false,
+    val enableAudio: Boolean = true,
+    val quality: CallQuality = CallQuality.AUTO
+)
+
+/**
+ * Call quality preferences
+ */
+enum class CallQuality {
+    LOW,    // Lower bandwidth, suitable for poor networks
+    MEDIUM, // Balanced quality and bandwidth
+    HIGH,   // High quality, requires good network
+    AUTO    // Automatically adjust based on network conditions
+}
+
+/**
+ * Information about a call participant
+ */
+data class CallParticipant(
+    val id: String,
+    val name: String,
+    val isAudioMuted: Boolean = false,
+    val isVideoMuted: Boolean = false,
+    val connectionQuality: ConnectionQuality = ConnectionQuality.GOOD
+)
+
+/**
+ * Network connection quality indicator
+ */
+enum class ConnectionQuality {
+    EXCELLENT, GOOD, FAIR, POOR
+}
+
+/**
+ * Represents a call session
+ */
+data class CallSession(
+    val id: String,
+    val type: CallType,
+    val participants: List<CallParticipant>,
+    val startTime: Long,
+    val duration: Long = 0,
+    val state: CallState
+)
+
+/**
+ * Type of call (voice or video)
+ */
+enum class CallType {
+    VOICE, VIDEO
+}
+
+/**
+ * Call event types for observers
+ */
+sealed class CallEvent {
+    data class IncomingCall(val callId: String, val callerName: String, val type: CallType) : CallEvent()
+    data class CallConnected(val callId: String) : CallEvent()
+    data class CallEnded(val callId: String, val reason: String? = null) : CallEvent()
+    data class CallFailed(val callId: String, val error: String) : CallEvent()
+    data class ParticipantJoined(val callId: String, val participant: CallParticipant) : CallEvent()
+    data class ParticipantLeft(val callId: String, val participantId: String) : CallEvent()
+    data class MediaStateChanged(val callId: String, val participantId: String, val isAudioMuted: Boolean, val isVideoMuted: Boolean) : CallEvent()
+}
+
+/**
+ * Common interface for the calling service across platforms
+ */
+expect class CallService {
+
+    /**
+     * Current call state
+     */
+    val callState: StateFlow<CallState>
+
+    /**
+     * Current audio mute state
+     */
+    val isAudioMuted: StateFlow<Boolean>
+
+    /**
+     * Current video mute state
+     */
+    val isVideoMuted: StateFlow<Boolean>
+
+    /**
+     * Initialize the calling service
+     * Must be called before any other operations
+     */
+    suspend fun initialize(): Result<Unit>
+
+    /**
+     * Initiate a new call to another user
+     *
+     * @param calleeId The ID of the user to call
+     * @param calleeName Display name of the user to call
+     * @param options Call configuration options
+     * @return Result containing the call ID if successful
+     */
+    suspend fun initiateCall(
+        calleeId: String,
+        calleeName: String,
+        options: CallOptions
+    ): Result<String>
+
+    /**
+     * Answer an incoming call
+     *
+     * @param callId The ID of the call to answer
+     * @param options Call configuration options
+     * @return Result indicating success or failure
+     */
+    suspend fun answerCall(callId: String, options: CallOptions): Result<Unit>
+
+    /**
+     * End the current call
+     *
+     * @param callId The ID of the call to end
+     * @return Result indicating success or failure
+     */
+    suspend fun endCall(callId: String): Result<Unit>
+
+    /**
+     * Mute the microphone
+     *
+     * @return Result indicating success or failure
+     */
+    suspend fun muteAudio(): Result<Unit>
+
+    /**
+     * Unmute the microphone
+     *
+     * @return Result indicating success or failure
+     */
+    suspend fun unmuteAudio(): Result<Unit>
+
+    /**
+     * Turn off the camera
+     *
+     * @return Result indicating success or failure
+     */
+    suspend fun muteVideo(): Result<Unit>
+
+    /**
+     * Turn on the camera
+     *
+     * @return Result indicating success or failure
+     */
+    suspend fun unmuteVideo(): Result<Unit>
+
+    /**
+     * Switch between front and back camera (mobile only)
+     *
+     * @return Result indicating success or failure
+     */
+    suspend fun switchCamera(): Result<Unit>
+}
+
+/**
+ * Interface for handling call events
+ */
+interface CallEventListener {
+    suspend fun onCallEvent(event: CallEvent)
+}
+
+/**
+ * Factory class for creating platform-specific calling services
+ */
+object CallingServiceFactory {
+
+    /**
+     * Create a platform-specific calling service instance
+     *
+     * @return CallService instance for the current platform
+     */
+    expect fun createCallService(): CallService
+
+    /**
+     * Get the default call options for the current platform
+     *
+     * @return Default CallOptions configured for the platform
+     */
+    fun getDefaultCallOptions(): CallOptions {
+        return CallOptions(
+            enableVideo = false,
+            enableAudio = true,
+            quality = CallQuality.AUTO
+        )
+    }
+
+    /**
+     * Get video call options for the current platform
+     *
+     * @return CallOptions configured for video calling
+     */
+    fun getVideoCallOptions(): CallOptions {
+        return CallOptions(
+            enableVideo = true,
+            enableAudio = true,
+            quality = CallQuality.AUTO
+        )
+    }
+}
+
+/**
+ * Utility functions for call management
+ */
+object CallingUtils {
+
+    /**
+     * Format call duration in human-readable format
+     *
+     * @param durationMs Duration in milliseconds
+     * @return Formatted duration string (e.g., "02:30")
+     */
+    fun formatCallDuration(durationMs: Long): String {
+        val totalSeconds = durationMs / 1000
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+        val seconds = totalSeconds % 60
+
+        return if (hours > 0) {
+            "%02d:%02d:%02d".format(hours, minutes, seconds)
+        } else {
+            "%02d:%02d".format(minutes, seconds)
+        }
+    }
+
+    /**
+     * Check if a call type supports video
+     *
+     * @param type The call type to check
+     * @return True if the call type supports video
+     */
+    fun supportsVideo(type: CallType): Boolean {
+        return type == CallType.VIDEO
+    }
+
+    /**
+     * Get call quality recommendation based on connection strength
+     *
+     * @param connectionQuality The current connection quality
+     * @return Recommended call quality setting
+     */
+    fun getRecommendedQuality(connectionQuality: ConnectionQuality): CallQuality {
+        return when (connectionQuality) {
+            ConnectionQuality.EXCELLENT -> CallQuality.HIGH
+            ConnectionQuality.GOOD -> CallQuality.MEDIUM
+            ConnectionQuality.FAIR -> CallQuality.LOW
+            ConnectionQuality.POOR -> CallQuality.LOW
+        }
+    }
+}
+
+/**
+ * Extension functions for CallState
+ */
+fun CallState.isActive(): Boolean {
+    return this == CallState.CONNECTING || this == CallState.CONNECTED
+}
+
+fun CallState.canInitiateCall(): Boolean {
+    return this == CallState.IDLE || this == CallState.INITIALIZED
+}
+
+fun CallState.canEndCall(): Boolean {
+    return isActive()
+}
+
+/**
+ * Extension functions for CallSession
+ */
+fun CallSession.isActive(): Boolean {
+    return state.isActive()
+}
+
+fun CallSession.getCurrentDuration(): Long {
+    return if (isActive()) {
+        System.currentTimeMillis() - startTime
+    } else {
+        duration
+    }
+}

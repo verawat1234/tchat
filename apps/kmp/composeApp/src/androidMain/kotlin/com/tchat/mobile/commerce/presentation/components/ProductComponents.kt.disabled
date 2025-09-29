@@ -1,0 +1,489 @@
+package com.tchat.mobile.commerce.presentation.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import com.tchat.mobile.commerce.data.models.Product
+import com.tchat.mobile.commerce.data.models.ProductImage
+
+/**
+ * Product card component for grid display
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProductCard(
+    product: Product,
+    onProductClick: (String) -> Unit,
+    onAddToCart: (String) -> Unit,
+    onToggleFavorite: (String) -> Unit = {},
+    isInCart: Boolean = false,
+    isFavorite: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        onClick = { onProductClick(product.id) },
+        modifier = modifier
+            .fillMaxWidth()
+            .height(320.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // Product image
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+            ) {
+                AsyncImage(
+                    model = getMainImage(product),
+                    contentDescription = product.name,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentScale = ContentScale.Crop
+                )
+
+                // Sale badge
+                if (isOnSale(product)) {
+                    Badge(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp),
+                        containerColor = MaterialTheme.colorScheme.error
+                    ) {
+                        Text(
+                            text = "SALE",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onError
+                        )
+                    }
+                }
+
+                // Favorite button
+                IconButton(
+                    onClick = { onToggleFavorite(product.id) },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                            shape = CircleShape
+                        )
+                        .size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                        tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            // Product details
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = product.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // Rating and reviews
+                if (product.reviewCount > 0) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = Color(0xFFFFB000),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = String.format("%.1f", product.averageRating),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
+                            text = "(${product.reviewCount})",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Price
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${product.currency} ${String.format("%.2f", product.price)}",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    if (product.compareAtPrice != null && product.compareAtPrice > product.price) {
+                        Text(
+                            text = "${product.currency} ${String.format("%.2f", product.compareAtPrice)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textDecoration = TextDecoration.LineThrough
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                // Add to cart button
+                Button(
+                    onClick = { onAddToCart(product.id) },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = product.isVisible && product.inventory.quantity > 0
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = if (isInCart) "Added" else "Add to Cart",
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Horizontal product list component
+ */
+@Composable
+fun HorizontalProductList(
+    products: List<Product>,
+    title: String,
+    onProductClick: (String) -> Unit,
+    onAddToCart: (String) -> Unit,
+    onSeeAll: () -> Unit = {},
+    isInCart: (String) -> Boolean = { false },
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Section header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+
+            TextButton(onClick = onSeeAll) {
+                Text("See All")
+            }
+        }
+
+        // Horizontal list
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp)
+        ) {
+            items(products, key = { it.id }) { product ->
+                ProductCard(
+                    product = product,
+                    onProductClick = onProductClick,
+                    onAddToCart = onAddToCart,
+                    isInCart = isInCart(product.id),
+                    modifier = Modifier.width(200.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Product grid component
+ */
+@Composable
+fun ProductGrid(
+    products: List<Product>,
+    onProductClick: (String) -> Unit,
+    onAddToCart: (String) -> Unit,
+    onToggleFavorite: (String) -> Unit = {},
+    isInCart: (String) -> Boolean = { false },
+    isFavorite: (String) -> Boolean = { false },
+    columns: Int = 2,
+    modifier: Modifier = Modifier
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(columns),
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(16.dp)
+    ) {
+        items(products, key = { it.id }) { product ->
+            ProductCard(
+                product = product,
+                onProductClick = onProductClick,
+                onAddToCart = onAddToCart,
+                onToggleFavorite = onToggleFavorite,
+                isInCart = isInCart(product.id),
+                isFavorite = isFavorite(product.id)
+            )
+        }
+    }
+}
+
+/**
+ * Product list item for list view
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProductListItem(
+    product: Product,
+    onProductClick: (String) -> Unit,
+    onAddToCart: (String) -> Unit,
+    onToggleFavorite: (String) -> Unit = {},
+    isInCart: Boolean = false,
+    isFavorite: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        onClick = { onProductClick(product.id) },
+        modifier = modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Product image
+            AsyncImage(
+                model = getMainImage(product),
+                contentDescription = product.name,
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentScale = ContentScale.Crop
+            )
+
+            // Product details
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = product.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // Rating and reviews
+                if (product.reviewCount > 0) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = Color(0xFFFFB000),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = String.format("%.1f", product.averageRating),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
+                            text = "(${product.reviewCount})",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Price
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${product.currency} ${String.format("%.2f", product.price)}",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    if (product.compareAtPrice != null && product.compareAtPrice > product.price) {
+                        Text(
+                            text = "${product.currency} ${String.format("%.2f", product.compareAtPrice)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textDecoration = TextDecoration.LineThrough
+                        )
+                    }
+                }
+
+                // Tags
+                if (product.tags.isNotEmpty()) {
+                    Text(
+                        text = product.tags.take(3).joinToString(" • "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            // Actions
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IconButton(
+                    onClick = { onToggleFavorite(product.id) }
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                        tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                FilledTonalButton(
+                    onClick = { onAddToCart(product.id) },
+                    modifier = Modifier.width(80.dp),
+                    enabled = product.isVisible && product.inventory.quantity > 0
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add to cart",
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Product image gallery component
+ */
+@Composable
+fun ProductImageGallery(
+    images: List<ProductImage>,
+    modifier: Modifier = Modifier
+) {
+    var selectedImageIndex by remember { mutableStateOf(0) }
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Main image
+        AsyncImage(
+            model = images.getOrNull(selectedImageIndex)?.url,
+            contentDescription = "Product image",
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentScale = ContentScale.Crop
+        )
+
+        // Thumbnail row
+        if (images.size > 1) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp)
+            ) {
+                items(images.size) { index ->
+                    AsyncImage(
+                        model = images[index].url,
+                        contentDescription = "Product thumbnail",
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable { selectedImageIndex = index }
+                            .then(
+                                if (index == selectedImageIndex) {
+                                    Modifier.background(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                } else Modifier
+                            ),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
+        }
+    }
+}
+
+// Helper functions
+private fun getMainImage(product: Product): String? {
+    return product.images.find { it.isMain }?.url ?: product.images.firstOrNull()?.url
+}
+
+private fun isOnSale(product: Product): Boolean {
+    return product.isOnSale || (product.compareAtPrice != null && product.compareAtPrice > product.price)
+}

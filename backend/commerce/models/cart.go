@@ -69,8 +69,26 @@ type CartItem struct {
 	AddedAt         time.Time       `json:"added_at" gorm:"column:added_at;not null"`
 	UpdatedAt       time.Time       `json:"updated_at" gorm:"column:updated_at;not null"`
 
+	// Media-specific fields for digital content
+	MediaLicense    *string         `json:"media_license,omitempty" gorm:"column:media_license;size:50"`
+	DownloadFormat  *string         `json:"download_format,omitempty" gorm:"column:download_format;size:50"`
+
+	// Legacy compatibility fields
+	CartID          uuid.UUID       `json:"cart_id" gorm:"column:cart_id;type:uuid;not null"`
+	Price           decimal.Decimal `json:"price" gorm:"column:price;type:decimal(20,8)"`
+
 	// Metadata
 	Metadata        map[string]interface{} `json:"metadata,omitempty" gorm:"column:metadata;type:jsonb"`
+}
+
+// SetMediaLicense sets the media license for the cart item
+func (ci *CartItem) SetMediaLicense(license string) {
+	ci.MediaLicense = &license
+}
+
+// SetDownloadFormat sets the download format for the cart item
+func (ci *CartItem) SetDownloadFormat(format string) {
+	ci.DownloadFormat = &format
 }
 
 // Cart represents a shopping cart

@@ -1,0 +1,40 @@
+# Azure DevOps Template: Publish Test Results
+# This template publishes test results and coverage reports
+
+parameters:
+  - name: testSuite
+    type: string
+  - name: publishCoverage
+    type: boolean
+    default: true
+  - name: publishArtifacts
+    type: boolean
+    default: true
+
+steps:
+  - task: PublishTestResults@2
+    displayName: 'Publish ${{ parameters.testSuite }} Test Results'
+    condition: always()
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: 'tests/integration/setup/test-results-${{ parameters.testSuite }}*.xml'
+      testRunTitle: '${{ parameters.testSuite }} Integration Tests'
+      mergeTestResults: true
+      failTaskOnFailedTests: true
+
+  - ${{ if eq(parameters.publishCoverage, true) }}:
+    - task: PublishCodeCoverageResults@1
+      displayName: 'Publish ${{ parameters.testSuite }} Coverage'
+      condition: always()
+      inputs:
+        codeCoverageTool: 'cobertura'
+        summaryFileLocation: 'tests/integration/setup/coverage/${{ parameters.testSuite }}/coverage.xml'
+        reportDirectory: 'tests/integration/setup/coverage/${{ parameters.testSuite }}/'
+
+  - ${{ if eq(parameters.publishArtifacts, true) }}:
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish ${{ parameters.testSuite }} Artifacts'
+      condition: always()
+      inputs:
+        pathToPublish: 'tests/integration/setup/coverage/${{ parameters.testSuite }}/'
+        artifactName: '${{ parameters.testSuite }}-test-results'

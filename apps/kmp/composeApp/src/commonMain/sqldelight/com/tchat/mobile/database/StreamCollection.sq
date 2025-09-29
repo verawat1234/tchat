@@ -1,0 +1,111 @@
+-- Stream Content Collections for organized groupings
+CREATE TABLE StreamCollection (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    categoryId TEXT NOT NULL,
+    collectionType TEXT NOT NULL, -- FEATURED, NEW_RELEASES, TRENDING, CURATED
+    displayOrder INTEGER NOT NULL,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    maxItems INTEGER NOT NULL DEFAULT 20,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL,
+    syncedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (categoryId) REFERENCES StreamCategory(id) ON DELETE CASCADE
+);
+
+-- Stream Collection Items (many-to-many relationship)
+CREATE TABLE StreamCollectionItem (
+    collectionId TEXT NOT NULL,
+    contentId TEXT NOT NULL,
+    itemOrder INTEGER NOT NULL,
+    addedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (collectionId, contentId),
+    FOREIGN KEY (collectionId) REFERENCES StreamCollection(id) ON DELETE CASCADE,
+    FOREIGN KEY (contentId) REFERENCES StreamContent(id) ON DELETE CASCADE
+);
+
+-- Create indexes for better performance
+CREATE INDEX idx_collection_category ON StreamCollection(categoryId);
+CREATE INDEX idx_collection_type ON StreamCollection(collectionType);
+CREATE INDEX idx_collection_item_order ON StreamCollectionItem(collectionId, itemOrder);
+
+-- Insert or replace collection
+insertOrReplaceCollection:
+INSERT OR REPLACE INTO StreamCollection(
+    id, name, categoryId, collectionType, displayOrder,
+    isActive, maxItems, createdAt, updatedAt, syncedAt
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
+
+-- Insert collection item
+insertCollectionItem:
+INSERT OR REPLACE INTO StreamCollectionItem(
+    collectionId, contentId, itemOrder, addedAt
+) VALUES (?, ?, ?, CURRENT_TIMESTAMP);
+
+-- Get collections by category
+getCollectionsByCategory:
+SELECT * FROM StreamCollection
+WHERE categoryId = ? AND isActive = 1
+ORDER BY displayOrder ASC;
+
+-- Get collections by type
+getCollectionsByType:
+SELECT * FROM StreamCollection
+WHERE collectionType = ? AND isActive = 1
+ORDER BY displayOrder ASC;
+
+-- Get collection by ID
+getCollectionById:
+SELECT * FROM StreamCollection
+WHERE id = ?;
+
+-- Get content in collection
+getCollectionContent:
+SELECT sc.*, sci.itemOrder, sci.addedAt
+FROM StreamContent sc
+JOIN StreamCollectionItem sci ON sc.id = sci.contentId
+WHERE sci.collectionId = ?
+ORDER BY sci.itemOrder ASC;
+
+-- Get featured collections across all categories
+getFeaturedCollections:
+SELECT * FROM StreamCollection
+WHERE collectionType = 'FEATURED' AND isActive = 1
+ORDER BY displayOrder ASC;
+
+-- Get collections that need sync
+getCollectionsNeedingSync:
+SELECT * FROM StreamCollection
+WHERE syncedAt < ?;
+
+-- Update collection sync timestamp
+updateCollectionSyncTime:
+UPDATE StreamCollection
+SET syncedAt = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- Delete collection
+deleteCollection:
+DELETE FROM StreamCollection
+WHERE id = ?;
+
+-- Delete collection items
+deleteCollectionItems:
+DELETE FROM StreamCollectionItem
+WHERE collectionId = ?;
+
+-- Delete collection item
+deleteCollectionItem:
+DELETE FROM StreamCollectionItem
+WHERE collectionId = ? AND contentId = ?;
+
+-- Get collection item count
+getCollectionItemCount:
+SELECT COUNT(*)
+FROM StreamCollectionItem
+WHERE collectionId = ?;
+
+-- Clear collections by category
+clearCollectionsByCategory:
+DELETE FROM StreamCollection
+WHERE categoryId = ?;

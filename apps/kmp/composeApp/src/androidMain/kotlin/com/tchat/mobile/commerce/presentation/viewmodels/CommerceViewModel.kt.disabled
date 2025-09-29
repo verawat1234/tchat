@@ -1,0 +1,435 @@
+package com.tchat.mobile.commerce.presentation.viewmodels
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.tchat.mobile.commerce.data.models.*
+import com.tchat.mobile.commerce.domain.managers.CommerceManager
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+/**
+ * Android-specific Commerce ViewModel for Jetpack Compose
+ * Follows Android ViewModel lifecycle and provides state management for Compose UI
+ */
+class CommerceViewModel(
+    private val commerceManager: CommerceManager
+) : ViewModel() {
+
+    // UI State
+    private val _uiState = MutableStateFlow(CommerceUiState())
+    val uiState: StateFlow<CommerceUiState> = _uiState.asStateFlow()
+
+    // Commerce state from managers
+    val isInitialized: StateFlow<Boolean> = commerceManager.isInitialized
+    val isLoading: StateFlow<Boolean> = commerceManager.isLoading
+    val error: StateFlow<String?> = commerceManager.error
+
+    // Cart state
+    val currentCart = commerceManager.cartManager.currentCart
+    val cartItems = commerceManager.cartManager.cartItems
+    val cartItemCount = commerceManager.cartManager.cartItemCount
+    val cartTotal = commerceManager.cartManager.cartTotal
+    val cartLoading = commerceManager.cartManager.cartLoading
+    val cartError = commerceManager.cartManager.cartError
+
+    // Product state
+    val products = commerceManager.productManager.products
+    val featuredProducts = commerceManager.productManager.featuredProducts
+    val productsLoading = commerceManager.productManager.productsLoading
+    val productsError = commerceManager.productManager.productsError
+
+    // Category state
+    val categories = commerceManager.categoryManager.categories
+    val categoryTree = commerceManager.categoryManager.categoryTree
+    val featuredCategories = commerceManager.categoryManager.featuredCategories
+    val categoriesLoading = commerceManager.categoryManager.categoriesLoading
+    val categoriesError = commerceManager.categoryManager.categoriesError
+
+    init {
+        initialize()
+    }
+
+    // Initialization
+    fun initialize() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isInitializing = true)
+            try {
+                val result = commerceManager.initialize()
+                _uiState.value = _uiState.value.copy(
+                    isInitializing = false,
+                    initializationError = result.exceptionOrNull()?.message
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isInitializing = false,
+                    initializationError = e.message
+                )
+            }
+        }
+    }
+
+    // Cart operations
+    fun addToCart(
+        productId: String,
+        quantity: Int = 1,
+        variantId: String? = null,
+        isGift: Boolean = false,
+        giftMessage: String? = null
+    ) {
+        viewModelScope.launch {
+            try {
+                val result = commerceManager.cartManager.addProductToCart(
+                    productId = productId,
+                    quantity = quantity,
+                    variantId = variantId,
+                    isGift = isGift,
+                    giftMessage = giftMessage
+                )
+                if (result.isFailure) {
+                    showSnackbar(result.exceptionOrNull()?.message ?: "Failed to add to cart")
+                } else {
+                    showSnackbar("Added to cart")
+                }
+            } catch (e: Exception) {
+                showSnackbar(e.message ?: "Failed to add to cart")
+            }
+        }
+    }
+
+    fun updateCartItemQuantity(itemId: String, quantity: Int) {
+        viewModelScope.launch {
+            try {
+                val result = commerceManager.cartManager.updateCartItemQuantity(itemId, quantity)
+                if (result.isFailure) {
+                    showSnackbar(result.exceptionOrNull()?.message ?: "Failed to update quantity")
+                }
+            } catch (e: Exception) {
+                showSnackbar(e.message ?: "Failed to update quantity")
+            }
+        }
+    }
+
+    fun removeFromCart(itemId: String) {
+        viewModelScope.launch {
+            try {
+                val result = commerceManager.cartManager.removeItemFromCart(itemId)
+                if (result.isFailure) {
+                    showSnackbar(result.exceptionOrNull()?.message ?: "Failed to remove item")
+                } else {
+                    showSnackbar("Item removed")
+                }
+            } catch (e: Exception) {
+                showSnackbar(e.message ?: "Failed to remove item")
+            }
+        }
+    }
+
+    fun clearCart() {
+        viewModelScope.launch {
+            try {
+                val result = commerceManager.cartManager.clearCart()
+                if (result.isFailure) {
+                    showSnackbar(result.exceptionOrNull()?.message ?: "Failed to clear cart")
+                } else {
+                    showSnackbar("Cart cleared")
+                }
+            } catch (e: Exception) {
+                showSnackbar(e.message ?: "Failed to clear cart")
+            }
+        }
+    }
+
+    fun applyCoupon(couponCode: String) {
+        viewModelScope.launch {
+            try {
+                val result = commerceManager.cartManager.applyCouponCode(couponCode)
+                if (result.isFailure) {
+                    showSnackbar(result.exceptionOrNull()?.message ?: "Invalid coupon code")
+                } else {
+                    showSnackbar("Coupon applied")
+                }
+            } catch (e: Exception) {
+                showSnackbar(e.message ?: "Failed to apply coupon")
+            }
+        }
+    }
+
+    fun validateCart() {
+        viewModelScope.launch {
+            try {
+                val result = commerceManager.cartManager.validateCartBeforeCheckout()
+                _uiState.value = _uiState.value.copy(cartValidation = result.getOrNull())
+            } catch (e: Exception) {
+                showSnackbar(e.message ?: "Failed to validate cart")
+            }
+        }
+    }
+
+    // Product operations
+    fun loadProducts(
+        filters: ProductFilters? = null,
+        page: Int = 1,
+        pageSize: Int = 20,
+        sortBy: String = "created_at",
+        sortOrder: String = "desc",
+        forceRefresh: Boolean = false
+    ) {
+        viewModelScope.launch {
+            try {
+                commerceManager.productManager.getProducts(
+                    filters, page, pageSize, sortBy, sortOrder, forceRefresh
+                )
+            } catch (e: Exception) {
+                showSnackbar(e.message ?: "Failed to load products")
+            }
+        }
+    }
+
+    fun loadProduct(productId: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(loadingProductId = productId)
+            try {
+                val result = commerceManager.productManager.getProduct(productId)
+                _uiState.value = _uiState.value.copy(
+                    currentProduct = result.getOrNull(),
+                    loadingProductId = null
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(loadingProductId = null)
+                showSnackbar(e.message ?: "Failed to load product")
+            }
+        }
+    }
+
+    fun searchProducts(query: String, filters: ProductFilters? = null) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(searchQuery = query)
+            try {
+                val result = commerceManager.productManager.searchProducts(query, filters)
+                _uiState.value = _uiState.value.copy(searchResults = result.getOrNull())
+            } catch (e: Exception) {
+                showSnackbar(e.message ?: "Search failed")
+            }
+        }
+    }
+
+    fun loadFeaturedProducts() {
+        viewModelScope.launch {
+            try {
+                commerceManager.productManager.getFeaturedProducts(10, true)
+            } catch (e: Exception) {
+                showSnackbar(e.message ?: "Failed to load featured products")
+            }
+        }
+    }
+
+    // Category operations
+    fun loadCategories(filters: CategoryFilters? = null, forceRefresh: Boolean = false) {
+        viewModelScope.launch {
+            try {
+                commerceManager.categoryManager.getCategories(filters, forceRefresh = forceRefresh)
+            } catch (e: Exception) {
+                showSnackbar(e.message ?: "Failed to load categories")
+            }
+        }
+    }
+
+    fun loadCategory(categoryId: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(loadingCategoryId = categoryId)
+            try {
+                val result = commerceManager.categoryManager.getCategory(categoryId)
+                _uiState.value = _uiState.value.copy(
+                    currentCategory = result.getOrNull(),
+                    loadingCategoryId = null
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(loadingCategoryId = null)
+                showSnackbar(e.message ?: "Failed to load category")
+            }
+        }
+    }
+
+    fun loadCategoryTree(businessId: String? = null) {
+        viewModelScope.launch {
+            try {
+                commerceManager.categoryManager.getCategoryTree(businessId, true)
+            } catch (e: Exception) {
+                showSnackbar(e.message ?: "Failed to load categories")
+            }
+        }
+    }
+
+    fun loadCategoryProducts(categoryId: String, page: Int = 1) {
+        viewModelScope.launch {
+            try {
+                val result = commerceManager.categoryManager.getCategoryProducts(categoryId, page)
+                _uiState.value = _uiState.value.copy(categoryProducts = result.getOrNull())
+            } catch (e: Exception) {
+                showSnackbar(e.message ?: "Failed to load category products")
+            }
+        }
+    }
+
+    // Cross-domain operations
+    fun searchEverything(query: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(searchQuery = query, isSearching = true)
+            try {
+                val result = commerceManager.searchEverything(query)
+                _uiState.value = _uiState.value.copy(
+                    globalSearchResults = result.getOrNull(),
+                    isSearching = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isSearching = false)
+                showSnackbar(e.message ?: "Search failed")
+            }
+        }
+    }
+
+    fun loadRecommendations(userId: String? = null) {
+        viewModelScope.launch {
+            try {
+                val result = commerceManager.getRecommendations(userId)
+                _uiState.value = _uiState.value.copy(recommendations = result.getOrNull())
+            } catch (e: Exception) {
+                showSnackbar(e.message ?: "Failed to load recommendations")
+            }
+        }
+    }
+
+    fun loadHomeData() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingHome = true)
+            try {
+                // Load home screen data in parallel
+                loadFeaturedProducts()
+                loadCategories(forceRefresh = true)
+
+                // Load additional home data
+                val newArrivals = commerceManager.productManager.getNewArrivals(8)
+                val onSaleProducts = commerceManager.productManager.getOnSaleProducts(8)
+
+                _uiState.value = _uiState.value.copy(
+                    newArrivals = newArrivals.getOrElse { emptyList() },
+                    onSaleProducts = onSaleProducts.getOrElse { emptyList() },
+                    isLoadingHome = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingHome = false)
+                showSnackbar(e.message ?: "Failed to load home data")
+            }
+        }
+    }
+
+    // Utility functions
+    fun refreshAllData() {
+        viewModelScope.launch {
+            try {
+                commerceManager.refreshAllData()
+            } catch (e: Exception) {
+                showSnackbar(e.message ?: "Failed to refresh data")
+            }
+        }
+    }
+
+    fun syncWithServer() {
+        viewModelScope.launch {
+            try {
+                commerceManager.syncWithServer()
+                showSnackbar("Synced with server")
+            } catch (e: Exception) {
+                showSnackbar(e.message ?: "Sync failed")
+            }
+        }
+    }
+
+    // UI helpers
+    fun showSnackbar(message: String) {
+        _uiState.value = _uiState.value.copy(snackbarMessage = message)
+    }
+
+    fun dismissSnackbar() {
+        _uiState.value = _uiState.value.copy(snackbarMessage = null)
+    }
+
+    fun clearCurrentProduct() {
+        _uiState.value = _uiState.value.copy(currentProduct = null)
+    }
+
+    fun clearCurrentCategory() {
+        _uiState.value = _uiState.value.copy(currentCategory = null)
+    }
+
+    fun clearSearch() {
+        _uiState.value = _uiState.value.copy(
+            searchQuery = "",
+            searchResults = null,
+            globalSearchResults = null
+        )
+    }
+
+    // Utility getters
+    fun isProductInCart(productId: String, variantId: String? = null): Boolean {
+        return currentCart.value?.items?.any {
+            it.productId == productId && it.variantId == variantId
+        } ?: false
+    }
+
+    fun getCartItemQuantity(productId: String, variantId: String? = null): Int {
+        return currentCart.value?.items
+            ?.find { it.productId == productId && it.variantId == variantId }
+            ?.quantity ?: 0
+    }
+
+    fun getCartSummary(): CartSummary {
+        return commerceManager.cartManager.getCartSummary()
+    }
+
+    fun getCommerceStats(): CommerceStats {
+        return commerceManager.getCommerceStats()
+    }
+}
+
+/**
+ * UI State for Android Compose
+ */
+data class CommerceUiState(
+    val isInitializing: Boolean = false,
+    val initializationError: String? = null,
+    val isLoadingHome: Boolean = false,
+    val currentProduct: Product? = null,
+    val loadingProductId: String? = null,
+    val currentCategory: Category? = null,
+    val loadingCategoryId: String? = null,
+    val searchQuery: String = "",
+    val isSearching: Boolean = false,
+    val searchResults: ProductResponse? = null,
+    val globalSearchResults: CommerceSearchResult? = null,
+    val categoryProducts: ProductResponse? = null,
+    val cartValidation: CartValidation? = null,
+    val recommendations: CommerceRecommendations? = null,
+    val newArrivals: List<Product> = emptyList(),
+    val onSaleProducts: List<Product> = emptyList(),
+    val snackbarMessage: String? = null
+)
+
+/**
+ * ViewModelFactory for dependency injection
+ */
+class CommerceViewModelFactory(
+    private val commerceManager: CommerceManager
+) : ViewModelProvider.Factory {
+
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(CommerceViewModel::class.java)) {
+            return CommerceViewModel(commerceManager) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}

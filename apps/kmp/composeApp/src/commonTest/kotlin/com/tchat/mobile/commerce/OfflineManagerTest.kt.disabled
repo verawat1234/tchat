@@ -1,0 +1,290 @@
+package com.tchat.mobile.commerce
+
+import com.tchat.mobile.commerce.data.models.*
+import com.tchat.mobile.commerce.offline.*
+import com.tchat.mobile.commerce.platform.storage.CommerceStorage
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+import kotlin.test.*
+
+/**
+ * Tests for OfflineManager
+ * Tests offline operations, operation queuing, and data persistence
+ */
+class OfflineManagerTest {
+
+    private lateinit var mockStorage: MockCommerceStorage
+    private lateinit var offlineManager: OfflineManager
+
+    @BeforeTest
+    fun setup() {
+        mockStorage = MockCommerceStorage()
+        offlineManager = OfflineManagerImpl(mockStorage)
+    }
+
+    @Test
+    fun testOfflineCapabilities() {
+        val capabilities = offlineManager.offlineCapabilities
+
+        // Test what should be available offline
+        assertTrue(capabilities.canBrowseProducts)
+        assertTrue(capabilities.canBrowseCategories)
+        assertTrue(capabilities.canAddToCart)
+        assertTrue(capabilities.canUpdateCart)
+        assertTrue(capabilities.canRemoveFromCart)
+        assertTrue(capabilities.canSearch)
+        assertTrue(capabilities.canViewRecommendations)
+
+        // Test what should NOT be available offline
+        assertFalse(capabilities.canApplyCoupons) // Requires server validation
+        assertFalse(capabilities.canCheckout) // Requires payment processing
+    }
+
+    @Test
+    fun testEnableOfflineMode() = runTest {
+        // Initially not in offline mode
+        assertFalse(offlineManager.isOfflineMode.first())
+
+        // Enable offline mode
+        offlineManager.enableOfflineMode()
+        assertTrue(offlineManager.isOfflineMode.first())
+
+        // Disable offline mode
+        offlineManager.disableOfflineMode()
+        assertFalse(offlineManager.isOfflineMode.first())
+    }
+
+    @Test
+    fun testQueueOperation() = runTest {
+        val operation = PendingOperation(
+            id = "test-op-1",
+            type = OperationType.ADD_TO_CART,
+            data = AddToCartRequest("product-1", quantity = 2),
+            timestamp = System.currentTimeMillis()
+        )
+
+        // Initially no pending operations
+        assertEquals(0, offlineManager.pendingOperations.first().size)
+
+        // Queue operation
+        offlineManager.queueOperation(operation)
+
+        // Should have one pending operation
+        val pendingOps = offlineManager.pendingOperations.first()
+        assertEquals(1, pendingOps.size)
+        assertEquals(operation.id, pendingOps.first().id)
+    }
+
+    @Test
+    fun testProcessPendingOperations() = runTest {
+        // Queue some operations
+        val addOp = PendingOperation(
+            id = "add-op",
+            type = OperationType.ADD_TO_CART,
+            data = AddToCartRequest("product-1", quantity = 1),
+            timestamp = System.currentTimeMillis()
+        )
+
+        val updateOp = PendingOperation(
+            id = "update-op",
+            type = OperationType.UPDATE_CART_ITEM,
+            data = mapOf("itemId" to "item-1", "request" to UpdateCartItemRequest(quantity = 3)),
+            timestamp = System.currentTimeMillis()
+        )
+
+        offlineManager.queueOperation(addOp)
+        offlineManager.queueOperation(updateOp)
+
+        // Process operations
+        val result = offlineManager.processPendingOperations()
+        assertTrue(result.isSuccess)
+
+        val operationResult = result.getOrNull()
+        assertNotNull(operationResult)
+        assertEquals(2, operationResult.totalOperations)
+        assertTrue(operationResult.processed > 0)
+        assertTrue(operationResult.successRate > 0.0)
+
+        // Operations should be cleared after processing
+        assertEquals(0, offlineManager.pendingOperations.first().size)
+    }
+
+    @Test
+    fun testClearPendingOperations() = runTest {
+        // Queue an operation
+        val operation = PendingOperation(
+            id = "test-op",
+            type = OperationType.ADD_TO_CART,
+            data = AddToCartRequest("product-1", quantity = 1),
+            timestamp = System.currentTimeMillis()
+        )
+        offlineManager.queueOperation(operation)
+
+        // Verify operation is queued
+        assertEquals(1, offlineManager.pendingOperations.first().size)
+
+        // Clear operations
+        offlineManager.clearPendingOperations()
+
+        // Should be empty now
+        assertEquals(0, offlineManager.pendingOperations.first().size)
+    }
+
+    @Test
+    fun testAddToCartOffline() = runTest {
+        val request = AddToCartRequest(
+            productId = "test-product-1",
+            quantity = 2,
+            variantId = null,
+            isGift = false,
+            giftMessage = null
+        )
+
+        val result = offlineManager.addToCartOffline(request)
+        assertTrue(result.isSuccess)
+
+        val cart = result.getOrNull()
+        assertNotNull(cart)
+        assertEquals(1, cart.items.size)
+        assertEquals("test-product-1", cart.items.first().productId)
+        assertEquals(2, cart.items.first().quantity)
+
+        // Should also queue the operation for sync
+        assertEquals(1, offlineManager.pendingOperations.first().size)
+    }
+
+    @Test
+    fun testUpdateCartItemOffline() = runTest {
+        // First add an item
+        val addRequest = AddToCartRequest("test-product-1", quantity = 1)
+        val addResult = offlineManager.addToCartOffline(addRequest)
+        assertTrue(addResult.isSuccess)
+
+        val cart = addResult.getOrNull()!!
+        val itemId = cart.items.first().id
+
+        // Update the item
+        val updateRequest = UpdateCartItemRequest(quantity = 3)
+        val updateResult = offlineManager.updateCartItemOffline(itemId, updateRequest)
+        assertTrue(updateResult.isSuccess)
+
+        val updatedCart = updateResult.getOrNull()!!
+        assertEquals(3, updatedCart.items.first().quantity)
+        assertEquals(3, updatedCart.itemCount)
+
+        // Should have 2 pending operations (add + update)
+        assertEquals(2, offlineManager.pendingOperations.first().size)
+    }
+
+    @Test
+    fun testRemoveCartItemOffline() = runTest {
+        // First add an item
+        val addRequest = AddToCartRequest("test-product-1", quantity = 1)
+        val addResult = offlineManager.addToCartOffline(addRequest)
+        assertTrue(addResult.isSuccess)
+
+        val cart = addResult.getOrNull()!!
+        val itemId = cart.items.first().id
+
+        // Remove the item
+        val removeResult = offlineManager.removeCartItemOffline(itemId)
+        assertTrue(removeResult.isSuccess)
+
+        val updatedCart = removeResult.getOrNull()!!
+        assertEquals(0, updatedCart.items.size)
+        assertEquals(0, updatedCart.itemCount)
+
+        // Should have 2 pending operations (add + remove)
+        assertEquals(2, offlineManager.pendingOperations.first().size)
+    }
+
+    @Test
+    fun testGetProductsOffline() = runTest {
+        // Test without filters
+        val allProductsResult = offlineManager.getProductsOffline()
+        assertTrue(allProductsResult.isSuccess)
+
+        // Test with search filter
+        val searchFilters = ProductFilters(search = "test")
+        val searchResult = offlineManager.getProductsOffline(searchFilters)
+        assertTrue(searchResult.isSuccess)
+
+        // Test with category filter
+        val categoryFilters = ProductFilters(category = "electronics")
+        val categoryResult = offlineManager.getProductsOffline(categoryFilters)
+        assertTrue(categoryResult.isSuccess)
+
+        // Test with price filters
+        val priceFilters = ProductFilters(minPrice = 10.0, maxPrice = 100.0)
+        val priceResult = offlineManager.getProductsOffline(priceFilters)
+        assertTrue(priceResult.isSuccess)
+    }
+
+    @Test
+    fun testGetCategoriesOffline() = runTest {
+        // Test without filters
+        val allCategoriesResult = offlineManager.getCategoriesOffline()
+        assertTrue(allCategoriesResult.isSuccess)
+
+        // Test with search filter
+        val searchFilters = CategoryFilters(search = "electronics")
+        val searchResult = offlineManager.getCategoriesOffline(searchFilters)
+        assertTrue(searchResult.isSuccess)
+
+        // Test with business filter
+        val businessFilters = CategoryFilters(businessId = "test-business")
+        val businessResult = offlineManager.getCategoriesOffline(businessFilters)
+        assertTrue(businessResult.isSuccess)
+
+        // Test with level filter
+        val levelFilters = CategoryFilters(level = 0)
+        val levelResult = offlineManager.getCategoriesOffline(levelFilters)
+        assertTrue(levelResult.isSuccess)
+    }
+
+    @Test
+    fun testOperationTypes() {
+        // Test all operation types exist
+        val addToCartOp = OperationType.ADD_TO_CART
+        val updateCartOp = OperationType.UPDATE_CART_ITEM
+        val removeCartOp = OperationType.REMOVE_CART_ITEM
+        val applyCouponOp = OperationType.APPLY_COUPON
+        val removeCouponOp = OperationType.REMOVE_COUPON
+        val updateProductOp = OperationType.UPDATE_PRODUCT
+        val favoriteProductOp = OperationType.FAVORITE_PRODUCT
+        val unfavoriteProductOp = OperationType.UNFAVORITE_PRODUCT
+
+        // Verify they are distinct
+        val allTypes = setOf(
+            addToCartOp, updateCartOp, removeCartOp,
+            applyCouponOp, removeCouponOp, updateProductOp,
+            favoriteProductOp, unfavoriteProductOp
+        )
+        assertEquals(8, allTypes.size)
+    }
+
+    @Test
+    fun testOperationResult() {
+        val result = OperationResult(
+            totalOperations = 10,
+            processed = 8,
+            failed = 2
+        )
+
+        assertEquals(10, result.totalOperations)
+        assertEquals(8, result.processed)
+        assertEquals(2, result.failed)
+        assertEquals(0.8, result.successRate, 0.01) // 8/10 = 0.8
+    }
+
+    @Test
+    fun testOperationResultWithZeroOperations() {
+        val result = OperationResult(
+            totalOperations = 0,
+            processed = 0,
+            failed = 0
+        )
+
+        assertEquals(0.0, result.successRate)
+    }
+}

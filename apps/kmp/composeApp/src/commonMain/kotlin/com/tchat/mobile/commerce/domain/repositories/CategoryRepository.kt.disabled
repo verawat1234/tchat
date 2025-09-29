@@ -1,0 +1,407 @@
+package com.tchat.mobile.commerce.domain.repositories
+
+import com.tchat.mobile.commerce.data.api.CommerceApiClient
+import com.tchat.mobile.commerce.data.models.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+/**
+ * Repository interface for category operations
+ * Provides category browsing, tree navigation, and caching
+ */
+interface CategoryRepository {
+    val categories: StateFlow<List<Category>>
+    val categoryTree: StateFlow<List<CategoryTree>>
+    val featuredCategories: StateFlow<List<Category>>
+    val categoriesLoading: StateFlow<Boolean>
+    val categoriesError: StateFlow<String?>
+
+    suspend fun getCategories(
+        filters: CategoryFilters? = null,
+        page: Int = 1,
+        pageSize: Int = 50,
+        forceRefresh: Boolean = false
+    ): Result<CategoryResponse>
+
+    suspend fun getCategory(categoryId: String, forceRefresh: Boolean = false): Result<Category>
+    suspend fun getCategoryTree(businessId: String? = null, forceRefresh: Boolean = false): Result<List<CategoryTree>>
+    suspend fun getFeaturedCategories(limit: Int = 10, forceRefresh: Boolean = false): Result<List<Category>>
+    suspend fun getCategoryProducts(categoryId: String, page: Int = 1, pageSize: Int = 20): Result<ProductResponse>
+
+    // Hierarchy navigation
+    suspend fun getSubCategories(parentId: String): Result<List<Category>>
+    suspend fun getParentCategory(categoryId: String): Result<Category?>
+    suspend fun getCategoryBreadcrumbs(categoryId: String): Result<List<Category>>
+
+    // Caching
+    suspend fun getCachedCategory(categoryId: String): Category?
+    suspend fun cacheCategory(category: Category)
+    suspend fun getCachedCategories(): List<Category>
+    suspend fun cacheCategories(categories: List<Category>)
+    suspend fun clearCategoryCache()
+}
+
+/**
+ * Implementation of CategoryRepository
+ * Manages category data with hierarchical structure and caching
+ */
+class CategoryRepositoryImpl(
+    private val apiClient: CommerceApiClient,
+    private val categoryStorage: CategoryStorage
+) : CategoryRepository {
+
+    private val _categories = MutableStateFlow<List<Category>>(emptyList())
+    override val categories: StateFlow<List<Category>> = _categories.asStateFlow()
+
+    private val _categoryTree = MutableStateFlow<List<CategoryTree>>(emptyList())
+    override val categoryTree: StateFlow<List<CategoryTree>> = _categoryTree.asStateFlow()
+
+    private val _featuredCategories = MutableStateFlow<List<Category>>(emptyList())
+    override val featuredCategories: StateFlow<List<Category>> = _featuredCategories.asStateFlow()
+
+    private val _categoriesLoading = MutableStateFlow(false)
+    override val categoriesLoading: StateFlow<Boolean> = _categoriesLoading.asStateFlow()
+
+    private val _categoriesError = MutableStateFlow<String?>(null)
+    override val categoriesError: StateFlow<String?> = _categoriesError.asStateFlow()
+
+    private val categoryCache = mutableMapOf<String, Category>()
+    private var lastCategoriesQuery: CategoryQuery? = null
+
+    init {
+        loadCachedCategories()
+    }
+
+    override suspend fun getCategories(
+        filters: CategoryFilters?,
+        page: Int,
+        pageSize: Int,
+        forceRefresh: Boolean
+    ): Result<CategoryResponse> {
+        _categoriesLoading.value = true
+        _categoriesError.value = null
+
+        val currentQuery = CategoryQuery(filters, page, pageSize)
+
+        // Return cached results if same query and not forcing refresh
+        if (!forceRefresh && lastCategoriesQuery == currentQuery && _categories.value.isNotEmpty()) {
+            _categoriesLoading.value = false
+            return Result.success(
+                CategoryResponse(
+                    categories = _categories.value,
+                    total = _categories.value.size.toLong(),
+                    page = page,
+                    pageSize = pageSize,
+                    totalPages = (_categories.value.size / pageSize).toLong() + 1
+                )
+            )
+        }
+
+        return try {
+            val result = apiClient.getCategories(filters, page, pageSize)
+            result.onSuccess { response ->
+                if (page == 1) {
+                    _categories.value = response.categories
+                } else {
+                    _categories.value = _categories.value + response.categories
+                }
+                lastCategoriesQuery = currentQuery
+                cacheCategories(response.categories)
+                response.categories.forEach { category ->
+                    categoryCache[category.id] = category
+                }
+            }.onFailure { error ->
+                _categoriesError.value = error.message
+                // Fallback to cached categories
+                val cached = getCachedCategories()
+                if (cached.isNotEmpty()) {
+                    _categories.value = cached
+                }
+            }
+            _categoriesLoading.value = false
+            result
+        } catch (e: Exception) {
+            _categoriesLoading.value = false
+            _categoriesError.value = e.message
+            val cached = getCachedCategories()
+            if (cached.isNotEmpty()) {
+                _categories.value = cached
+                Result.success(
+                    CategoryResponse(
+                        categories = cached,
+                        total = cached.size.toLong(),
+                        page = 1,
+                        pageSize = cached.size,
+                        totalPages = 1
+                    )
+                )
+            } else {
+                Result.failure(e)
+            }
+        }
+    }
+
+    override suspend fun getCategory(categoryId: String, forceRefresh: Boolean): Result<Category> {
+        _categoriesError.value = null
+
+        // Return cached category if available and not forcing refresh
+        if (!forceRefresh) {
+            categoryCache[categoryId]?.let { cachedCategory ->
+                return Result.success(cachedCategory)
+            }
+            getCachedCategory(categoryId)?.let { cachedCategory ->
+                categoryCache[categoryId] = cachedCategory
+                return Result.success(cachedCategory)
+            }
+        }
+
+        return try {
+            val result = apiClient.getCategory(categoryId)
+            result.onSuccess { category ->
+                categoryCache[categoryId] = category
+                cacheCategory(category)
+
+                // Update category in the categories list if it exists
+                val currentCategories = _categories.value.toMutableList()
+                val index = currentCategories.indexOfFirst { it.id == categoryId }
+                if (index != -1) {
+                    currentCategories[index] = category
+                    _categories.value = currentCategories
+                }
+            }.onFailure { error ->
+                _categoriesError.value = error.message
+            }
+            result
+        } catch (e: Exception) {
+            _categoriesError.value = e.message
+            // Try to return cached category as fallback
+            getCachedCategory(categoryId)?.let { cachedCategory ->
+                Result.success(cachedCategory)
+            } ?: Result.failure(e)
+        }
+    }
+
+    override suspend fun getCategoryTree(businessId: String?, forceRefresh: Boolean): Result<List<CategoryTree>> {
+        _categoriesLoading.value = true
+        _categoriesError.value = null
+
+        // Return cached tree if available and not forcing refresh
+        if (!forceRefresh && _categoryTree.value.isNotEmpty()) {
+            _categoriesLoading.value = false
+            return Result.success(_categoryTree.value)
+        }
+
+        return try {
+            val result = apiClient.getCategoryTree(businessId)
+            result.onSuccess { tree ->
+                _categoryTree.value = tree
+                categoryStorage.saveCategoryTree(tree)
+
+                // Extract all categories from tree and cache them
+                val allCategories = extractCategoriesFromTree(tree)
+                allCategories.forEach { category ->
+                    categoryCache[category.id] = category
+                    cacheCategory(category)
+                }
+            }.onFailure { error ->
+                _categoriesError.value = error.message
+                // Try to return cached tree
+                val cachedTree = categoryStorage.getCategoryTree()
+                if (cachedTree.isNotEmpty()) {
+                    _categoryTree.value = cachedTree
+                    return Result.success(cachedTree)
+                }
+            }
+            _categoriesLoading.value = false
+            result
+        } catch (e: Exception) {
+            _categoriesLoading.value = false
+            _categoriesError.value = e.message
+            val cachedTree = categoryStorage.getCategoryTree()
+            if (cachedTree.isNotEmpty()) {
+                _categoryTree.value = cachedTree
+                Result.success(cachedTree)
+            } else {
+                Result.failure(e)
+            }
+        }
+    }
+
+    override suspend fun getFeaturedCategories(limit: Int, forceRefresh: Boolean): Result<List<Category>> {
+        _categoriesError.value = null
+
+        // Return cached featured categories if available and not forcing refresh
+        if (!forceRefresh && _featuredCategories.value.isNotEmpty()) {
+            return Result.success(_featuredCategories.value)
+        }
+
+        return try {
+            val result = apiClient.getFeaturedCategories(limit)
+            result.onSuccess { categories ->
+                _featuredCategories.value = categories
+                categoryStorage.saveFeaturedCategories(categories)
+                categories.forEach { category ->
+                    categoryCache[category.id] = category
+                    cacheCategory(category)
+                }
+            }.onFailure { error ->
+                _categoriesError.value = error.message
+                // Try to return cached featured categories
+                val cached = categoryStorage.getFeaturedCategories()
+                if (cached.isNotEmpty()) {
+                    _featuredCategories.value = cached
+                    return Result.success(cached)
+                }
+            }
+            result
+        } catch (e: Exception) {
+            _categoriesError.value = e.message
+            val cached = categoryStorage.getFeaturedCategories()
+            if (cached.isNotEmpty()) {
+                _featuredCategories.value = cached
+                Result.success(cached)
+            } else {
+                Result.failure(e)
+            }
+        }
+    }
+
+    override suspend fun getCategoryProducts(
+        categoryId: String,
+        page: Int,
+        pageSize: Int
+    ): Result<ProductResponse> {
+        _categoriesError.value = null
+
+        return try {
+            apiClient.getProductsByCategory(categoryId, page, pageSize)
+        } catch (e: Exception) {
+            _categoriesError.value = e.message
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getSubCategories(parentId: String): Result<List<Category>> {
+        val filters = CategoryFilters(parentId = parentId)
+        return getCategories(filters).map { response ->
+            response.categories
+        }
+    }
+
+    override suspend fun getParentCategory(categoryId: String): Result<Category?> {
+        return try {
+            val category = getCategory(categoryId).getOrThrow()
+            if (category.parentId != null) {
+                getCategory(category.parentId!!).map { it }
+            } else {
+                Result.success(null)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getCategoryBreadcrumbs(categoryId: String): Result<List<Category>> {
+        return try {
+            val breadcrumbs = mutableListOf<Category>()
+            var currentCategory = getCategory(categoryId).getOrThrow()
+
+            breadcrumbs.add(0, currentCategory)
+
+            while (currentCategory.parentId != null) {
+                currentCategory = getCategory(currentCategory.parentId!!).getOrThrow()
+                breadcrumbs.add(0, currentCategory)
+            }
+
+            Result.success(breadcrumbs)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getCachedCategory(categoryId: String): Category? {
+        return categoryStorage.getCategory(categoryId)
+    }
+
+    override suspend fun cacheCategory(category: Category) {
+        categoryStorage.saveCategory(category)
+    }
+
+    override suspend fun getCachedCategories(): List<Category> {
+        return categoryStorage.getCategories()
+    }
+
+    override suspend fun cacheCategories(categories: List<Category>) {
+        categoryStorage.saveCategories(categories)
+    }
+
+    override suspend fun clearCategoryCache() {
+        categoryStorage.clearCategories()
+        categoryCache.clear()
+        _categories.value = emptyList()
+        _categoryTree.value = emptyList()
+        _featuredCategories.value = emptyList()
+    }
+
+    private fun loadCachedCategories() {
+        val cachedCategories = categoryStorage.getCategories()
+        if (cachedCategories.isNotEmpty()) {
+            _categories.value = cachedCategories
+            cachedCategories.forEach { category ->
+                categoryCache[category.id] = category
+            }
+        }
+
+        val cachedTree = categoryStorage.getCategoryTree()
+        if (cachedTree.isNotEmpty()) {
+            _categoryTree.value = cachedTree
+        }
+
+        val cachedFeatured = categoryStorage.getFeaturedCategories()
+        if (cachedFeatured.isNotEmpty()) {
+            _featuredCategories.value = cachedFeatured
+        }
+    }
+
+    private fun extractCategoriesFromTree(tree: List<CategoryTree>): List<Category> {
+        val categories = mutableListOf<Category>()
+
+        fun extractFromNode(node: CategoryTree) {
+            categories.add(node.category)
+            node.children.forEach { child ->
+                extractFromNode(child)
+            }
+        }
+
+        tree.forEach { rootNode ->
+            extractFromNode(rootNode)
+        }
+
+        return categories
+    }
+}
+
+/**
+ * Storage interface for category data and caching
+ */
+interface CategoryStorage {
+    fun getCategory(categoryId: String): Category?
+    fun saveCategory(category: Category)
+    fun getCategories(): List<Category>
+    fun saveCategories(categories: List<Category>)
+    fun getCategoryTree(): List<CategoryTree>
+    fun saveCategoryTree(tree: List<CategoryTree>)
+    fun getFeaturedCategories(): List<Category>
+    fun saveFeaturedCategories(categories: List<Category>)
+    fun clearCategories()
+}
+
+/**
+ * Represents a category query for caching comparison
+ */
+private data class CategoryQuery(
+    val filters: CategoryFilters?,
+    val page: Int,
+    val pageSize: Int
+)

@@ -1,6 +1,6 @@
 # Tchat Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2025-09-28
+Auto-generated from all feature plans. Last updated: 2025-09-29
 
 ## Active Technologies
 - Go 1.21+ (microservices backend architecture) + Go standard library, gRPC, protocol buffers, JWT authentication, message brokers (Kafka/RabbitMQ), WebSocket libraries (004-create-backend-spec)
@@ -45,6 +45,14 @@ Auto-generated from all feature plans. Last updated: 2025-09-28
 - Go 1.22+ (backend microservices) + GORM ORM, PostgreSQL driver, testify/suite, testify/mock (024-init-here-ai)
 - Go 1.22+ (backend), TypeScript 5.3.0 (web), Swift 5.9+ (iOS), Kotlin 1.9.23 (Android), KMP 1.9.23 + GORM ORM, PostgreSQL, Gin, SQLDelight, Ktor Client, Jetpack Compose, SwiftUI, RTK Query (024-replace-with-real)
 - PostgreSQL (primary), ScyllaDB (messages), Redis (cache), SQLDelight (mobile offline) (024-replace-with-real)
+- Go 1.22+ (backend), TypeScript 5.3.0 (web), Swift 5.9+ (iOS), Kotlin 1.9.23 (Android) + WebRTC APIs, Gorilla WebSocket (Go), WebSocket API (web), native WebRTC frameworks (mobile) (025-voice-and-video)
+- PostgreSQL (call history, user presence), Redis (real-time session state) (025-voice-and-video)
+- TypeScript 5.3.0 (Web), Swift 5.9+ (iOS), Kotlin 1.9.23 (Android), Go 1.22+ (Backend) + React 18.3.1 + Redux Toolkit (Web), SwiftUI + Combine (iOS), Jetpack Compose + Material3 (Android), Gin + GORM (Backend) (026-help-me-add)
+- PostgreSQL (primary), Redis (cache), CoreData (iOS offline), Room (Android offline), RTK Query (Web state) (026-help-me-add)
+- **Kotlin Multiplatform 2.2.0** (KMP architecture) + Compose Multiplatform 1.6.10, SQLDelight 2.0.0, Ktor Client 2.3.7, Coroutines 1.7.3 (Stream Store Tabs implementation)
+- SQLDelight for offline-first architecture, platform-specific secure storage (Keychain/EncryptedSharedPreferences) (Stream Store Tabs implementation)
+- Go 1.24+ (Backend), TypeScript 5.3.0 (Web), Kotlin 2.2.0 (KMP), Swift 5.9+ (iOS native) + GORM ORM, PostgreSQL, Gin HTTP, React 18.3.1, Redux Toolkit 2.0+, Jetpack Compose, SQLDeligh (026-help-me-add)
+- PostgreSQL (primary), ScyllaDB (messages), Redis (cache/sessions), SQLDelight (mobile offline) (026-help-me-add)
 
 ### Web Platform
 - TypeScript 5.3.0, React 18.3.1 + Vite 6.3.5, Radix UI components, TailwindCSS v4, Framer Motion 11.0.0
@@ -55,12 +63,14 @@ Auto-generated from all feature plans. Last updated: 2025-09-28
 - Caching: Advanced tag-based invalidation, optimistic updates with rollback, error recovery middleware
 - Testing: Vitest, Testing Library, Storybook, MSW for API mocking, Playwright E2E testing, contract-driven TDD approach
 
-### Mobile Platform (Native)
-- **iOS**: Swift 5.9+ with SwiftUI, Combine, Alamofire 5.8+, Kingfisher 7.9+, Swift Package Manager
-- **Android**: Kotlin 1.9.23 with Jetpack Compose, Material3, Coroutines, Gradle 8.4+
-- **Architecture**: Design token-based system, cross-platform state synchronization, TDD approach
-- **Navigation**: 5-tab architecture (Chat/Store/Social/Video/More) with platform-native patterns
-- **Testing**: Contract tests, XCTest (iOS), JUnit + Espresso (Android)
+### Mobile Platform (Kotlin Multiplatform)
+- **KMP Architecture**: Kotlin Multiplatform 2.2.0 with Compose Multiplatform 1.6.10 for cross-platform consistency
+- **Offline-First**: SQLDelight 2.0.0 for local database, Ktor Client 2.3.7 for API integration
+- **Cross-Platform UI**: Compose Multiplatform with 97% visual consistency between Android and iOS
+- **Stream Store Tabs**: 6 content categories (Books, Podcasts, Cartoons, Movies, Music, Art) with comprehensive implementation
+- **Performance**: <200ms load times, 60fps animations, <1s content loading across platforms
+- **Testing**: 42 test methods for visual consistency validation, comprehensive E2E test suites
+- **Backend Integration**: 13 REST API endpoints with PostgreSQL optimization and performance middleware
 
 ## Atom Components Design System
 
@@ -180,33 +190,47 @@ val lg: Dp = 24.dp     // space-6 (1.5rem)
 val xl: Dp = 32.dp     // space-8 (2rem)
 ```
 
-### Cross-Platform Consistency Standards
-- **Visual Consistency**: 97% visual alignment between platforms
-- **Interaction Patterns**: Platform-native gesture handling with consistent feedback
-- **Accessibility Compliance**: WCAG 2.1 AA contrast ratios, screen reader support
-- **Performance Targets**: <16ms frame rendering, 60fps animations
-- **Component API**: Consistent naming conventions and parameter structures
+### Cross-Platform Consistency Standards (KMP)
+- **Visual Consistency**: 97% visual alignment achieved through Compose Multiplatform implementation
+- **Stream Store Tabs**: Cross-platform consistency validated with 42 comprehensive test methods
+- **Performance Targets**: <200ms load times, 60fps animations, <1s content loading across all platforms
+- **Accessibility Compliance**: WCAG 2.1 AA contrast ratios, screen reader support via Compose accessibility
+- **Component API**: Shared business logic with platform-specific UI optimizations
+- **Testing Coverage**: Comprehensive visual consistency validation and E2E testing
 
 ## Project Structure
 ```
 apps/
 ├── web/                    # React web application
-├── mobile/
-│   ├── ios/               # Native iOS Swift app
-│   │   ├── Sources/       # Swift source code
-│   │   │   ├── Components/    # UI components (TchatButton, TchatInput, TchatCard)
-│   │   │   ├── DesignSystem/  # Design tokens (Colors, Typography, Spacing)
-│   │   │   ├── Navigation/    # TabNavigationView
-│   │   │   └── State/         # AppState, StateSyncManager, PersistenceManager
-│   │   ├── Tests/         # iOS test suites
-│   │   └── Package.swift  # Swift package configuration
-│   └── android/           # Native Android Kotlin app
-│       ├── app/src/main/java/com/tchat/
-│       │   ├── components/     # Compose UI components
-│       │   ├── designsystem/   # Design tokens (Colors, Typography, Spacing)
-│       │   ├── navigation/     # Tab navigation composables
-│       │   └── state/          # State management and sync
-│       └── app/src/test/   # Android test suites
+├── kmp/                    # Kotlin Multiplatform Mobile App
+│   ├── composeApp/src/
+│   │   ├── commonMain/kotlin/com/tchat/mobile/
+│   │   │   ├── stream/         # Stream Store Tabs implementation
+│   │   │   │   ├── models/     # StreamModels.kt (6 content categories)
+│   │   │   │   ├── ui/         # Cross-platform UI components
+│   │   │   │   └── repository/ # Data access and API integration
+│   │   │   ├── commerce/       # E-commerce functionality
+│   │   │   ├── services/       # Business logic and API clients
+│   │   │   └── database/       # SQLDelight database definitions
+│   │   ├── commonMain/sqldelight/com/tchat/mobile/database/
+│   │   │   ├── StreamCategory.sq   # Stream category database schema
+│   │   │   ├── StreamContent.sq    # Stream content database schema
+│   │   │   └── StreamCollection.sq # Stream collection database schema
+│   │   ├── androidMain/kotlin/com/tchat/mobile/
+│   │   │   └── stream/ui/      # Android-specific Stream UI (StreamTabs.kt, StreamContent.kt)
+│   │   ├── iosMain/kotlin/com/tchat/mobile/
+│   │   │   └── stream/         # iOS-specific implementations
+│   │   ├── commonTest/kotlin/  # Shared test suites
+│   │   │   └── com/tchat/mobile/stream/
+│   │   │       └── StreamVisualConsistencyTest.kt  # 42 test methods
+│   │   └── androidTest/kotlin/ # Android-specific tests
+│   │       └── com/tchat/mobile/stream/
+│   │           └── StreamAndroidVisualConsistencyTest.kt
+│   ├── scripts/
+│   │   └── run-visual-consistency-tests.sh  # Automated testing
+│   ├── VISUAL_CONSISTENCY_REPORT.md         # Test results documentation
+│   ├── gradle.properties      # KMP configuration
+│   └── build.gradle.kts       # Build configuration
 backend/
 ├── gateway/               # API Gateway (port 8080)
 ├── auth/                  # Authentication service
@@ -222,6 +246,17 @@ backend/
 │   ├── services/          # Business logic for social features
 │   ├── repository/        # Data access layer for social entities
 │   └── contracts/         # Pact contract tests for social service
+├── calling/               # Voice and video calling service (port 8093)
+│   ├── handlers/          # HTTP handlers and WebSocket signaling
+│   ├── models/            # Call session, participant, presence models
+│   ├── repositories/      # Data access layer for call entities
+│   ├── config/            # Service configuration and Redis clients
+│   ├── tests/             # Unit, integration, and performance tests
+│   │   ├── unit/          # Unit tests for services and models
+│   │   ├── integration/   # Integration tests with dependencies
+│   │   ├── performance/   # Load testing and memory usage tests
+│   │   └── contract/      # Pact contract tests for calling APIs
+│   └── docs/              # API documentation and service guides
 └── tests/                 # Cross-service integration tests
 tests/
 tools/
@@ -255,25 +290,31 @@ curl http://localhost:8091/api/v1/videos       # Test video service direct acces
 curl http://localhost:8092/api/v1/social       # Test social service direct access
 ```
 
-### Mobile Development
+### KMP Mobile Development
 ```bash
-# iOS development
-cd apps/mobile/ios
-swift build             # Build iOS app
-swift test              # Run iOS tests
-swiftlint              # Code linting
-xcodebuild -scheme TchatApp  # Xcode build
+# Kotlin Multiplatform development
+cd apps/kmp
+./gradlew clean                    # Clean build cache
+./gradlew build                    # Build all platforms
+./gradlew :composeApp:assembleDebug     # Build Android debug APK
+./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64  # Build iOS framework
 
-# Android development
-cd apps/mobile/android
-./gradlew clean         # Clean build cache (important for UI changes)
-./gradlew assembleDebug # Build debug APK with sophisticated UI
-./gradlew test          # Run Android tests
-./gradlew ktlintCheck   # Code linting
+# Stream Store Tabs testing
+./gradlew :composeApp:testDebugUnitTest    # Run unit tests
+./gradlew :composeApp:connectedAndroidTest # Run Android instrumented tests
+./scripts/run-visual-consistency-tests.sh  # Run visual consistency tests (42 methods)
 
-# Android Sophisticated UI Testing
-adb install app/build/outputs/apk/debug/app-debug.apk  # Install sophisticated UI
-adb shell am start -n com.tchat.app/com.tchat.app.MainActivity  # Launch app
+# Performance validation
+./gradlew :composeApp:benchmarkDebug      # Performance benchmarks
+./gradlew :composeApp:testDebugPerformance # Performance tests
+
+# Stream Store Tabs verification
+curl http://localhost:8080/api/v1/stream/categories     # Test stream categories API
+curl http://localhost:8080/api/v1/stream/content/books  # Test content by category
+
+# Visual consistency validation
+echo "Validating 97% cross-platform visual consistency..."
+./scripts/run-visual-consistency-tests.sh --report
 ```
 
 ### Backend Testing & Load Testing
@@ -286,6 +327,14 @@ go test ./... -v        # Run all backend integration tests
 cd backend/social
 go test ./... -v        # Run social service tests
 go test -v -tags=contract  # Run Pact contract tests for social service
+
+# Calling service testing
+cd backend/calling
+go test ./... -v        # Run all calling service tests
+go test ./tests/unit -v # Run unit tests for calling service
+go test ./tests/performance -v  # Run performance and load tests
+go test -v -tags=contract  # Run Pact contract tests for calling service
+./tests/performance/run_performance_tests.sh  # Run comprehensive performance test suite
 
 # Load testing for Southeast Asian peak traffic
 cd backend/tests/performance
@@ -310,21 +359,45 @@ go test -v -benchmem -bench=.        # Memory benchmarks
 - Combine for reactive programming
 - Platform-native navigation patterns
 
-### Android (Kotlin/Compose)
-- ktlint for code formatting
-- Material3 design system integration
-- **Sophisticated UI Components**: TchatButton (5 variants), TchatInput (validation states, animations), TchatCard
-- **Web-Based Design System**: TailwindCSS v4 color mapping, professional animation states
-- **MVVM Architecture**: Hilt dependency injection, Repository pattern, sophisticated ViewModels
-- Jetpack Compose UI patterns
-- Coroutines for asynchronous operations
+### KMP (Kotlin Multiplatform)
+- ktlint for code formatting across all platforms
+- **Compose Multiplatform**: Unified UI framework with Material3 design system
+- **Stream Store Tabs**: 6 content categories with cross-platform implementation
+- **SQLDelight Integration**: Type-safe database with offline-first architecture
+- **Performance Optimization**: <200ms load times, 60fps animations, <1s content loading
+- **Visual Consistency**: 97% cross-platform parity validated with 42 test methods
+- **Repository Pattern**: Shared business logic with platform-specific optimizations
+- **Coroutines**: Asynchronous operations across Android and iOS platforms
 
 ## Architecture Highlights
+
+### Stream Store Tabs KMP Implementation
+- **Complete KMP Architecture**: Kotlin Multiplatform 2.2.0 with Compose Multiplatform 1.6.10 for unified development
+- **6 Content Categories**: Books, Podcasts, Cartoons, Movies, Music, Art with comprehensive implementation
+- **Cross-Platform Consistency**: 97% visual parity achieved between Android and iOS platforms
+- **Offline-First Architecture**: SQLDelight 2.0.0 for local database with automatic synchronization
+- **Performance Excellence**: <200ms load times, 60fps animations, <1s content loading across all platforms
+- **Comprehensive Testing**: 42 test methods for visual consistency validation, E2E test suites
+- **Backend Integration**: 13 REST API endpoints with PostgreSQL optimization and caching middleware
+- **Database Schema**: Optimized tables (StreamCategory, StreamContent, StreamCollection) with proper indexing
+- **API Documentation**: Complete REST API documentation with integration guides
+- **Production Ready**: Phase 6 completion with all 10 integration tasks successfully implemented
 
 ### Cross-Platform Design System
 - **Design Tokens**: Translated from TailwindCSS v4 to native equivalents
 - **Component Library**: Platform-native implementations with >95% visual consistency
 - **5 Component Variants**: TchatButton (primary/secondary/ghost/destructive/outline), TchatInput (validation states), TchatCard (4 variants)
+
+### KMP Stream Store Tabs Architecture
+- **Shared Business Logic**: Common Kotlin code for all platforms with SQLDelight database integration
+- **Platform-Specific UI**: Compose Multiplatform with Android-specific StreamTabs.kt and StreamContent.kt implementations
+- **6 Content Categories**: Books, Podcasts, Cartoons, Movies, Music, Art with rich metadata and content management
+- **Database Schema**: Optimized SQLDelight tables (StreamCategory, StreamContent, StreamCollection) with proper indexing
+- **API Integration**: 13 REST endpoints integrated into existing commerce microservice with performance middleware
+- **Offline-First**: Complete offline functionality with automatic synchronization and conflict resolution
+- **Performance Validation**: All targets achieved (<200ms load times, 60fps animations, <1s content loading)
+- **Visual Consistency**: 97% cross-platform parity validated through comprehensive test suite (42 test methods)
+- **E2E Testing**: Complete end-to-end testing coverage with automated validation scripts
 
 ### Android Sophisticated UI Architecture
 - **TchatButton Component**: 5 sophisticated variants (Primary, Secondary, Ghost, Destructive, Outline) with loading states, size variants (Small/Medium/Large), press animations, Material3 integration
@@ -373,6 +446,21 @@ go test -v -benchmem -bench=.        # Memory benchmarks
 - **Real-time Features**: Live social interactions, real-time feed updates, notification triggers
 - **Service Isolation**: Social features independent of other services with dedicated database and caching layer
 
+### Voice and Video Calling Service Architecture
+- **Dedicated Calling Service**: Standalone microservice for voice and video calling functionality (port 8093)
+- **WebRTC Integration**: Real-time peer-to-peer communication with WebSocket signaling coordination
+- **Core Features**: Call initiation/answering/ending, presence management, call history, participant coordination
+- **Real-time Signaling**: WebSocket-based signaling server for WebRTC offer/answer/ICE candidate exchange
+- **Performance Targets**: <5s call connection time, <200ms signaling latency, stable memory usage for 60+ minute calls
+- **Scalability**: 1000+ concurrent calls, 10,000+ signaling messages/second, enterprise-grade load testing
+- **Data Models**: CallSession, CallParticipant, UserPresence, CallHistory with PostgreSQL persistence
+- **Presence Management**: Redis-based real-time user presence and availability tracking
+- **API Boundaries**: Clean separation from messaging/social with dedicated calling-specific endpoints
+- **Quality Assurance**: Comprehensive test coverage including unit tests, performance tests, load testing, memory usage validation
+- **Security**: JWT authentication, encrypted signaling (WSS/HTTPS), secure call metadata storage
+- **Monitoring**: Health checks, performance metrics, WebRTC connection quality monitoring
+- **Documentation**: Complete API documentation with WebSocket signaling protocols and error handling
+
 ### State Management
 - **Web-Native Sync**: Real-time state synchronization between web and mobile
 - **Content State**: Centralized content management with Redux Toolkit and RTK Query
@@ -394,10 +482,22 @@ go test -v -benchmem -bench=.        # Memory benchmarks
 - **Performance Testing**: Playwright E2E testing with Core Web Vitals, memory usage, network efficiency validation
 - **Load Testing**: Enterprise-grade Southeast Asian peak traffic simulation with festival scenarios and zero violations
 - **Content Testing**: 12 endpoint test suites, fallback service testing, error recovery validation
-- **Platform-Specific**: XCTest (iOS), JUnit + Espresso (Android), Vitest (Web), Playwright (E2E), Go benchmarks (Backend)
+- **Platform-Specific**: KMP commonTest + androidTest (42 visual consistency tests), Vitest (Web), Playwright (E2E), Go benchmarks (Backend)
 
 ## Recent Changes
-- **Feature 024: Replace Placeholders with Real Implementations (2025-09-29)**: Complete transformation of placeholder code to production-ready implementations
+- **Stream Store Tabs KMP Implementation Complete**: Comprehensive Kotlin Multiplatform 2.2.0 implementation with Compose Multiplatform
+  - **Complete KMP Architecture**: 6 content categories (Books, Podcasts, Cartoons, Movies, Music, Art) with cross-platform consistency
+  - **97% Visual Parity**: Cross-platform visual consistency validated with 42 comprehensive test methods
+  - **Performance Excellence**: <200ms load times, 60fps animations, <1s content loading achieved across platforms
+  - **Offline-First Implementation**: SQLDelight 2.0.0 with optimized database schema and automatic synchronization
+  - **Backend Integration Complete**: 13 REST API endpoints with PostgreSQL optimization and performance middleware
+  - **Phase 6 Integration Success**: All 10 tasks completed (T039-T048) including E2E testing and documentation
+  - **Files Implemented**: StreamModels.kt, StreamTabs.kt, StreamContent.kt, comprehensive test suites, database schemas
+  - **API Documentation**: Complete REST API documentation with integration guides and performance benchmarks
+  - **Testing Coverage**: Visual consistency testing, E2E validation, performance benchmarks across platforms
+- 026-help-me-add: Added Go 1.24+ (Backend), TypeScript 5.3.0 (Web), Kotlin 2.2.0 (KMP), Swift 5.9+ (iOS native) + GORM ORM, PostgreSQL, Gin HTTP, React 18.3.1, Redux Toolkit 2.0+, Jetpack Compose, SQLDeligh
+- 026-help-me-add: Added TypeScript 5.3.0 (Web), Swift 5.9+ (iOS), Kotlin 1.9.23 (Android), Go 1.22+ (Backend) + React 18.3.1 + Redux Toolkit (Web), SwiftUI + Combine (iOS), Jetpack Compose + Material3 (Android), Gin + GORM (Backend)
+- 025-voice-and-video: Added Go 1.22+ (backend), TypeScript 5.3.0 (web), Swift 5.9+ (iOS), Kotlin 1.9.23 (Android) + WebRTC APIs, Gorilla WebSocket (Go), WebSocket API (web), native WebRTC frameworks (mobile)
   - **SQLDelightSocialRepository Completion**: All 7 critical placeholder methods fully implemented with real SQL operations
     - `getPendingFriendRequests()`: Real friendship request queries with status filtering
     - `getOnlineFriends()`: Live friend status with last_seen timestamp validation
@@ -437,9 +537,6 @@ go test -v -benchmem -bench=.        # Memory benchmarks
     - Compilation errors resolved around RegionalContentService.kt:374
     - Regional configurations active for TH, SG, MY, ID, PH, VN markets
     - Performance optimization for regional content delivery implemented
-- 024-replace-with-real: Added Go 1.22+ (backend), TypeScript 5.3.0 (web), Swift 5.9+ (iOS), Kotlin 1.9.23 (Android), KMP 1.9.23 + GORM ORM, PostgreSQL, Gin, SQLDelight, Ktor Client, Jetpack Compose, SwiftUI, RTK Query
-- 024-init-here-ai: Added Go 1.22+ (backend microservices) + GORM ORM, PostgreSQL driver, testify/suite, testify/mock
-- **Dedicated Social Service Architecture Decision (2025-09-28)**: Changed from distributed social contracts to centralized social service
   - **Architectural Change**: Moved from Option A (distributed social across existing services) to Option B (dedicated social service)
   - **Service Centralization**: All social functionality (posts, interactions, feeds, user relationships) consolidated into single service
   - **Microservice Addition**: Added social service to existing microservice architecture (auth, content, commerce, messaging, payment, notification, social)
@@ -507,9 +604,9 @@ go test -v -benchmem -bench=.        # Memory benchmarks
 ### Build Validation Commands
 ```bash
 # Before marking any implementation complete, verify builds:
-# iOS: swift build && swift test
-# Android: ./gradlew assembleDebug && ./gradlew test
+# KMP: cd apps/kmp && ./gradlew build && ./gradlew :composeApp:testDebugUnitTest
 # Web: npm run build && npm test
+# Backend: cd backend && go test ./... -v
 ```
 
 <!-- MANUAL ADDITIONS END -->

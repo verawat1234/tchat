@@ -8,19 +8,6 @@ import (
 	sharedModels "tchat.dev/shared/models"
 )
 
-// Type aliases for shared models
-type Business = sharedModels.Business
-type Product = sharedModels.Product
-type Order = sharedModels.Order
-type OrderStatus = sharedModels.OrderStatus
-type PaymentStatus = sharedModels.PaymentStatus
-type FulfillmentStatus = sharedModels.FulfillmentStatus
-type OrderItem = sharedModels.OrderItem
-type ShippingAddress = sharedModels.ShippingAddress
-type BillingAddress = sharedModels.BillingAddress
-type ShippingMethod = sharedModels.ShippingMethod
-type Event = sharedModels.Event
-
 // Business-related types
 type BusinessVerificationStatus = sharedModels.BusinessVerificationStatus
 type BusinessContactInfo = sharedModels.BusinessContactInfo
@@ -29,10 +16,17 @@ type BusinessSettings = sharedModels.BusinessSettings
 
 // Product-related types
 type ProductStatus = sharedModels.ProductStatus
-type ProductType = sharedModels.ProductType
 type ProductInventory = sharedModels.ProductInventory
 type ProductShipping = sharedModels.ProductShipping
 type ProductSEO = sharedModels.ProductSEO
+
+// Payment and fulfillment status from shared models
+type PaymentStatus = sharedModels.PaymentStatus
+type FulfillmentStatus = sharedModels.FulfillmentStatus
+type ShippingAddress = sharedModels.ShippingAddress
+type BillingAddress = sharedModels.BillingAddress
+type ShippingMethod = sharedModels.ShippingMethod
+type Event = sharedModels.Event
 
 // Request/Response types
 type Pagination struct {
@@ -121,19 +115,19 @@ type UpdateProductRequest struct {
 
 // Response types
 type BusinessResponse struct {
-	Businesses []*Business `json:"businesses"`
-	Total      int64       `json:"total"`
-	Page       int         `json:"page"`
-	PageSize   int         `json:"pageSize"`
-	TotalPages int64       `json:"totalPages"`
+	Businesses []*sharedModels.Business `json:"businesses"`
+	Total      int64                    `json:"total"`
+	Page       int                      `json:"page"`
+	PageSize   int                      `json:"pageSize"`
+	TotalPages int64                    `json:"totalPages"`
 }
 
 type ProductResponse struct {
-	Products   []*Product `json:"products"`
-	Total      int64      `json:"total"`
-	Page       int        `json:"page"`
-	PageSize   int        `json:"pageSize"`
-	TotalPages int64      `json:"totalPages"`
+	Products   []*sharedModels.Product `json:"products"`
+	Total      int64                   `json:"total"`
+	Page       int                     `json:"page"`
+	PageSize   int                     `json:"pageSize"`
+	TotalPages int64                   `json:"totalPages"`
 }
 
 // Review request types
@@ -232,6 +226,19 @@ type CartValidationIssue struct {
 	Message     string    `json:"message"`
 	ProductID   uuid.UUID `json:"productId"`
 	Severity    string    `json:"severity"`  // "error", "warning", "info"
+}
+
+// CartValidation represents the result of cart validation
+type CartValidation struct {
+	IsValid           bool                   `json:"isValid"`
+	Issues            []CartValidationIssue  `json:"issues"`
+	TotalItems        int                    `json:"totalItems"`
+	TotalValue        decimal.Decimal        `json:"totalValue"`
+	Currency          string                 `json:"currency"`
+	EstimatedShipping decimal.Decimal        `json:"estimatedShipping"`
+	EstimatedTax      decimal.Decimal        `json:"estimatedTax"`
+	EstimatedTotal    decimal.Decimal        `json:"estimatedTotal"`
+	ValidatedAt       time.Time              `json:"validatedAt"`
 }
 
 type CartResponse struct {

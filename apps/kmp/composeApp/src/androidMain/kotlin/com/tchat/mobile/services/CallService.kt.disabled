@@ -1,0 +1,421 @@
+package com.tchat.mobile.services
+
+import android.content.Context
+import android.media.AudioManager
+import android.os.PowerManager
+import org.webrtc.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+
+/**
+ * Android-specific WebRTC call service implementation
+ * Handles WebRTC calls using the native Android WebRTC library
+ */
+actual class CallService(private val context: Context) {
+
+    // WebRTC components
+    private var peerConnectionFactory: PeerConnectionFactory? = null
+    private var peerConnection: PeerConnection? = null
+    private var localVideoTrack: VideoTrack? = null
+    private var localAudioTrack: AudioTrack? = null
+    private var remoteVideoTrack: VideoTrack? = null
+    private var videoCapturer: CameraVideoCapturer? = null
+    private var videoSource: VideoSource? = null
+    private var audioSource: AudioSource? = null
+    private var surfaceTextureHelper: SurfaceTextureHelper? = null
+
+    // Audio management
+    private val audioManager: AudioManager by lazy {
+        context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    }
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var originalAudioMode: Int = AudioManager.MODE_NORMAL
+    private var originalSpeakerphoneOn: Boolean = false
+
+    // Call state management
+    private val _callState = MutableStateFlow(CallState.IDLE)
+    actual val callState: StateFlow<CallState> = _callState
+
+    private val _isAudioMuted = MutableStateFlow(false)
+    actual val isAudioMuted: StateFlow<Boolean> = _isAudioMuted
+
+    private val _isVideoMuted = MutableStateFlow(false)
+    actual val isVideoMuted: StateFlow<Boolean> = _isVideoMuted
+
+    private val coroutineScope = CoroutineScope(Dispatchers.Main)
+
+    // WebRTC configuration
+    private val iceServers = listOf(
+        PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
+    )
+
+    actual suspend fun initialize(): Result<Unit> {
+        return try {
+            // Check permissions
+            if (!hasRequiredPermissions()) {
+                return Result.failure(SecurityException("Required permissions not granted"))
+            }
+
+            // Configure audio for calling
+            configureAudioForCalling()
+
+            // Acquire wake lock
+            acquireWakeLock()
+
+            // Initialize WebRTC
+            initializeWebRTC()
+
+            _callState.value = CallState.INITIALIZED
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    actual suspend fun initiateCall(
+        calleeId: String,
+        calleeName: String,
+        options: CallOptions
+    ): Result<String> {
+        return try {
+            if (_callState.value != CallState.INITIALIZED) {
+                return Result.failure(IllegalStateException("Call service not initialized"))
+            }
+
+            // Create peer connection
+            createPeerConnection()
+
+            // Setup local media
+            setupLocalMedia(options.enableVideo)
+
+            // Update call state
+            _callState.value = CallState.CONNECTING
+
+            // Generate call ID (in real implementation, this would come from backend)
+            val callId = "call_${System.currentTimeMillis()}"
+
+            Result.success(callId)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    actual suspend fun answerCall(callId: String, options: CallOptions): Result<Unit> {
+        return try {
+            if (_callState.value != CallState.INCOMING) {
+                return Result.failure(IllegalStateException("No incoming call to answer"))
+            }
+
+            // Setup local media
+            setupLocalMedia(options.enableVideo)
+
+            // Update call state
+            _callState.value = CallState.CONNECTED
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    actual suspend fun endCall(callId: String): Result<Unit> {
+        return try {
+            // Clean up media tracks
+            cleanupMedia()
+
+            // Close peer connection
+            peerConnection?.close()
+            peerConnection = null
+
+            // Reset audio configuration
+            resetAudioConfiguration()
+
+            // Release wake lock
+            releaseWakeLock()
+
+            // Update call state
+            _callState.value = CallState.IDLE
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    actual suspend fun muteAudio(): Result<Unit> {
+        return try {
+            localAudioTrack?.setEnabled(false)
+            _isAudioMuted.value = true
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    actual suspend fun unmuteAudio(): Result<Unit> {
+        return try {
+            localAudioTrack?.setEnabled(true)
+            _isAudioMuted.value = false
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    actual suspend fun muteVideo(): Result<Unit> {
+        return try {
+            localVideoTrack?.setEnabled(false)
+            _isVideoMuted.value = true
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    actual suspend fun unmuteVideo(): Result<Unit> {
+        return try {
+            localVideoTrack?.setEnabled(true)
+            _isVideoMuted.value = false
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    actual suspend fun switchCamera(): Result<Unit> {
+        return try {
+            (videoCapturer as? CameraVideoCapturer)?.switchCamera(null)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Android-specific implementation methods
+
+    private fun hasRequiredPermissions(): Boolean {
+        val permissions = arrayOf(
+            Manifest.permission.CAMERA,
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.MODIFY_AUDIO_SETTINGS
+        )
+
+        return permissions.all { permission ->
+            ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    private fun configureAudioForCalling() {
+        // Store original audio settings
+        originalAudioMode = audioManager.mode
+        originalSpeakerphoneOn = audioManager.isSpeakerphoneOn
+
+        // Configure audio for calling
+        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+        audioManager.isSpeakerphoneOn = false
+    }
+
+    private fun resetAudioConfiguration() {
+        // Restore original audio settings
+        audioManager.mode = originalAudioMode
+        audioManager.isSpeakerphoneOn = originalSpeakerphoneOn
+    }
+
+    private fun acquireWakeLock() {
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(
+            PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK,
+            "CallService::WakeLock"
+        ).apply {
+            acquire(10 * 60 * 1000L) // 10 minutes timeout
+        }
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.let {
+            if (it.isHeld) {
+                it.release()
+            }
+        }
+        wakeLock = null
+    }
+
+    private fun initializeWebRTC() {
+        // Initialize WebRTC factory
+        val encoderFactory = DefaultVideoEncoderFactory(
+            EglBase.create().eglBaseContext,
+            true, // enableIntelVp8Encoder
+            true  // enableH264HighProfile
+        )
+
+        val decoderFactory = DefaultVideoDecoderFactory(EglBase.create().eglBaseContext)
+
+        val options = PeerConnectionFactory.InitializationOptions.builder(context)
+            .setEnableInternalTracer(false)
+            .setFieldTrials("")
+            .createInitializationOptions()
+
+        PeerConnectionFactory.initialize(options)
+
+        peerConnectionFactory = PeerConnectionFactory.builder()
+            .setVideoEncoderFactory(encoderFactory)
+            .setVideoDecoderFactory(decoderFactory)
+            .createPeerConnectionFactory()
+    }
+
+    private fun createPeerConnection() {
+        val rtcConfig = PeerConnection.RTCConfiguration(iceServers).apply {
+            bundlePolicy = PeerConnection.BundlePolicy.BALANCED
+            rtcpMuxPolicy = PeerConnection.RtcpMuxPolicy.REQUIRE
+            tcpCandidatePolicy = PeerConnection.TcpCandidatePolicy.DISABLED
+            candidateNetworkPolicy = PeerConnection.CandidateNetworkPolicy.ALL
+            keyType = PeerConnection.KeyType.ECDSA
+        }
+
+        peerConnection = peerConnectionFactory?.createPeerConnection(
+            rtcConfig,
+            object : PeerConnection.Observer {
+                override fun onSignalingChange(newState: PeerConnection.SignalingState) {
+                    // Handle signaling state changes
+                }
+
+                override fun onIceConnectionChange(newState: PeerConnection.IceConnectionState) {
+                    coroutineScope.launch {
+                        when (newState) {
+                            PeerConnection.IceConnectionState.CONNECTED -> {
+                                _callState.value = CallState.CONNECTED
+                            }
+                            PeerConnection.IceConnectionState.DISCONNECTED,
+                            PeerConnection.IceConnectionState.FAILED -> {
+                                _callState.value = CallState.DISCONNECTED
+                            }
+                            PeerConnection.IceConnectionState.CLOSED -> {
+                                _callState.value = CallState.IDLE
+                            }
+                            else -> {
+                                // Handle other states as needed
+                            }
+                        }
+                    }
+                }
+
+                override fun onIceConnectionReceivingChange(receiving: Boolean) {
+                    // Handle ICE connection receiving state changes
+                }
+
+                override fun onIceGatheringChange(newState: PeerConnection.IceGatheringState) {
+                    // Handle ICE gathering state changes
+                }
+
+                override fun onIceCandidate(candidate: IceCandidate) {
+                    // Send ICE candidate to remote peer
+                    // In real implementation, this would go through signaling server
+                }
+
+                override fun onIceCandidatesRemoved(candidates: Array<IceCandidate>) {
+                    // Handle ICE candidate removal
+                }
+
+                override fun onAddStream(stream: MediaStream) {
+                    // Handle remote stream
+                    if (stream.videoTracks.isNotEmpty()) {
+                        remoteVideoTrack = stream.videoTracks[0]
+                    }
+                }
+
+                override fun onRemoveStream(stream: MediaStream) {
+                    // Handle stream removal
+                    remoteVideoTrack = null
+                }
+
+                override fun onDataChannel(dataChannel: DataChannel) {
+                    // Handle data channel
+                }
+
+                override fun onRenegotiationNeeded() {
+                    // Handle renegotiation
+                }
+
+                override fun onAddTrack(receiver: RtpReceiver, mediaStreams: Array<MediaStream>) {
+                    // Handle track addition
+                }
+            }
+        )
+    }
+
+    private fun setupLocalMedia(enableVideo: Boolean) {
+        // Setup audio track
+        val audioConstraints = MediaConstraints()
+        audioSource = peerConnectionFactory?.createAudioSource(audioConstraints)
+        localAudioTrack = peerConnectionFactory?.createAudioTrack("audio_track", audioSource)
+
+        // Setup video track if enabled
+        if (enableVideo) {
+            setupVideoCapture()
+        }
+
+        // Add tracks to peer connection
+        val streamId = "local_stream"
+        localAudioTrack?.let {
+            peerConnection?.addTrack(it, listOf(streamId))
+        }
+        localVideoTrack?.let {
+            peerConnection?.addTrack(it, listOf(streamId))
+        }
+    }
+
+    private fun setupVideoCapture() {
+        surfaceTextureHelper = SurfaceTextureHelper.create("CaptureThread", EglBase.create().eglBaseContext)
+
+        val camera2Enumerator = Camera2Enumerator(context)
+        val frontCameraName = camera2Enumerator.deviceNames.find { deviceName ->
+            camera2Enumerator.isFrontFacing(deviceName)
+        }
+
+        frontCameraName?.let { cameraName ->
+            videoCapturer = camera2Enumerator.createCapturer(cameraName, null)
+
+            videoSource = peerConnectionFactory?.createVideoSource(videoCapturer?.isScreencast ?: false)
+            localVideoTrack = peerConnectionFactory?.createVideoTrack("video_track", videoSource)
+
+            // Start capturing
+            videoCapturer?.initialize(
+                surfaceTextureHelper,
+                context,
+                videoSource?.capturerObserver
+            )
+
+            videoCapturer?.startCapture(640, 480, 30)
+        }
+    }
+
+    private fun cleanupMedia() {
+        videoCapturer?.stopCapture()
+        videoCapturer?.dispose()
+
+        localVideoTrack?.setEnabled(false)
+        localAudioTrack?.setEnabled(false)
+
+        localVideoTrack?.dispose()
+        localAudioTrack?.dispose()
+
+        videoSource?.dispose()
+        audioSource?.dispose()
+
+        surfaceTextureHelper?.dispose()
+
+        localVideoTrack = null
+        localAudioTrack = null
+        remoteVideoTrack = null
+        videoCapturer = null
+        videoSource = null
+        audioSource = null
+        surfaceTextureHelper = null
+    }
+}

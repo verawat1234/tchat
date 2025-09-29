@@ -1,0 +1,213 @@
+package com.tchat.mobile.commerce.domain.managers
+
+import com.tchat.mobile.commerce.data.models.*
+import com.tchat.mobile.commerce.domain.repositories.CategoryRepository
+import com.tchat.mobile.commerce.domain.repositories.ProductRepository
+import kotlinx.coroutines.flow.StateFlow
+
+/**
+ * Product manager that coordinates product operations and discovery
+ * Provides high-level product management with search and filtering
+ */
+interface ProductManager {
+    val products: StateFlow<List<Product>>
+    val featuredProducts: StateFlow<List<Product>>
+    val productsLoading: StateFlow<Boolean>
+    val productsError: StateFlow<String?>
+
+    suspend fun getProducts(
+        filters: ProductFilters? = null,
+        page: Int = 1,
+        pageSize: Int = 20,
+        sortBy: String = "created_at",
+        sortOrder: String = "desc",
+        forceRefresh: Boolean = false
+    ): Result<ProductResponse>
+
+    suspend fun getProduct(productId: String, forceRefresh: Boolean = false): Result<Product>
+    suspend fun searchProducts(query: String, filters: ProductFilters? = null): Result<ProductResponse>
+    suspend fun getFeaturedProducts(limit: Int = 10, forceRefresh: Boolean = false): Result<List<Product>>
+    suspend fun getProductsByCategory(categoryId: String, page: Int = 1, pageSize: Int = 20): Result<ProductResponse>
+    suspend fun getProductsByBusiness(businessId: String, page: Int = 1, pageSize: Int = 20): Result<ProductResponse>
+    suspend fun getRelatedProducts(productId: String, limit: Int = 5): Result<List<Product>>
+    suspend fun getProductRecommendations(userId: String? = null, limit: Int = 10): Result<List<Product>>
+
+    // Product discovery
+    suspend fun discoverProductsByPrice(minPrice: Double, maxPrice: Double): Result<List<Product>>
+    suspend fun discoverProductsByTags(tags: List<String>): Result<List<Product>>
+    suspend fun getNewArrivals(limit: Int = 10): Result<List<Product>>
+    suspend fun getBestSellers(limit: Int = 10): Result<List<Product>>
+    suspend fun getOnSaleProducts(limit: Int = 10): Result<List<Product>>
+
+    // Filtering and sorting
+    fun buildFilters(
+        category: String? = null,
+        businessId: String? = null,
+        priceRange: Pair<Double, Double>? = null,
+        inStock: Boolean? = null,
+        tags: List<String>? = null
+    ): ProductFilters
+
+    fun getSortOptions(): List<ProductSortOption>
+}
+
+/**
+ * Implementation of ProductManager
+ * Provides comprehensive product discovery and management
+ */
+class ProductManagerImpl(
+    private val productRepository: ProductRepository,
+    private val categoryRepository: CategoryRepository
+) : ProductManager {
+
+    override val products: StateFlow<List<Product>> = productRepository.products
+    override val featuredProducts: StateFlow<List<Product>> = productRepository.featuredProducts
+    override val productsLoading: StateFlow<Boolean> = productRepository.productsLoading
+    override val productsError: StateFlow<String?> = productRepository.productsError
+
+    override suspend fun getProducts(
+        filters: ProductFilters?,
+        page: Int,
+        pageSize: Int,
+        sortBy: String,
+        sortOrder: String,
+        forceRefresh: Boolean
+    ): Result<ProductResponse> {
+        return productRepository.getProducts(filters, page, pageSize, sortBy, sortOrder, forceRefresh)
+    }
+
+    override suspend fun getProduct(productId: String, forceRefresh: Boolean): Result<Product> {
+        return productRepository.getProduct(productId, forceRefresh)
+    }
+
+    override suspend fun searchProducts(query: String, filters: ProductFilters?): Result<ProductResponse> {
+        return productRepository.searchProducts(query, filters)
+    }
+
+    override suspend fun getFeaturedProducts(limit: Int, forceRefresh: Boolean): Result<List<Product>> {
+        return productRepository.getFeaturedProducts(limit, forceRefresh)
+    }
+
+    override suspend fun getProductsByCategory(categoryId: String, page: Int, pageSize: Int): Result<ProductResponse> {
+        return productRepository.getProductsByCategory(categoryId, page, pageSize)
+    }
+
+    override suspend fun getProductsByBusiness(businessId: String, page: Int, pageSize: Int): Result<ProductResponse> {
+        return productRepository.getProductsByBusiness(businessId, page, pageSize)
+    }
+
+    override suspend fun getRelatedProducts(productId: String, limit: Int): Result<List<Product>> {
+        return try {
+            val product = getProduct(productId).getOrThrow()
+
+            // Find products in the same category
+            val categoryProducts = getProductsByCategory(product.category, pageSize = limit * 2).getOrElse {
+                ProductResponse(emptyList(), 0, 1, limit, 1)
+            }
+
+            // Filter out the current product and limit results
+            val relatedProducts = categoryProducts.products
+                .filter { it.id != productId }
+                .take(limit)
+
+            Result.success(relatedProducts)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getProductRecommendations(userId: String?, limit: Int): Result<List<Product>> {
+        return try {
+            // For now, return featured products as recommendations
+            // In a real implementation, this would use user behavior, purchase history, etc.
+            getFeaturedProducts(limit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun discoverProductsByPrice(minPrice: Double, maxPrice: Double): Result<List<Product>> {
+        val filters = ProductFilters(
+            minPrice = minPrice,
+            maxPrice = maxPrice
+        )
+        return getProducts(filters, pageSize = 50).map { it.products }
+    }
+
+    override suspend fun discoverProductsByTags(tags: List<String>): Result<List<Product>> {
+        val filters = ProductFilters(tags = tags)
+        return getProducts(filters, pageSize = 50).map { it.products }
+    }
+
+    override suspend fun getNewArrivals(limit: Int): Result<List<Product>> {
+        return getProducts(
+            sortBy = "created_at",
+            sortOrder = "desc",
+            pageSize = limit
+        ).map { it.products }
+    }
+
+    override suspend fun getBestSellers(limit: Int): Result<List<Product>> {
+        // Would need a sales/popularity field in the backend
+        // For now, sort by review count as a proxy
+        return getProducts(
+            sortBy = "review_count",
+            sortOrder = "desc",
+            pageSize = limit
+        ).map { it.products }
+    }
+
+    override suspend fun getOnSaleProducts(limit: Int): Result<List<Product>> {
+        return try {
+            val allProducts = getProducts(pageSize = 100).getOrThrow().products
+            val onSaleProducts = allProducts
+                .filter { it.isOnSale || (it.compareAtPrice != null && it.compareAtPrice > it.price) }
+                .take(limit)
+
+            Result.success(onSaleProducts)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override fun buildFilters(
+        category: String?,
+        businessId: String?,
+        priceRange: Pair<Double, Double>?,
+        inStock: Boolean?,
+        tags: List<String>?
+    ): ProductFilters {
+        return ProductFilters(
+            businessId = businessId,
+            category = category,
+            minPrice = priceRange?.first,
+            maxPrice = priceRange?.second,
+            inStock = inStock,
+            tags = tags
+        )
+    }
+
+    override fun getSortOptions(): List<ProductSortOption> {
+        return listOf(
+            ProductSortOption("created_at:desc", "Newest First"),
+            ProductSortOption("created_at:asc", "Oldest First"),
+            ProductSortOption("price:asc", "Price: Low to High"),
+            ProductSortOption("price:desc", "Price: High to Low"),
+            ProductSortOption("name:asc", "Name: A to Z"),
+            ProductSortOption("name:desc", "Name: Z to A"),
+            ProductSortOption("average_rating:desc", "Highest Rated"),
+            ProductSortOption("review_count:desc", "Most Reviewed")
+        )
+    }
+}
+
+/**
+ * Product sort option for UI
+ */
+data class ProductSortOption(
+    val value: String,
+    val label: String
+) {
+    val sortBy: String get() = value.split(":")[0]
+    val sortOrder: String get() = value.split(":")[1]
+}

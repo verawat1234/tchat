@@ -1,0 +1,453 @@
+package com.tchat.mobile.commerce.offline
+
+import com.tchat.mobile.commerce.data.models.*
+import com.tchat.mobile.commerce.domain.repositories.PendingCartChange
+import com.tchat.mobile.commerce.platform.storage.CommerceStorage
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+/**
+ * Offline manager for handling commerce operations without network connectivity
+ * Provides fallback functionality and queues operations for later sync
+ */
+interface OfflineManager {
+    val isOfflineMode: StateFlow<Boolean>
+    val pendingOperations: StateFlow<List<PendingOperation>>
+    val offlineCapabilities: OfflineCapabilities
+
+    suspend fun enableOfflineMode()
+    suspend fun disableOfflineMode()
+    suspend fun queueOperation(operation: PendingOperation)
+    suspend fun processPendingOperations(): Result<OperationResult>
+    suspend fun clearPendingOperations()
+
+    // Offline commerce operations
+    suspend fun addToCartOffline(request: AddToCartRequest): Result<Cart>
+    suspend fun updateCartItemOffline(itemId: String, request: UpdateCartItemRequest): Result<Cart>
+    suspend fun removeCartItemOffline(itemId: String): Result<Cart>
+    suspend fun getProductsOffline(filters: ProductFilters? = null): Result<List<Product>>
+    suspend fun getCategoriesOffline(filters: CategoryFilters? = null): Result<List<Category>>
+}
+
+/**
+ * Implementation of OfflineManager with comprehensive offline support
+ */
+class OfflineManagerImpl(
+    private val storage: CommerceStorage
+) : OfflineManager {
+
+    private val _isOfflineMode = MutableStateFlow(false)
+    override val isOfflineMode: StateFlow<Boolean> = _isOfflineMode.asStateFlow()
+
+    private val _pendingOperations = MutableStateFlow<List<PendingOperation>>(emptyList())
+    override val pendingOperations: StateFlow<List<PendingOperation>> = _pendingOperations.asStateFlow()
+
+    override val offlineCapabilities = OfflineCapabilities(
+        canBrowseProducts = true,
+        canBrowseCategories = true,
+        canAddToCart = true,
+        canUpdateCart = true,
+        canRemoveFromCart = true,
+        canApplyCoupons = false, // Requires server validation
+        canCheckout = false, // Requires payment processing
+        canSearch = true, // Local search in cached data
+        canViewRecommendations = true // Based on cached data
+    )
+
+    init {
+        loadPendingOperations()
+    }
+
+    override suspend fun enableOfflineMode() {
+        _isOfflineMode.value = true
+    }
+
+    override suspend fun disableOfflineMode() {
+        _isOfflineMode.value = false
+    }
+
+    override suspend fun queueOperation(operation: PendingOperation) {
+        val currentOperations = _pendingOperations.value.toMutableList()
+        currentOperations.add(operation)
+        _pendingOperations.value = currentOperations
+        savePendingOperations()
+    }
+
+    override suspend fun processPendingOperations(): Result<OperationResult> {
+        return try {
+            val operations = _pendingOperations.value
+            var processed = 0
+            var failed = 0
+
+            operations.forEach { operation ->
+                try {
+                    // Process operation based on type
+                    when (operation.type) {
+                        OperationType.ADD_TO_CART -> {
+                            // Convert to cart change and add to cart storage
+                            val cartChange = PendingCartChange(
+                                id = operation.id,
+                                type = "addToCart",
+                                data = operation.data,
+                                timestamp = operation.timestamp
+                            )
+                            storage.addPendingChange(cartChange)
+                            processed++
+                        }
+                        OperationType.UPDATE_CART_ITEM -> {
+                            val cartChange = PendingCartChange(
+                                id = operation.id,
+                                type = "updateCartItem",
+                                data = operation.data,
+                                timestamp = operation.timestamp
+                            )
+                            storage.addPendingChange(cartChange)
+                            processed++
+                        }
+                        OperationType.REMOVE_CART_ITEM -> {
+                            val cartChange = PendingCartChange(
+                                id = operation.id,
+                                type = "removeCartItem",
+                                data = operation.data,
+                                timestamp = operation.timestamp
+                            )
+                            storage.addPendingChange(cartChange)
+                            processed++
+                        }
+                        else -> {
+                            // Operation type not supported for processing
+                            failed++
+                        }
+                    }
+                } catch (e: Exception) {
+                    failed++
+                }
+            }
+
+            // Clear processed operations
+            clearPendingOperations()
+
+            val result = OperationResult(
+                totalOperations = operations.size,
+                processed = processed,
+                failed = failed
+            )
+
+            Result.success(result)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun clearPendingOperations() {
+        _pendingOperations.value = emptyList()
+        savePendingOperations()
+    }
+
+    override suspend fun addToCartOffline(request: AddToCartRequest): Result<Cart> {
+        return try {
+            // Get current cart from storage
+            val currentCart = storage.getCart() ?: createEmptyCart()
+
+            // Add item to cart locally
+            val newItem = createCartItemFromRequest(request, currentCart)
+            val updatedItems = currentCart.items + newItem
+            val updatedCart = currentCart.copy(
+                items = updatedItems,
+                itemCount = updatedItems.sumOf { it.quantity },
+                subtotalAmount = updatedItems.sumOf { it.totalPrice },
+                totalAmount = updatedItems.sumOf { it.totalPrice }, // Simplified
+                updatedAt = kotlinx.datetime.Clock.System.now()
+            )
+
+            // Save updated cart
+            storage.saveCart(updatedCart)
+
+            // Queue operation for sync
+            val operation = PendingOperation(
+                id = generateOperationId(),
+                type = OperationType.ADD_TO_CART,
+                data = request,
+                timestamp = System.currentTimeMillis()
+            )
+            queueOperation(operation)
+
+            Result.success(updatedCart)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun updateCartItemOffline(itemId: String, request: UpdateCartItemRequest): Result<Cart> {
+        return try {
+            val currentCart = storage.getCart() ?: return Result.failure(Exception("No cart found"))
+
+            // Find and update item
+            val updatedItems = currentCart.items.map { item ->
+                if (item.id == itemId) {
+                    item.copy(
+                        quantity = request.quantity ?: item.quantity,
+                        isGift = request.isGift ?: item.isGift,
+                        giftMessage = request.giftMessage ?: item.giftMessage,
+                        totalPrice = (request.quantity ?: item.quantity) * item.unitPrice,
+                        updatedAt = kotlinx.datetime.Clock.System.now()
+                    )
+                } else {
+                    item
+                }
+            }
+
+            val updatedCart = currentCart.copy(
+                items = updatedItems,
+                itemCount = updatedItems.sumOf { it.quantity },
+                subtotalAmount = updatedItems.sumOf { it.totalPrice },
+                totalAmount = updatedItems.sumOf { it.totalPrice },
+                updatedAt = kotlinx.datetime.Clock.System.now()
+            )
+
+            storage.saveCart(updatedCart)
+
+            // Queue operation for sync
+            val operation = PendingOperation(
+                id = generateOperationId(),
+                type = OperationType.UPDATE_CART_ITEM,
+                data = mapOf("itemId" to itemId, "request" to request),
+                timestamp = System.currentTimeMillis()
+            )
+            queueOperation(operation)
+
+            Result.success(updatedCart)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun removeCartItemOffline(itemId: String): Result<Cart> {
+        return try {
+            val currentCart = storage.getCart() ?: return Result.failure(Exception("No cart found"))
+
+            // Remove item
+            val updatedItems = currentCart.items.filter { it.id != itemId }
+            val updatedCart = currentCart.copy(
+                items = updatedItems,
+                itemCount = updatedItems.sumOf { it.quantity },
+                subtotalAmount = updatedItems.sumOf { it.totalPrice },
+                totalAmount = updatedItems.sumOf { it.totalPrice },
+                updatedAt = kotlinx.datetime.Clock.System.now()
+            )
+
+            storage.saveCart(updatedCart)
+
+            // Queue operation for sync
+            val operation = PendingOperation(
+                id = generateOperationId(),
+                type = OperationType.REMOVE_CART_ITEM,
+                data = itemId,
+                timestamp = System.currentTimeMillis()
+            )
+            queueOperation(operation)
+
+            Result.success(updatedCart)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getProductsOffline(filters: ProductFilters?): Result<List<Product>> {
+        return try {
+            val cachedProducts = storage.getProducts()
+
+            val filteredProducts = if (filters != null) {
+                cachedProducts.filter { product ->
+                    var matches = true
+
+                    filters.category?.let { category ->
+                        matches = matches && product.category == category
+                    }
+
+                    filters.businessId?.let { businessId ->
+                        matches = matches && product.businessId == businessId
+                    }
+
+                    filters.minPrice?.let { minPrice ->
+                        matches = matches && product.price >= minPrice
+                    }
+
+                    filters.maxPrice?.let { maxPrice ->
+                        matches = matches && product.price <= maxPrice
+                    }
+
+                    filters.inStock?.let { inStock ->
+                        matches = matches && (product.inventory.quantity > 0) == inStock
+                    }
+
+                    filters.tags?.let { tags ->
+                        matches = matches && tags.any { tag -> product.tags.contains(tag) }
+                    }
+
+                    filters.search?.let { searchQuery ->
+                        matches = matches && (
+                                product.name.contains(searchQuery, ignoreCase = true) ||
+                                        product.description.contains(searchQuery, ignoreCase = true) ||
+                                        product.tags.any { it.contains(searchQuery, ignoreCase = true) }
+                                )
+                    }
+
+                    matches
+                }
+            } else {
+                cachedProducts
+            }
+
+            Result.success(filteredProducts)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getCategoriesOffline(filters: CategoryFilters?): Result<List<Category>> {
+        return try {
+            val cachedCategories = storage.getCategories()
+
+            val filteredCategories = if (filters != null) {
+                cachedCategories.filter { category ->
+                    var matches = true
+
+                    filters.businessId?.let { businessId ->
+                        matches = matches && category.businessId == businessId
+                    }
+
+                    filters.parentId?.let { parentId ->
+                        matches = matches && category.parentId == parentId
+                    }
+
+                    filters.level?.let { level ->
+                        matches = matches && category.level == level
+                    }
+
+                    filters.search?.let { searchQuery ->
+                        matches = matches && category.name.contains(searchQuery, ignoreCase = true)
+                    }
+
+                    filters.isFeatured?.let { isFeatured ->
+                        matches = matches && category.isFeatured == isFeatured
+                    }
+
+                    filters.hasProducts?.let { hasProducts ->
+                        matches = matches && (category.productCount > 0) == hasProducts
+                    }
+
+                    matches
+                }
+            } else {
+                cachedCategories
+            }
+
+            Result.success(filteredCategories)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun loadPendingOperations() {
+        // Load from storage - simplified implementation
+        // In a real implementation, you'd load from persistent storage
+    }
+
+    private suspend fun savePendingOperations() {
+        // Save to storage - simplified implementation
+        // In a real implementation, you'd save to persistent storage
+    }
+
+    private fun createEmptyCart(): Cart {
+        val now = kotlinx.datetime.Clock.System.now()
+        return Cart(
+            id = generateCartId(),
+            sessionId = generateSessionId(),
+            items = emptyList(),
+            lastActivity = now,
+            dataRegion = "US", // Default region
+            createdAt = now,
+            updatedAt = now
+        )
+    }
+
+    private fun createCartItemFromRequest(request: AddToCartRequest, cart: Cart): CartItem {
+        // This would typically fetch product details from cache
+        // Simplified implementation
+        val now = kotlinx.datetime.Clock.System.now()
+        return CartItem(
+            id = generateItemId(),
+            productId = request.productId,
+            variantId = request.variantId,
+            businessId = "default_business", // Would fetch from product
+            quantity = request.quantity,
+            unitPrice = 10.0, // Would fetch from product
+            totalPrice = 10.0 * request.quantity,
+            currency = "USD",
+            productName = "Product ${request.productId}", // Would fetch from product
+            businessName = "Default Business", // Would fetch from product
+            isGift = request.isGift,
+            giftMessage = request.giftMessage,
+            addedAt = now,
+            updatedAt = now
+        )
+    }
+
+    private fun generateOperationId(): String = "op_${System.currentTimeMillis()}_${(0..999).random()}"
+    private fun generateCartId(): String = "cart_${System.currentTimeMillis()}"
+    private fun generateSessionId(): String = "session_${System.currentTimeMillis()}"
+    private fun generateItemId(): String = "item_${System.currentTimeMillis()}_${(0..999).random()}"
+}
+
+/**
+ * Pending operation for offline queue
+ */
+data class PendingOperation(
+    val id: String,
+    val type: OperationType,
+    val data: Any,
+    val timestamp: Long
+)
+
+/**
+ * Operation types for offline queue
+ */
+enum class OperationType {
+    ADD_TO_CART,
+    UPDATE_CART_ITEM,
+    REMOVE_CART_ITEM,
+    APPLY_COUPON,
+    REMOVE_COUPON,
+    UPDATE_PRODUCT,
+    FAVORITE_PRODUCT,
+    UNFAVORITE_PRODUCT
+}
+
+/**
+ * Operation processing result
+ */
+data class OperationResult(
+    val totalOperations: Int,
+    val processed: Int,
+    val failed: Int
+) {
+    val successRate: Double = if (totalOperations > 0) processed.toDouble() / totalOperations else 0.0
+}
+
+/**
+ * Offline capabilities definition
+ */
+data class OfflineCapabilities(
+    val canBrowseProducts: Boolean,
+    val canBrowseCategories: Boolean,
+    val canAddToCart: Boolean,
+    val canUpdateCart: Boolean,
+    val canRemoveFromCart: Boolean,
+    val canApplyCoupons: Boolean,
+    val canCheckout: Boolean,
+    val canSearch: Boolean,
+    val canViewRecommendations: Boolean
+)

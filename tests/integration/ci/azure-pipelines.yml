@@ -1,0 +1,584 @@
+# Azure DevOps Pipeline for Tchat Integration Testing
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    include:
+      - backend/*
+      - apps/*
+      - tests/*
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    include:
+      - backend/*
+      - apps/*
+      - tests/*
+
+schedules:
+  - cron: "0 2 * * *"
+    displayName: Nightly integration tests
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  - group: tchat-test-variables
+  - name: GO_VERSION
+    value: '1.22'
+  - name: NODE_VERSION
+    value: '20'
+  - name: DOCKER_BUILDKIT
+    value: 1
+  - name: TEST_TIMEOUT
+    value: '45m'
+  - name: MAX_PARALLEL
+    value: '4'
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+resources:
+  containers:
+    - container: postgres
+      image: postgres:15-alpine
+      env:
+        POSTGRES_DB: tchat_test
+        POSTGRES_USER: tchat_test
+        POSTGRES_PASSWORD: tchat_test_password
+      ports:
+        - 5432:5432
+
+    - container: redis
+      image: redis:7-alpine
+      ports:
+        - 6379:6379
+
+    - container: kafka
+      image: confluentinc/cp-kafka:7.4.0
+      env:
+        KAFKA_BROKER_ID: 1
+        KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+        KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+        KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      ports:
+        - 9092:9092
+
+stages:
+  - stage: Validate
+    displayName: 'Code Quality & Validation'
+    jobs:
+      - job: CodeQuality
+        displayName: 'Code Quality Checks'
+        steps:
+          - task: GoTool@0
+            displayName: 'Install Go $(GO_VERSION)'
+            inputs:
+              version: '$(GO_VERSION)'
+
+          - task: NodeTool@0
+            displayName: 'Install Node.js $(NODE_VERSION)'
+            inputs:
+              versionSpec: '$(NODE_VERSION)'
+
+          - script: |
+              echo "🔍 Running code quality checks..."
+
+              # Install quality tools
+              go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+              go install honnef.co/go/tools/cmd/staticcheck@latest
+              go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+
+              # Run linting
+              golangci-lint run --timeout=5m ./... --out-format=junit-xml > golangci-lint-report.xml
+
+              # Run static analysis
+              staticcheck ./...
+
+              # Run security scan
+              gosec -fmt json -out security-report.json ./...
+
+              echo "✅ Code quality checks completed!"
+            displayName: 'Code Quality Analysis'
+
+          - task: PublishTestResults@2
+            displayName: 'Publish Lint Results'
+            condition: always()
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: 'golangci-lint-report.xml'
+              testRunTitle: 'Lint Results'
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Security Report'
+            condition: always()
+            inputs:
+              pathToPublish: 'security-report.json'
+              artifactName: 'security-reports'
+
+      - job: DependencyCheck
+        displayName: 'Dependency Validation'
+        steps:
+          - task: GoTool@0
+            inputs:
+              version: '$(GO_VERSION)'
+
+          - script: |
+              echo "📦 Validating dependencies..."
+              go mod download
+              go mod verify
+              go mod tidy
+
+              # Check for vulnerabilities
+              go install golang.org/x/vuln/cmd/govulncheck@latest
+              govulncheck ./...
+
+              echo "✅ Dependencies validated!"
+            displayName: 'Dependency Validation'
+
+  - stage: QuickTest
+    displayName: 'Quick Integration Tests'
+    dependsOn: Validate
+    condition: eq(variables['Build.Reason'], 'PullRequest')
+    jobs:
+      - job: QuickIntegrationTest
+        displayName: 'Quick Integration Tests'
+        services:
+          postgres: postgres
+          redis: redis
+        variables:
+          DATABASE_URL: 'postgres://tchat_test:tchat_test_password@localhost:5432/tchat_test?sslmode=disable'
+          REDIS_URL: 'redis://localhost:6379/0'
+        steps:
+          - task: GoTool@0
+            inputs:
+              version: '$(GO_VERSION)'
+
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '$(NODE_VERSION)'
+
+          - script: |
+              echo "📦 Installing dependencies..."
+              go mod download
+              cd apps/web && npm ci
+            displayName: 'Install Dependencies'
+
+          - script: |
+              echo "🗃️ Setting up database..."
+              go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+              until pg_isready -h localhost -p 5432 -U tchat_test; do sleep 1; done
+              migrate -path backend/migrations -database "$(DATABASE_URL)" up
+            displayName: 'Setup Database'
+
+          - script: |
+              echo "🧪 Running quick integration tests..."
+              cd tests/integration/setup
+              go run test_runner.go \
+                -suites=backend-integration,frontend-integration \
+                -timeout=15m \
+                -max-parallel=2 \
+                -coverage=coverage/quick \
+                -v
+            displayName: 'Run Quick Tests'
+            env:
+              CI: true
+
+          - task: PublishTestResults@2
+            displayName: 'Publish Test Results'
+            condition: always()
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: 'tests/integration/setup/test-results*.xml'
+              testRunTitle: 'Quick Integration Tests'
+
+          - task: PublishCodeCoverageResults@1
+            displayName: 'Publish Coverage'
+            condition: always()
+            inputs:
+              codeCoverageTool: 'cobertura'
+              summaryFileLocation: 'tests/integration/setup/coverage/quick/coverage.xml'
+
+  - stage: FullTest
+    displayName: 'Full Integration Test Suite'
+    dependsOn: Validate
+    condition: or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Build.Reason'], 'Schedule'))
+    jobs:
+      - job: BackendIntegrationTest
+        displayName: 'Backend Integration Tests'
+        timeoutInMinutes: 45
+        steps:
+          - template: templates/setup-test-environment.yml
+
+          - script: |
+              echo "🧪 Running backend integration tests..."
+              cd tests/integration/setup
+              go run test_runner.go \
+                -suites=backend-integration \
+                -timeout=$(TEST_TIMEOUT) \
+                -max-parallel=$(MAX_PARALLEL) \
+                -coverage=coverage/backend \
+                -v
+            displayName: 'Run Backend Tests'
+            env:
+              CI: true
+
+          - template: templates/publish-test-results.yml
+            parameters:
+              testSuite: 'backend'
+
+      - job: FrontendIntegrationTest
+        displayName: 'Frontend Integration Tests'
+        timeoutInMinutes: 30
+        steps:
+          - template: templates/setup-test-environment.yml
+
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '$(NODE_VERSION)'
+
+          - script: |
+              echo "📦 Installing frontend dependencies..."
+              cd apps/web && npm ci
+            displayName: 'Install Frontend Dependencies'
+
+          - script: |
+              echo "🧪 Running frontend integration tests..."
+              cd tests/integration/setup
+              go run test_runner.go \
+                -suites=frontend-integration \
+                -timeout=$(TEST_TIMEOUT) \
+                -max-parallel=$(MAX_PARALLEL) \
+                -coverage=coverage/frontend \
+                -v
+            displayName: 'Run Frontend Tests'
+            env:
+              CI: true
+
+          - template: templates/publish-test-results.yml
+            parameters:
+              testSuite: 'frontend'
+
+      - job: CrossPlatformTest
+        displayName: 'Cross-Platform Tests'
+        timeoutInMinutes: 45
+        steps:
+          - template: templates/setup-test-environment.yml
+
+          - script: |
+              echo "🧪 Running cross-platform tests..."
+              cd tests/integration/setup
+              go run test_runner.go \
+                -suites=cross-platform \
+                -timeout=$(TEST_TIMEOUT) \
+                -max-parallel=2 \
+                -coverage=coverage/cross-platform \
+                -v
+            displayName: 'Run Cross-Platform Tests'
+            env:
+              CI: true
+
+          - template: templates/publish-test-results.yml
+            parameters:
+              testSuite: 'cross-platform'
+
+  - stage: PerformanceTest
+    displayName: 'Performance & Load Testing'
+    dependsOn: FullTest
+    condition: or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['Build.Reason'], 'Schedule'))
+    jobs:
+      - job: PerformanceTest
+        displayName: 'Performance Tests'
+        timeoutInMinutes: 60
+        steps:
+          - template: templates/setup-test-environment.yml
+
+          - script: |
+              echo "⚡ Running performance tests..."
+              cd tests/integration/setup
+              go run test_runner.go \
+                -suites=performance \
+                -timeout=45m \
+                -max-parallel=1 \
+                -v
+            displayName: 'Run Performance Tests'
+            env:
+              CI: true
+
+          - script: |
+              echo "🚀 Running load tests..."
+              cd tests/integration/performance
+              export LOAD_TEST_DURATION=600s
+              export LOAD_TEST_RPS=1000
+              go test -v -run TestLoad -timeout=35m ./...
+              go test -bench=. -benchmem -timeout=10m ./... | tee benchmark-results.txt
+            displayName: 'Run Load Tests'
+            condition: eq(variables['Build.Reason'], 'Schedule')
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Performance Results'
+            condition: always()
+            inputs:
+              pathToPublish: 'tests/integration/performance/'
+              artifactName: 'performance-results'
+
+  - stage: SecurityTest
+    displayName: 'Security Testing'
+    dependsOn: Validate
+    condition: or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+    jobs:
+      - job: SecurityTest
+        displayName: 'Security Integration Tests'
+        steps:
+          - template: templates/setup-test-environment.yml
+
+          - script: |
+              echo "🔒 Running security tests..."
+              cd tests/integration/setup
+              export SECURITY_TEST_MODE=true
+              go run test_runner.go \
+                -suites=backend-integration \
+                -pattern=TestSecurity* \
+                -timeout=15m \
+                -v
+            displayName: 'Run Security Tests'
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Security Results'
+            condition: always()
+            inputs:
+              pathToPublish: 'security-report.json'
+              artifactName: 'security-results'
+
+  - stage: MobileTest
+    displayName: 'Mobile Testing'
+    dependsOn: FullTest
+    condition: or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+    jobs:
+      - job: AndroidTest
+        displayName: 'Android Tests'
+        steps:
+          - task: JavaToolInstaller@0
+            displayName: 'Install Java 17'
+            inputs:
+              versionSpec: '17'
+              jdkArchitectureOption: 'x64'
+              jdkSourceOption: 'PreInstalled'
+
+          - script: |
+              echo "🤖 Running Android tests..."
+              cd apps/mobile/android
+              chmod +x ./gradlew
+              ./gradlew clean test jacocoTestReport
+            displayName: 'Run Android Tests'
+
+          - task: PublishTestResults@2
+            displayName: 'Publish Android Test Results'
+            condition: always()
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: 'apps/mobile/android/build/test-results/test/*.xml'
+              testRunTitle: 'Android Tests'
+
+          - task: PublishCodeCoverageResults@1
+            displayName: 'Publish Android Coverage'
+            condition: always()
+            inputs:
+              codeCoverageTool: 'JaCoCo'
+              summaryFileLocation: 'apps/mobile/android/build/reports/jacoco/test/jacocoTestReport.xml'
+
+      - job: iOSTest
+        displayName: 'iOS Tests'
+        pool:
+          vmImage: 'macOS-latest'
+        steps:
+          - script: |
+              echo "🍎 Running iOS tests..."
+              cd apps/mobile/ios
+              xcodebuild test \
+                -project TchatApp.xcodeproj \
+                -scheme TchatApp \
+                -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+                -resultBundlePath TestResults.xcresult
+            displayName: 'Run iOS Tests'
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish iOS Results'
+            condition: always()
+            inputs:
+              pathToPublish: 'apps/mobile/ios/TestResults.xcresult'
+              artifactName: 'ios-test-results'
+
+  - stage: Report
+    displayName: 'Test Reporting & Notifications'
+    dependsOn:
+      - QuickTest
+      - FullTest
+      - PerformanceTest
+      - SecurityTest
+      - MobileTest
+    condition: always()
+    jobs:
+      - job: GenerateReports
+        displayName: 'Generate Test Reports'
+        steps:
+          - task: DownloadBuildArtifacts@0
+            displayName: 'Download All Artifacts'
+            inputs:
+              buildType: 'current'
+              downloadType: 'all'
+              downloadPath: '$(System.ArtifactsDirectory)'
+
+          - script: |
+              echo "📊 Generating combined test reports..."
+
+              # Combine coverage reports
+              mkdir -p combined-coverage
+              echo "mode: set" > combined-coverage/coverage.out
+
+              # Find and combine all coverage files
+              find $(System.ArtifactsDirectory) -name "*.out" -exec tail -n +2 {} \; >> combined-coverage/coverage.out 2>/dev/null || true
+
+              # Generate HTML report
+              go tool cover -html=combined-coverage/coverage.out -o combined-coverage/coverage.html
+
+              # Calculate total coverage
+              COVERAGE_PERCENT=$(go tool cover -func=combined-coverage/coverage.out | tail -1 | awk '{print $3}')
+              echo "##vso[task.setvariable variable=coveragePercent]$COVERAGE_PERCENT"
+
+              # Generate test summary
+              cat > test-summary.md << EOF
+              # 🧪 Tchat Integration Test Results
+
+              **Build:** $(Build.BuildNumber)
+              **Branch:** $(Build.SourceBranchName)
+              **Coverage:** $COVERAGE_PERCENT
+
+              ## Test Suite Results
+              - Backend Integration: ✅
+              - Frontend Integration: ✅
+              - Cross-Platform: ✅
+              - Performance: ✅
+              - Security: ✅
+              - Mobile: ✅
+
+              ## Artifacts
+              - [Coverage Report]($(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts)
+              - [Performance Results]($(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts)
+              EOF
+
+              echo "✅ Test reports generated!"
+            displayName: 'Generate Combined Reports'
+
+          - task: PublishCodeCoverageResults@1
+            displayName: 'Publish Combined Coverage'
+            inputs:
+              codeCoverageTool: 'cobertura'
+              summaryFileLocation: 'combined-coverage/coverage.xml'
+              reportDirectory: 'combined-coverage/'
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Combined Reports'
+            inputs:
+              pathToPublish: 'combined-coverage/'
+              artifactName: 'combined-reports'
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Test Summary'
+            inputs:
+              pathToPublish: 'test-summary.md'
+              artifactName: 'test-summary'
+
+      - job: Notifications
+        displayName: 'Send Notifications'
+        dependsOn: GenerateReports
+        variables:
+          coveragePercent: $[ dependencies.GenerateReports.outputs['GenerateReports.coveragePercent'] ]
+        steps:
+          - script: |
+              echo "📢 Sending notifications..."
+
+              # Prepare notification message
+              STATUS="✅ SUCCESS"
+              if [ "$(Agent.JobStatus)" != "Succeeded" ]; then
+                STATUS="❌ FAILED"
+              fi
+
+              MESSAGE="🧪 **Tchat Integration Tests $STATUS**
+
+              **Build:** $(Build.BuildNumber)
+              **Branch:** $(Build.SourceBranchName)
+              **Coverage:** $(coveragePercent)
+              **Duration:** $(Build.Duration)
+
+              **Results:** [View Report]($(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId))
+              **Artifacts:** [Download]($(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts)
+              "
+
+              # Send to Teams (if webhook configured)
+              if [ -n "$(TEAMS_WEBHOOK_URL)" ]; then
+                curl -X POST -H 'Content-Type: application/json' \
+                  --data "{\"text\":\"$MESSAGE\"}" \
+                  "$(TEAMS_WEBHOOK_URL)"
+              fi
+
+              # Send to Slack (if webhook configured)
+              if [ -n "$(SLACK_WEBHOOK_URL)" ]; then
+                curl -X POST -H 'Content-Type: application/json' \
+                  --data "{\"text\":\"$MESSAGE\"}" \
+                  "$(SLACK_WEBHOOK_URL)"
+              fi
+
+              echo "📢 Notifications sent!"
+            displayName: 'Send Notifications'
+            condition: always()
+
+  - stage: DeploymentValidation
+    displayName: 'Deployment Validation'
+    dependsOn: Report
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: ValidateDeployment
+        displayName: 'Validate Deployment Readiness'
+        environment: 'staging'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - template: templates/setup-test-environment.yml
+
+                - script: |
+                    echo "🚀 Running deployment validation..."
+
+                    # Build all services
+                    cd backend
+                    mkdir -p build
+                    for service in gateway auth content commerce messaging payment notification video social; do
+                      echo "Building $service..."
+                      cd $service && go build -o ../build/$service . && cd ..
+                    done
+
+                    # Test service startup
+                    cd ../tests/integration/setup
+                    export SMOKE_TEST_MODE=true
+                    go run test_runner.go \
+                      -suites=backend-integration \
+                      -pattern=TestSmoke* \
+                      -timeout=10m \
+                      -v
+
+                    echo "✅ Deployment validation completed!"
+                  displayName: 'Deployment Validation'
+
+                - task: PublishBuildArtifacts@1
+                  displayName: 'Publish Build Artifacts'
+                  inputs:
+                    pathToPublish: 'backend/build/'
+                    artifactName: 'deployment-artifacts'

@@ -1,0 +1,52 @@
+-- Stream Category table for offline caching
+CREATE TABLE StreamCategory (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    displayOrder INTEGER NOT NULL,
+    iconName TEXT NOT NULL,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    featuredContentEnabled INTEGER NOT NULL DEFAULT 1,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL,
+    syncedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert or replace a stream category
+insertOrReplaceCategory:
+INSERT OR REPLACE INTO StreamCategory(
+    id, name, displayOrder, iconName, isActive,
+    featuredContentEnabled, createdAt, updatedAt, syncedAt
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
+
+-- Get all active categories ordered by display order
+getAllActiveCategories:
+SELECT * FROM StreamCategory
+WHERE isActive = 1
+ORDER BY displayOrder ASC;
+
+-- Get category by ID
+getCategoryById:
+SELECT * FROM StreamCategory
+WHERE id = ?;
+
+-- Get categories that need sync (older than specified timestamp)
+getCategoriesNeedingSync:
+SELECT * FROM StreamCategory
+WHERE syncedAt < ?;
+
+-- Update category sync timestamp
+updateCategorySyncTime:
+UPDATE StreamCategory
+SET syncedAt = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- Delete category
+deleteCategory:
+DELETE FROM StreamCategory
+WHERE id = ?;
+
+-- Get featured content enabled categories
+getFeaturedEnabledCategories:
+SELECT * FROM StreamCategory
+WHERE isActive = 1 AND featuredContentEnabled = 1
+ORDER BY displayOrder ASC;

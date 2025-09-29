@@ -1,0 +1,60 @@
+-- Stream Navigation State for user's current position in Stream system
+CREATE TABLE StreamNavigation (
+    userId TEXT NOT NULL,
+    currentCategoryId TEXT NOT NULL,
+    currentSubtabId TEXT,
+    lastVisitedAt TEXT NOT NULL,
+    sessionId TEXT NOT NULL,
+    PRIMARY KEY (userId),
+    FOREIGN KEY (currentCategoryId) REFERENCES StreamCategory(id) ON DELETE CASCADE,
+    FOREIGN KEY (currentSubtabId) REFERENCES StreamSubtab(id) ON DELETE SET NULL
+);
+
+-- Insert or update navigation state
+insertOrUpdateNavigation:
+INSERT OR REPLACE INTO StreamNavigation(
+    userId, currentCategoryId, currentSubtabId, lastVisitedAt, sessionId
+) VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?);
+
+-- Get navigation state for user
+getNavigationByUser:
+SELECT * FROM StreamNavigation
+WHERE userId = ?;
+
+-- Update category selection
+updateCurrentCategory:
+UPDATE StreamNavigation
+SET currentCategoryId = ?,
+    currentSubtabId = NULL,
+    lastVisitedAt = CURRENT_TIMESTAMP
+WHERE userId = ?;
+
+-- Update subtab selection
+updateCurrentSubtab:
+UPDATE StreamNavigation
+SET currentSubtabId = ?,
+    lastVisitedAt = CURRENT_TIMESTAMP
+WHERE userId = ?;
+
+-- Update session
+updateSession:
+UPDATE StreamNavigation
+SET sessionId = ?,
+    lastVisitedAt = CURRENT_TIMESTAMP
+WHERE userId = ?;
+
+-- Get most recent navigation states
+getRecentNavigations:
+SELECT * FROM StreamNavigation
+ORDER BY lastVisitedAt DESC
+LIMIT ?;
+
+-- Delete navigation state
+deleteNavigation:
+DELETE FROM StreamNavigation
+WHERE userId = ?;
+
+-- Clean old navigation states
+cleanOldNavigations:
+DELETE FROM StreamNavigation
+WHERE lastVisitedAt < ?;

@@ -217,10 +217,25 @@ func (g *Gateway) setupRoutes() {
 		{
 			social.Any("/*path", g.proxyHandler("social-service"))
 		}
+
+		// Calling service routes
+		calls := v1.Group("/calls", g.authMiddleware())
+		{
+			calls.Any("/*path", g.proxyHandler("calling-service"))
+		}
+
+		// Presence service routes (part of calling service)
+		presence := v1.Group("/presence", g.authMiddleware())
+		{
+			presence.Any("/*path", g.proxyHandler("calling-service"))
+		}
 	}
 
 	// WebSocket proxy for real-time messaging
 	g.router.GET("/ws", g.websocketProxyHandler("messaging-service"))
+
+	// WebSocket proxy for calling signaling
+	g.router.GET("/ws/calling", g.websocketProxyHandler("calling-service"))
 
 	// Admin endpoints
 	admin := g.router.Group("/admin", g.adminAuthMiddleware())
@@ -305,6 +320,15 @@ func (g *Gateway) registerDefaultServices() {
 			Health:  string(Unknown),
 			Version: "1.0.0",
 			Tags:    []string{"social", "community"},
+		},
+		{
+			ID:      uuid.New().String(),
+			Name:    "calling-service",
+			Host:    "localhost",
+			Port:    8093,
+			Health:  string(Unknown),
+			Version: "1.0.0",
+			Tags:    []string{"calling", "webrtc", "voice", "video"},
 		},
 	}
 

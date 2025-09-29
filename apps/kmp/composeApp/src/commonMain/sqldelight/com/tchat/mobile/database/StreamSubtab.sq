@@ -1,0 +1,56 @@
+-- Stream Subtab table for category subdivisions
+CREATE TABLE StreamSubtab (
+    id TEXT NOT NULL PRIMARY KEY,
+    categoryId TEXT NOT NULL,
+    name TEXT NOT NULL,
+    displayOrder INTEGER NOT NULL,
+    filterCriteria TEXT NOT NULL, -- JSON string
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL,
+    syncedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (categoryId) REFERENCES StreamCategory(id) ON DELETE CASCADE
+);
+
+-- Create index for better query performance
+CREATE INDEX idx_subtab_category ON StreamSubtab(categoryId);
+CREATE INDEX idx_subtab_display_order ON StreamSubtab(categoryId, displayOrder);
+
+-- Insert or replace a stream subtab
+insertOrReplaceSubtab:
+INSERT OR REPLACE INTO StreamSubtab(
+    id, categoryId, name, displayOrder, filterCriteria,
+    isActive, createdAt, updatedAt, syncedAt
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
+
+-- Get all active subtabs for a category
+getSubtabsByCategory:
+SELECT * FROM StreamSubtab
+WHERE categoryId = ? AND isActive = 1
+ORDER BY displayOrder ASC;
+
+-- Get subtab by ID
+getSubtabById:
+SELECT * FROM StreamSubtab
+WHERE id = ?;
+
+-- Get subtabs that need sync
+getSubtabsNeedingSync:
+SELECT * FROM StreamSubtab
+WHERE syncedAt < ?;
+
+-- Update subtab sync timestamp
+updateSubtabSyncTime:
+UPDATE StreamSubtab
+SET syncedAt = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- Delete subtab
+deleteSubtab:
+DELETE FROM StreamSubtab
+WHERE id = ?;
+
+-- Delete all subtabs for a category
+deleteSubtabsByCategory:
+DELETE FROM StreamSubtab
+WHERE categoryId = ?;

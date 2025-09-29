@@ -1,0 +1,366 @@
+package com.tchat.mobile.commerce.domain.managers
+
+import com.tchat.mobile.commerce.data.models.*
+import com.tchat.mobile.commerce.domain.repositories.CartRepository
+import com.tchat.mobile.commerce.domain.repositories.ProductRepository
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+
+/**
+ * Cart manager that coordinates cart operations and business logic
+ * Provides high-level cart management with validation and error handling
+ */
+interface CartManager {
+    val currentCart: StateFlow<Cart?>
+    val cartItems: StateFlow<List<CartItem>>
+    val cartItemCount: StateFlow<Int>
+    val cartTotal: StateFlow<Double>
+    val cartLoading: StateFlow<Boolean>
+    val cartError: StateFlow<String?>
+
+    suspend fun addProductToCart(
+        productId: String,
+        quantity: Int = 1,
+        variantId: String? = null,
+        isGift: Boolean = false,
+        giftMessage: String? = null
+    ): Result<Cart>
+
+    suspend fun updateCartItemQuantity(itemId: String, quantity: Int): Result<Cart>
+    suspend fun removeItemFromCart(itemId: String): Result<Cart>
+    suspend fun clearCart(): Result<Cart>
+    suspend fun applyCouponCode(couponCode: String): Result<Cart>
+    suspend fun removeCoupon(): Result<Cart>
+    suspend fun toggleItemSaveForLater(itemId: String): Result<Cart>
+    suspend fun moveItemToCart(itemId: String): Result<Cart>
+    suspend fun validateCartBeforeCheckout(): Result<CartValidation>
+    suspend fun refreshCart(): Result<Cart>
+    suspend fun syncCartWithServer(): Result<Cart>
+
+    // Cart analytics
+    fun getCartItemsByBusiness(): Map<String, List<CartItem>>
+    fun getCartSummary(): CartSummary
+    fun getShippingEstimate(): Double
+    fun getTaxEstimate(): Double
+}
+
+/**
+ * Implementation of CartManager
+ * Provides comprehensive cart management with business logic
+ */
+class CartManagerImpl(
+    private val cartRepository: CartRepository,
+    private val productRepository: ProductRepository
+) : CartManager {
+
+    override val currentCart: StateFlow<Cart?> = cartRepository.currentCart
+    override val cartLoading: StateFlow<Boolean> = cartRepository.cartLoading
+    override val cartError: StateFlow<String?> = cartRepository.cartError
+
+    override val cartItems: StateFlow<List<CartItem>> = combine(currentCart) { cart ->
+        cart?.items ?: emptyList()
+    }
+
+    override val cartItemCount: StateFlow<Int> = combine(currentCart) { cart ->
+        cart?.itemCount ?: 0
+    }
+
+    override val cartTotal: StateFlow<Double> = combine(currentCart) { cart ->
+        cart?.totalAmount ?: 0.0
+    }
+
+    override suspend fun addProductToCart(
+        productId: String,
+        quantity: Int,
+        variantId: String?,
+        isGift: Boolean,
+        giftMessage: String?
+    ): Result<Cart> {
+        return try {
+            // Validate product availability
+            val product = productRepository.getProduct(productId).getOrThrow()
+
+            if (!product.isVisible || product.status != ProductStatus.ACTIVE) {
+                return Result.failure(Exception("Product is not available"))
+            }
+
+            // Check inventory if tracking is enabled
+            if (product.inventory.trackQuantity) {
+                val availableQuantity = if (variantId != null) {
+                    product.variants.find { it.id == variantId }?.inventory?.quantity ?: 0
+                } else {
+                    product.inventory.quantity
+                }
+
+                if (quantity > availableQuantity) {
+                    return Result.failure(Exception("Insufficient inventory. Available: $availableQuantity"))
+                }
+            }
+
+            // Check if item already exists in cart
+            val currentCart = cartRepository.currentCart.value
+            val existingItem = currentCart?.items?.find {
+                it.productId == productId && it.variantId == variantId
+            }
+
+            if (existingItem != null) {
+                // Update existing item quantity
+                val newQuantity = existingItem.quantity + quantity
+                return updateCartItemQuantity(existingItem.id, newQuantity)
+            } else {
+                // Add new item to cart
+                val request = AddToCartRequest(
+                    productId = productId,
+                    variantId = variantId,
+                    quantity = quantity,
+                    isGift = isGift,
+                    giftMessage = giftMessage
+                )
+                return cartRepository.addToCart(request)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun updateCartItemQuantity(itemId: String, quantity: Int): Result<Cart> {
+        return try {
+            if (quantity <= 0) {
+                return removeItemFromCart(itemId)
+            }
+
+            // Validate quantity against inventory
+            val currentCart = cartRepository.currentCart.value
+            val item = currentCart?.items?.find { it.id == itemId }
+                ?: return Result.failure(Exception("Cart item not found"))
+
+            val product = productRepository.getProduct(item.productId).getOrNull()
+            if (product?.inventory?.trackQuantity == true) {
+                val availableQuantity = if (item.variantId != null) {
+                    product.variants.find { it.id == item.variantId }?.inventory?.quantity ?: 0
+                } else {
+                    product.inventory.quantity
+                }
+
+                if (quantity > availableQuantity) {
+                    return Result.failure(Exception("Insufficient inventory. Available: $availableQuantity"))
+                }
+            }
+
+            val request = UpdateCartItemRequest(quantity = quantity)
+            cartRepository.updateCartItem(itemId, request)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun removeItemFromCart(itemId: String): Result<Cart> {
+        return cartRepository.removeCartItem(itemId)
+    }
+
+    override suspend fun clearCart(): Result<Cart> {
+        return cartRepository.clearCart()
+    }
+
+    override suspend fun applyCouponCode(couponCode: String): Result<Cart> {
+        return try {
+            if (couponCode.isBlank()) {
+                return Result.failure(Exception("Coupon code cannot be empty"))
+            }
+            cartRepository.applyCoupon(couponCode)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun removeCoupon(): Result<Cart> {
+        return cartRepository.removeCoupon()
+    }
+
+    override suspend fun toggleItemSaveForLater(itemId: String): Result<Cart> {
+        return try {
+            val currentCart = cartRepository.currentCart.value
+            val item = currentCart?.items?.find { it.id == itemId }
+                ?: return Result.failure(Exception("Cart item not found"))
+
+            val request = UpdateCartItemRequest(
+                quantity = if (item.isSavedForLater) item.quantity else 0,
+                // Move to saved for later by setting quantity to 0 and marking as saved
+            )
+            cartRepository.updateCartItem(itemId, request)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun moveItemToCart(itemId: String): Result<Cart> {
+        return try {
+            val currentCart = cartRepository.currentCart.value
+            val item = currentCart?.items?.find { it.id == itemId }
+                ?: return Result.failure(Exception("Saved item not found"))
+
+            if (!item.isSavedForLater) {
+                return Result.failure(Exception("Item is already in cart"))
+            }
+
+            val request = UpdateCartItemRequest(
+                quantity = 1 // Move back to cart with quantity 1
+            )
+            cartRepository.updateCartItem(itemId, request)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun validateCartBeforeCheckout(): Result<CartValidation> {
+        return try {
+            val currentCart = cartRepository.currentCart.value
+                ?: return Result.failure(Exception("No active cart"))
+
+            if (currentCart.items.isEmpty()) {
+                return Result.failure(Exception("Cart is empty"))
+            }
+
+            // Validate each item's availability and inventory
+            val issues = mutableListOf<CartValidationIssue>()
+
+            for (item in currentCart.items) {
+                if (item.isSavedForLater) continue
+
+                val product = productRepository.getProduct(item.productId).getOrNull()
+                if (product == null) {
+                    issues.add(
+                        CartValidationIssue(
+                            type = "product_not_found",
+                            message = "Product ${item.productName} is no longer available",
+                            productId = item.productId,
+                            severity = "error"
+                        )
+                    )
+                    continue
+                }
+
+                if (!product.isVisible || product.status != ProductStatus.ACTIVE) {
+                    issues.add(
+                        CartValidationIssue(
+                            type = "product_unavailable",
+                            message = "Product ${item.productName} is currently unavailable",
+                            productId = item.productId,
+                            severity = "error"
+                        )
+                    )
+                }
+
+                if (product.inventory.trackQuantity) {
+                    val availableQuantity = if (item.variantId != null) {
+                        product.variants.find { it.id == item.variantId }?.inventory?.quantity ?: 0
+                    } else {
+                        product.inventory.quantity
+                    }
+
+                    if (item.quantity > availableQuantity) {
+                        issues.add(
+                            CartValidationIssue(
+                                type = "insufficient_inventory",
+                                message = "Only $availableQuantity units of ${item.productName} available",
+                                productId = item.productId,
+                                severity = if (availableQuantity == 0) "error" else "warning"
+                            )
+                        )
+                    }
+                }
+            }
+
+            // Use server validation for final check
+            val serverValidation = cartRepository.validateCart().getOrNull()
+            if (serverValidation != null) {
+                issues.addAll(serverValidation.issues)
+                return Result.success(
+                    serverValidation.copy(
+                        issues = issues,
+                        isValid = issues.none { it.severity == "error" }
+                    )
+                )
+            }
+
+            // Fallback local validation
+            val summary = getCartSummary()
+            val validation = CartValidation(
+                isValid = issues.none { it.severity == "error" },
+                issues = issues,
+                totalItems = summary.totalItems,
+                totalValue = summary.totalValue,
+                currency = currentCart.currency,
+                estimatedShipping = getShippingEstimate(),
+                estimatedTax = getTaxEstimate(),
+                estimatedTotal = summary.totalValue + getShippingEstimate() + getTaxEstimate(),
+                validatedAt = kotlinx.datetime.Clock.System.now()
+            )
+
+            Result.success(validation)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun refreshCart(): Result<Cart> {
+        return cartRepository.refreshCart()
+    }
+
+    override suspend fun syncCartWithServer(): Result<Cart> {
+        return cartRepository.syncWithServer()
+    }
+
+    override fun getCartItemsByBusiness(): Map<String, List<CartItem>> {
+        val cart = currentCart.value ?: return emptyMap()
+        return cart.items
+            .filter { !it.isSavedForLater }
+            .groupBy { it.businessId }
+    }
+
+    override fun getCartSummary(): CartSummary {
+        val cart = currentCart.value ?: return CartSummary()
+
+        val activeItems = cart.items.filter { !it.isSavedForLater }
+        val savedItems = cart.items.filter { it.isSavedForLater }
+
+        return CartSummary(
+            totalItems = activeItems.sumOf { it.quantity },
+            totalValue = activeItems.sumOf { it.totalPrice },
+            currency = cart.currency,
+            businesses = activeItems.map { it.businessId }.distinct().size,
+            savedItems = savedItems.size,
+            discountAmount = cart.discountAmount,
+            subtotal = cart.subtotalAmount,
+            tax = cart.taxAmount,
+            shipping = cart.shippingAmount,
+            total = cart.totalAmount
+        )
+    }
+
+    override fun getShippingEstimate(): Double {
+        val cart = currentCart.value ?: return 0.0
+        return cart.shippingAmount
+    }
+
+    override fun getTaxEstimate(): Double {
+        val cart = currentCart.value ?: return 0.0
+        return cart.taxAmount
+    }
+}
+
+/**
+ * Cart summary data class for analytics and display
+ */
+data class CartSummary(
+    val totalItems: Int = 0,
+    val totalValue: Double = 0.0,
+    val currency: String = "USD",
+    val businesses: Int = 0,
+    val savedItems: Int = 0,
+    val discountAmount: Double = 0.0,
+    val subtotal: Double = 0.0,
+    val tax: Double = 0.0,
+    val shipping: Double = 0.0,
+    val total: Double = 0.0
+)

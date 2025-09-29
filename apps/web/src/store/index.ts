@@ -4,6 +4,7 @@ import authReducer from '../features/authSlice';
 import uiReducer from '../features/uiSlice';
 import loadingReducer from '../features/loadingSlice';
 import contentReducer from '../features/contentSlice';
+import streamReducer from './slices/streamSlice';
 import { authMiddleware } from './middleware/authMiddleware';
 import { errorMiddleware } from './middleware/errorMiddleware';
 import { contentFallbackMiddleware } from './middleware/contentFallbackMiddleware';
@@ -16,6 +17,7 @@ const rootReducer = combineReducers({
   ui: uiReducer,
   loading: loadingReducer,
   content: contentReducer,
+  stream: streamReducer,
 });
 
 export const store = configureStore({

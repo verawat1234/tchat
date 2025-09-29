@@ -1,0 +1,202 @@
+package com.tchat.mobile.commerce.data.models
+
+import kotlinx.serialization.Serializable
+import kotlinx.datetime.Instant
+
+/**
+ * Category-related data models for KMP commerce module
+ * These models match the Go backend API structure
+ */
+
+@Serializable
+enum class CategoryStatus {
+    ACTIVE,
+    INACTIVE,
+    HIDDEN,
+    ARCHIVED
+}
+
+@Serializable
+enum class CategoryType {
+    PRODUCT,
+    SERVICE,
+    MIXED,
+    VIRTUAL
+}
+
+@Serializable
+data class CategoryImage(
+    val url: String,
+    val altText: String? = null,
+    val width: Int? = null,
+    val height: Int? = null
+)
+
+@Serializable
+data class CategorySEO(
+    val metaTitle: String? = null,
+    val metaDescription: String? = null,
+    val keywords: List<String> = emptyList(),
+    val slug: String? = null,
+    val canonicalUrl: String? = null
+)
+
+@Serializable
+data class CategoryAttribute(
+    val name: String,
+    val type: String, // text, number, boolean, select, multiselect
+    val values: List<String> = emptyList(),
+    val isRequired: Boolean = false,
+    val isFilterable: Boolean = true,
+    val isVisible: Boolean = true
+)
+
+@Serializable
+data class CategoryStats(
+    val productCount: Int = 0,
+    val activeProductCount: Int = 0,
+    val subCategoryCount: Int = 0,
+    val totalViews: Long = 0,
+    val averageRating: Double = 0.0,
+    val lastUpdated: Instant
+)
+
+@Serializable
+data class Category(
+    val id: String,
+    val businessId: String? = null, // null for global categories
+    val parentId: String? = null,
+    val name: String,
+    val description: String,
+    val shortDescription: String? = null,
+    val status: CategoryStatus,
+    val type: CategoryType,
+
+    // Visual elements
+    val icon: String? = null,
+    val image: CategoryImage? = null,
+    val color: String? = null,
+
+    // Hierarchy and ordering
+    val level: Int = 0,
+    val path: String = "",
+    val sortOrder: Int = 0,
+    val childrenCount: Int = 0,
+
+    // Visibility and features
+    val isVisible: Boolean = true,
+    val isFeatured: Boolean = false,
+    val allowProducts: Boolean = true,
+    val requiresApproval: Boolean = false,
+
+    // Product management
+    val productCount: Int = 0,
+    val activeProductCount: Int = 0,
+    val minProductPrice: Double? = null,
+    val maxProductPrice: Double? = null,
+
+    // SEO and metadata
+    val seo: CategorySEO,
+    val attributes: List<CategoryAttribute> = emptyList(),
+
+    // Regional settings
+    val dataRegion: String,
+    val availableCountries: List<String> = emptyList(),
+
+    // Analytics
+    val stats: CategoryStats? = null,
+
+    // Metadata
+    val metadata: Map<String, String>? = null,
+    val customFields: Map<String, String>? = null,
+
+    // Timestamps
+    val createdAt: Instant,
+    val updatedAt: Instant
+)
+
+// Hierarchical category structure for tree views
+@Serializable
+data class CategoryTree(
+    val category: Category,
+    val children: List<CategoryTree> = emptyList(),
+    val parent: Category? = null,
+    val breadcrumbs: List<Category> = emptyList()
+)
+
+// Request types
+@Serializable
+data class CreateCategoryRequest(
+    val businessId: String? = null,
+    val parentId: String? = null,
+    val name: String,
+    val description: String,
+    val shortDescription: String? = null,
+    val type: CategoryType,
+    val icon: String? = null,
+    val image: CategoryImage? = null,
+    val color: String? = null,
+    val sortOrder: Int = 0,
+    val isVisible: Boolean = true,
+    val isFeatured: Boolean = false,
+    val allowProducts: Boolean = true,
+    val seo: CategorySEO,
+    val attributes: List<CategoryAttribute> = emptyList()
+)
+
+@Serializable
+data class UpdateCategoryRequest(
+    val name: String? = null,
+    val description: String? = null,
+    val shortDescription: String? = null,
+    val status: CategoryStatus? = null,
+    val type: CategoryType? = null,
+    val icon: String? = null,
+    val image: CategoryImage? = null,
+    val color: String? = null,
+    val sortOrder: Int? = null,
+    val isVisible: Boolean? = null,
+    val isFeatured: Boolean? = null,
+    val allowProducts: Boolean? = null,
+    val seo: CategorySEO? = null,
+    val attributes: List<CategoryAttribute>? = null
+)
+
+@Serializable
+data class CategoryFilters(
+    val businessId: String? = null,
+    val parentId: String? = null,
+    val status: CategoryStatus? = null,
+    val type: CategoryType? = null,
+    val level: Int? = null,
+    val search: String? = null,
+    val isFeatured: Boolean? = null,
+    val hasProducts: Boolean? = null
+)
+
+@Serializable
+data class CategoryResponse(
+    val categories: List<Category>,
+    val total: Long,
+    val page: Int,
+    val pageSize: Int,
+    val totalPages: Long
+)
+
+// Product-Category relationship
+@Serializable
+data class ProductCategory(
+    val productId: String,
+    val categoryId: String,
+    val isPrimary: Boolean = false,
+    val sortOrder: Int = 0,
+    val assignedAt: Instant
+)
+
+@Serializable
+data class AddProductToCategoryRequest(
+    val productId: String,
+    val categoryId: String,
+    val isPrimary: Boolean = false,
+    val sortOrder: Int = 0
+)

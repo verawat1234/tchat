@@ -1,0 +1,44 @@
+# Test environment setup container
+FROM alpine:3.18
+
+# Install required packages
+RUN apk add --no-cache \
+    bash \
+    curl \
+    wget \
+    postgresql-client \
+    redis \
+    openjdk11-jre \
+    cqlsh \
+    && rm -rf /var/cache/apk/*
+
+# Install Kafka tools
+ENV KAFKA_VERSION=2.8.2
+ENV SCALA_VERSION=2.13
+RUN wget -q https://archive.apache.org/dist/kafka/${KAFKA_VERSION}/kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz -O /tmp/kafka.tgz \
+    && tar -xzf /tmp/kafka.tgz -C /opt \
+    && mv /opt/kafka_${SCALA_VERSION}-${KAFKA_VERSION} /opt/kafka \
+    && rm /tmp/kafka.tgz
+
+# Add Kafka to PATH
+ENV PATH="/opt/kafka/bin:${PATH}"
+
+# Install MinIO client
+RUN wget -q https://dl.min.io/client/mc/release/linux-amd64/mc -O /usr/local/bin/mc \
+    && chmod +x /usr/local/bin/mc
+
+# Install migrate tool for database migrations
+RUN wget -q https://github.com/golang-migrate/migrate/releases/latest/download/migrate.linux-amd64.tar.gz -O /tmp/migrate.tar.gz \
+    && tar -xzf /tmp/migrate.tar.gz -C /tmp \
+    && mv /tmp/migrate /usr/local/bin/migrate \
+    && chmod +x /usr/local/bin/migrate \
+    && rm /tmp/migrate.tar.gz
+
+# Create scripts directory
+RUN mkdir -p /scripts
+
+# Set working directory
+WORKDIR /scripts
+
+# Default command
+CMD ["/bin/bash"]

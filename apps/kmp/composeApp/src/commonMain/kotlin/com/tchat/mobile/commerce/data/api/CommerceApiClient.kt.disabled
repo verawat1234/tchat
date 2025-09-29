@@ -1,0 +1,269 @@
+package com.tchat.mobile.commerce.data.api
+
+import com.tchat.mobile.commerce.data.models.*
+import io.ktor.client.*
+import io.ktor.client.call.*
+import io.ktor.client.request.*
+import io.ktor.http.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+
+/**
+ * API client for commerce-related operations
+ * Communicates with the Go backend commerce service through the gateway
+ */
+interface CommerceApiClient {
+    // Cart operations
+    suspend fun getCart(cartId: String? = null, sessionId: String? = null): Result<Cart>
+    suspend fun addToCart(request: AddToCartRequest, cartId: String? = null, sessionId: String? = null): Result<Cart>
+    suspend fun updateCartItem(cartId: String, itemId: String, request: UpdateCartItemRequest): Result<Cart>
+    suspend fun removeCartItem(cartId: String, itemId: String): Result<Cart>
+    suspend fun clearCart(cartId: String): Result<Cart>
+    suspend fun applyCoupon(cartId: String, request: ApplyCouponRequest): Result<Cart>
+    suspend fun validateCart(cartId: String): Result<CartValidation>
+
+    // Product operations
+    suspend fun getProducts(
+        filters: ProductFilters? = null,
+        page: Int = 1,
+        pageSize: Int = 20,
+        sortBy: String = "created_at",
+        sortOrder: String = "desc"
+    ): Result<ProductResponse>
+
+    suspend fun getProduct(productId: String): Result<Product>
+    suspend fun searchProducts(query: String, filters: ProductFilters? = null): Result<ProductResponse>
+    suspend fun getFeaturedProducts(limit: Int = 10): Result<List<Product>>
+    suspend fun getProductsByCategory(categoryId: String, page: Int = 1, pageSize: Int = 20): Result<ProductResponse>
+
+    // Category operations
+    suspend fun getCategories(
+        filters: CategoryFilters? = null,
+        page: Int = 1,
+        pageSize: Int = 50
+    ): Result<CategoryResponse>
+
+    suspend fun getCategory(categoryId: String): Result<Category>
+    suspend fun getCategoryTree(businessId: String? = null): Result<List<CategoryTree>>
+    suspend fun getFeaturedCategories(limit: Int = 10): Result<List<Category>>
+
+    // Business operations
+    suspend fun getBusinesses(
+        filters: BusinessFilters? = null,
+        page: Int = 1,
+        pageSize: Int = 20
+    ): Result<BusinessResponse>
+
+    suspend fun getBusiness(businessId: String): Result<Business>
+    suspend fun getBusinessProducts(businessId: String, page: Int = 1, pageSize: Int = 20): Result<ProductResponse>
+    suspend fun getBusinessCategories(businessId: String): Result<List<Category>>
+}
+
+/**
+ * Implementation of CommerceApiClient using Ktor HTTP client
+ */
+class CommerceApiClientImpl(
+    private val httpClient: HttpClient,
+    private val baseUrl: String = "http://localhost:8080/api/v1/commerce"
+) : CommerceApiClient {
+
+    override suspend fun getCart(cartId: String?, sessionId: String?): Result<Cart> = runCatching {
+        val url = when {
+            cartId != null -> "$baseUrl/carts/$cartId"
+            sessionId != null -> "$baseUrl/carts/session/$sessionId"
+            else -> "$baseUrl/carts/current"
+        }
+
+        httpClient.get(url).body<Cart>()
+    }
+
+    override suspend fun addToCart(
+        request: AddToCartRequest,
+        cartId: String?,
+        sessionId: String?
+    ): Result<Cart> = runCatching {
+        val url = when {
+            cartId != null -> "$baseUrl/carts/$cartId/items"
+            sessionId != null -> "$baseUrl/carts/session/$sessionId/items"
+            else -> "$baseUrl/carts/current/items"
+        }
+
+        httpClient.post(url) {
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.body<Cart>()
+    }
+
+    override suspend fun updateCartItem(
+        cartId: String,
+        itemId: String,
+        request: UpdateCartItemRequest
+    ): Result<Cart> = runCatching {
+        httpClient.patch("$baseUrl/carts/$cartId/items/$itemId") {
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.body<Cart>()
+    }
+
+    override suspend fun removeCartItem(cartId: String, itemId: String): Result<Cart> = runCatching {
+        httpClient.delete("$baseUrl/carts/$cartId/items/$itemId").body<Cart>()
+    }
+
+    override suspend fun clearCart(cartId: String): Result<Cart> = runCatching {
+        httpClient.delete("$baseUrl/carts/$cartId/items").body<Cart>()
+    }
+
+    override suspend fun applyCoupon(cartId: String, request: ApplyCouponRequest): Result<Cart> = runCatching {
+        httpClient.post("$baseUrl/carts/$cartId/coupons") {
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.body<Cart>()
+    }
+
+    override suspend fun validateCart(cartId: String): Result<CartValidation> = runCatching {
+        httpClient.get("$baseUrl/carts/$cartId/validate").body<CartValidation>()
+    }
+
+    override suspend fun getProducts(
+        filters: ProductFilters?,
+        page: Int,
+        pageSize: Int,
+        sortBy: String,
+        sortOrder: String
+    ): Result<ProductResponse> = runCatching {
+        httpClient.get("$baseUrl/products") {
+            parameter("page", page)
+            parameter("pageSize", pageSize)
+            parameter("sortBy", sortBy)
+            parameter("sortOrder", sortOrder)
+
+            filters?.let { f ->
+                f.businessId?.let { parameter("businessId", it) }
+                f.category?.let { parameter("category", it) }
+                f.type?.let { parameter("type", it.name) }
+                f.status?.let { parameter("status", it.name) }
+                f.search?.let { parameter("search", it) }
+                f.minPrice?.let { parameter("minPrice", it) }
+                f.maxPrice?.let { parameter("maxPrice", it) }
+                f.inStock?.let { parameter("inStock", it) }
+                f.tags?.let { tags ->
+                    parameter("tags", tags.joinToString(","))
+                }
+            }
+        }.body<ProductResponse>()
+    }
+
+    override suspend fun getProduct(productId: String): Result<Product> = runCatching {
+        httpClient.get("$baseUrl/products/$productId").body<Product>()
+    }
+
+    override suspend fun searchProducts(query: String, filters: ProductFilters?): Result<ProductResponse> = runCatching {
+        httpClient.get("$baseUrl/products/search") {
+            parameter("q", query)
+
+            filters?.let { f ->
+                f.businessId?.let { parameter("businessId", it) }
+                f.category?.let { parameter("category", it) }
+                f.type?.let { parameter("type", it.name) }
+                f.minPrice?.let { parameter("minPrice", it) }
+                f.maxPrice?.let { parameter("maxPrice", it) }
+            }
+        }.body<ProductResponse>()
+    }
+
+    override suspend fun getFeaturedProducts(limit: Int): Result<List<Product>> = runCatching {
+        httpClient.get("$baseUrl/products/featured") {
+            parameter("limit", limit)
+        }.body<List<Product>>()
+    }
+
+    override suspend fun getProductsByCategory(
+        categoryId: String,
+        page: Int,
+        pageSize: Int
+    ): Result<ProductResponse> = runCatching {
+        httpClient.get("$baseUrl/categories/$categoryId/products") {
+            parameter("page", page)
+            parameter("pageSize", pageSize)
+        }.body<ProductResponse>()
+    }
+
+    override suspend fun getCategories(
+        filters: CategoryFilters?,
+        page: Int,
+        pageSize: Int
+    ): Result<CategoryResponse> = runCatching {
+        httpClient.get("$baseUrl/categories") {
+            parameter("page", page)
+            parameter("pageSize", pageSize)
+
+            filters?.let { f ->
+                f.businessId?.let { parameter("businessId", it) }
+                f.parentId?.let { parameter("parentId", it) }
+                f.status?.let { parameter("status", it.name) }
+                f.type?.let { parameter("type", it.name) }
+                f.level?.let { parameter("level", it) }
+                f.search?.let { parameter("search", it) }
+                f.isFeatured?.let { parameter("isFeatured", it) }
+                f.hasProducts?.let { parameter("hasProducts", it) }
+            }
+        }.body<CategoryResponse>()
+    }
+
+    override suspend fun getCategory(categoryId: String): Result<Category> = runCatching {
+        httpClient.get("$baseUrl/categories/$categoryId").body<Category>()
+    }
+
+    override suspend fun getCategoryTree(businessId: String?): Result<List<CategoryTree>> = runCatching {
+        httpClient.get("$baseUrl/categories/tree") {
+            businessId?.let { parameter("businessId", it) }
+        }.body<List<CategoryTree>>()
+    }
+
+    override suspend fun getFeaturedCategories(limit: Int): Result<List<Category>> = runCatching {
+        httpClient.get("$baseUrl/categories/featured") {
+            parameter("limit", limit)
+        }.body<List<Category>>()
+    }
+
+    override suspend fun getBusinesses(
+        filters: BusinessFilters?,
+        page: Int,
+        pageSize: Int
+    ): Result<BusinessResponse> = runCatching {
+        httpClient.get("$baseUrl/businesses") {
+            parameter("page", page)
+            parameter("pageSize", pageSize)
+
+            filters?.let { f ->
+                f.country?.let { parameter("country", it) }
+                f.category?.let { parameter("category", it) }
+                f.status?.let { parameter("status", it.name) }
+                f.search?.let { parameter("search", it) }
+                f.isActive?.let { parameter("isActive", it) }
+                f.isVerified?.let { parameter("isVerified", it) }
+                f.isFeatured?.let { parameter("isFeatured", it) }
+                f.hasProducts?.let { parameter("hasProducts", it) }
+            }
+        }.body<BusinessResponse>()
+    }
+
+    override suspend fun getBusiness(businessId: String): Result<Business> = runCatching {
+        httpClient.get("$baseUrl/businesses/$businessId").body<Business>()
+    }
+
+    override suspend fun getBusinessProducts(
+        businessId: String,
+        page: Int,
+        pageSize: Int
+    ): Result<ProductResponse> = runCatching {
+        httpClient.get("$baseUrl/businesses/$businessId/products") {
+            parameter("page", page)
+            parameter("pageSize", pageSize)
+        }.body<ProductResponse>()
+    }
+
+    override suspend fun getBusinessCategories(businessId: String): Result<List<Category>> = runCatching {
+        httpClient.get("$baseUrl/businesses/$businessId/categories").body<List<Category>>()
+    }
+}

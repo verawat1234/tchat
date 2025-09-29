@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"tchat.dev/commerce/models"
+	sharedModels "tchat.dev/shared/models"
 )
 
 // businessRepository implements the BusinessRepository interface
@@ -18,9 +19,9 @@ type businessRepository struct {
 
 // BusinessRepository defines the interface for business data access
 type BusinessRepository interface {
-	FindBusinesses(ctx context.Context, filters models.BusinessFilters, pagination models.Pagination, sort models.SortOptions) ([]*models.Business, int64, error)
-	FindBusinessByID(ctx context.Context, id uuid.UUID) (*models.Business, error)
-	CreateBusiness(ctx context.Context, business *models.Business) error
+	FindBusinesses(ctx context.Context, filters models.BusinessFilters, pagination models.Pagination, sort models.SortOptions) ([]*sharedModels.Business, int64, error)
+	FindBusinessByID(ctx context.Context, id uuid.UUID) (*sharedModels.Business, error)
+	CreateBusiness(ctx context.Context, business *sharedModels.Business) error
 	UpdateBusiness(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error
 	DeleteBusiness(ctx context.Context, id uuid.UUID) error
 }
@@ -33,11 +34,11 @@ func NewBusinessRepository(db *gorm.DB) BusinessRepository {
 }
 
 // FindBusinesses retrieves businesses with filters and pagination
-func (r *businessRepository) FindBusinesses(ctx context.Context, filters models.BusinessFilters, pagination models.Pagination, sort models.SortOptions) ([]*models.Business, int64, error) {
-	var businesses []*models.Business
+func (r *businessRepository) FindBusinesses(ctx context.Context, filters models.BusinessFilters, pagination models.Pagination, sort models.SortOptions) ([]*sharedModels.Business, int64, error) {
+	var businesses []*sharedModels.Business
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&models.Business{})
+	query := r.db.WithContext(ctx).Model(&sharedModels.Business{})
 
 	// Apply filters
 	if filters.Country != nil {
@@ -89,8 +90,8 @@ func (r *businessRepository) FindBusinesses(ctx context.Context, filters models.
 }
 
 // FindBusinessByID retrieves a business by its ID
-func (r *businessRepository) FindBusinessByID(ctx context.Context, id uuid.UUID) (*models.Business, error) {
-	var business models.Business
+func (r *businessRepository) FindBusinessByID(ctx context.Context, id uuid.UUID) (*sharedModels.Business, error) {
+	var business sharedModels.Business
 
 	if err := r.db.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&business).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -103,7 +104,7 @@ func (r *businessRepository) FindBusinessByID(ctx context.Context, id uuid.UUID)
 }
 
 // CreateBusiness creates a new business
-func (r *businessRepository) CreateBusiness(ctx context.Context, business *models.Business) error {
+func (r *businessRepository) CreateBusiness(ctx context.Context, business *sharedModels.Business) error {
 	if err := r.db.WithContext(ctx).Create(business).Error; err != nil {
 		return fmt.Errorf("failed to create business: %w", err)
 	}
@@ -112,7 +113,7 @@ func (r *businessRepository) CreateBusiness(ctx context.Context, business *model
 
 // UpdateBusiness updates a business
 func (r *businessRepository) UpdateBusiness(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error {
-	result := r.db.WithContext(ctx).Model(&models.Business{}).Where("id = ? AND deleted_at IS NULL", id).Updates(updates)
+	result := r.db.WithContext(ctx).Model(&sharedModels.Business{}).Where("id = ? AND deleted_at IS NULL", id).Updates(updates)
 	if result.Error != nil {
 		return fmt.Errorf("failed to update business: %w", result.Error)
 	}
@@ -124,7 +125,7 @@ func (r *businessRepository) UpdateBusiness(ctx context.Context, id uuid.UUID, u
 
 // DeleteBusiness soft deletes a business
 func (r *businessRepository) DeleteBusiness(ctx context.Context, id uuid.UUID) error {
-	result := r.db.WithContext(ctx).Model(&models.Business{}).Where("id = ?", id).Update("deleted_at", time.Now())
+	result := r.db.WithContext(ctx).Model(&sharedModels.Business{}).Where("id = ?", id).Update("deleted_at", time.Now())
 	if result.Error != nil {
 		return fmt.Errorf("failed to delete business: %w", result.Error)
 	}

@@ -1,0 +1,195 @@
+package com.tchat.mobile.commerce.data.models
+
+import kotlinx.serialization.Serializable
+import kotlinx.datetime.Instant
+
+/**
+ * Product-related data models for KMP commerce module
+ * These models match the Go backend API structure
+ */
+
+@Serializable
+enum class ProductStatus {
+    DRAFT,
+    ACTIVE,
+    INACTIVE,
+    ARCHIVED
+}
+
+@Serializable
+enum class ProductType {
+    PHYSICAL,
+    DIGITAL,
+    SERVICE,
+    SUBSCRIPTION
+}
+
+@Serializable
+data class ProductInventory(
+    val trackQuantity: Boolean = true,
+    val quantity: Int = 0,
+    val lowStockThreshold: Int = 10,
+    val allowBackorders: Boolean = false,
+    val sku: String? = null,
+    val barcode: String? = null
+)
+
+@Serializable
+data class ProductShipping(
+    val requiresShipping: Boolean = true,
+    val weight: Double? = null,
+    val weightUnit: String = "kg",
+    val dimensions: ProductDimensions? = null,
+    val shippingClass: String? = null
+)
+
+@Serializable
+data class ProductDimensions(
+    val length: Double,
+    val width: Double,
+    val height: Double,
+    val unit: String = "cm"
+)
+
+@Serializable
+data class ProductSEO(
+    val metaTitle: String? = null,
+    val metaDescription: String? = null,
+    val keywords: List<String> = emptyList(),
+    val slug: String? = null
+)
+
+@Serializable
+data class ProductImage(
+    val id: String,
+    val url: String,
+    val altText: String? = null,
+    val sortOrder: Int = 0,
+    val isMain: Boolean = false
+)
+
+@Serializable
+data class ProductVariant(
+    val id: String,
+    val name: String,
+    val options: Map<String, String>,
+    val price: Double,
+    val compareAtPrice: Double? = null,
+    val inventory: ProductInventory,
+    val image: ProductImage? = null,
+    val isActive: Boolean = true
+)
+
+@Serializable
+data class Product(
+    val id: String,
+    val businessId: String,
+    val name: String,
+    val description: String,
+    val shortDescription: String? = null,
+    val category: String,
+    val type: ProductType,
+    val status: ProductStatus,
+
+    // Pricing
+    val price: Double,
+    val compareAtPrice: Double? = null,
+    val costPrice: Double? = null,
+    val currency: String,
+
+    // Product details
+    val sku: String? = null,
+    val images: List<ProductImage> = emptyList(),
+    val tags: List<String> = emptyList(),
+    val variants: List<ProductVariant> = emptyList(),
+
+    // Specifications
+    val inventory: ProductInventory,
+    val shipping: ProductShipping,
+    val seo: ProductSEO,
+
+    // Features
+    val isFeatured: Boolean = false,
+    val isOnSale: Boolean = false,
+    val allowReviews: Boolean = true,
+    val averageRating: Double = 0.0,
+    val reviewCount: Int = 0,
+
+    // SEO and visibility
+    val isVisible: Boolean = true,
+    val visibilityScope: String = "public", // public, private, hidden
+    val publishedAt: Instant? = null,
+
+    // Regional settings
+    val dataRegion: String,
+    val availableCountries: List<String> = emptyList(),
+
+    // Metadata
+    val metadata: Map<String, String>? = null,
+    val customFields: Map<String, String>? = null,
+
+    // Timestamps
+    val createdAt: Instant,
+    val updatedAt: Instant
+)
+
+// Request types
+@Serializable
+data class CreateProductRequest(
+    val businessId: String,
+    val name: String,
+    val description: String,
+    val category: String,
+    val type: ProductType,
+    val status: ProductStatus,
+    val price: Double,
+    val currency: String,
+    val sku: String? = null,
+    val images: List<String> = emptyList(),
+    val tags: List<String> = emptyList(),
+    val variants: Map<String, String>? = null,
+    val inventory: ProductInventory,
+    val shipping: ProductShipping,
+    val seo: ProductSEO
+)
+
+@Serializable
+data class UpdateProductRequest(
+    val name: String? = null,
+    val description: String? = null,
+    val category: String? = null,
+    val type: ProductType? = null,
+    val status: ProductStatus? = null,
+    val price: Double? = null,
+    val currency: String? = null,
+    val sku: String? = null,
+    val images: List<String>? = null,
+    val tags: List<String>? = null,
+    val variants: Map<String, String>? = null,
+    val inventory: ProductInventory? = null,
+    val shipping: ProductShipping? = null,
+    val seo: ProductSEO? = null,
+    val isActive: Boolean? = null
+)
+
+@Serializable
+data class ProductFilters(
+    val businessId: String? = null,
+    val category: String? = null,
+    val type: ProductType? = null,
+    val status: ProductStatus? = null,
+    val search: String? = null,
+    val minPrice: Double? = null,
+    val maxPrice: Double? = null,
+    val tags: List<String>? = null,
+    val inStock: Boolean? = null
+)
+
+@Serializable
+data class ProductResponse(
+    val products: List<Product>,
+    val total: Long,
+    val page: Int,
+    val pageSize: Int,
+    val totalPages: Long
+)

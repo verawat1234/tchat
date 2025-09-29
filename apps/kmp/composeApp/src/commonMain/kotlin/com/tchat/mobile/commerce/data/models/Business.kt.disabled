@@ -1,0 +1,195 @@
+package com.tchat.mobile.commerce.data.models
+
+import kotlinx.serialization.Serializable
+import kotlinx.datetime.Instant
+
+/**
+ * Business-related data models for KMP commerce module
+ * These models match the Go backend API structure
+ */
+
+@Serializable
+enum class BusinessVerificationStatus {
+    PENDING,
+    VERIFIED,
+    REJECTED,
+    SUSPENDED
+}
+
+@Serializable
+data class BusinessContactInfo(
+    val email: String,
+    val phone: String? = null,
+    val website: String? = null,
+    val supportEmail: String? = null,
+    val supportPhone: String? = null
+)
+
+@Serializable
+data class BusinessAddress(
+    val street: String,
+    val city: String,
+    val state: String,
+    val postalCode: String,
+    val country: String,
+    val coordinates: BusinessCoordinates? = null
+)
+
+@Serializable
+data class BusinessCoordinates(
+    val latitude: Double,
+    val longitude: Double
+)
+
+@Serializable
+data class BusinessSettings(
+    val currency: String = "USD",
+    val timezone: String = "UTC",
+    val language: String = "en",
+    val allowGuestCheckout: Boolean = true,
+    val requireEmailVerification: Boolean = false,
+    val minimumOrderAmount: Double = 0.0,
+    val maxOrderItems: Int = 100,
+    val autoApproveOrders: Boolean = true,
+    val enableInventoryTracking: Boolean = true,
+    val sendOrderNotifications: Boolean = true,
+    val enableReviews: Boolean = true,
+    val enableWishlists: Boolean = true
+)
+
+@Serializable
+data class BusinessStats(
+    val totalProducts: Int = 0,
+    val activeProducts: Int = 0,
+    val totalOrders: Int = 0,
+    val totalRevenue: Double = 0.0,
+    val averageOrderValue: Double = 0.0,
+    val averageRating: Double = 0.0,
+    val totalReviews: Int = 0,
+    val conversionRate: Double = 0.0,
+    val lastUpdated: Instant
+)
+
+@Serializable
+data class Business(
+    val id: String,
+    val ownerId: String,
+    val name: String,
+    val description: String,
+    val shortDescription: String? = null,
+    val category: String,
+    val subCategory: String? = null,
+
+    // Contact and location
+    val address: BusinessAddress,
+    val contact: BusinessContactInfo,
+
+    // Business details
+    val registrationNumber: String? = null,
+    val taxId: String? = null,
+    val verificationStatus: BusinessVerificationStatus,
+    val verificationNotes: String? = null,
+
+    // Visual branding
+    val logo: String? = null,
+    val coverImage: String? = null,
+    val primaryColor: String? = null,
+    val secondaryColor: String? = null,
+
+    // Settings
+    val settings: BusinessSettings,
+    val isActive: Boolean = true,
+    val isVerified: Boolean = false,
+    val isFeatured: Boolean = false,
+
+    // Business hours
+    val businessHours: Map<String, BusinessHour>? = null,
+    val timezone: String = "UTC",
+
+    // Service areas
+    val serviceAreas: List<String> = emptyList(),
+    val shippingCountries: List<String> = emptyList(),
+
+    // Social media
+    val socialMedia: Map<String, String>? = null,
+
+    // Regional compliance
+    val dataRegion: String,
+    val operatingCountries: List<String> = emptyList(),
+
+    // Analytics
+    val stats: BusinessStats? = null,
+
+    // Tags and metadata
+    val tags: List<String> = emptyList(),
+    val metadata: Map<String, String>? = null,
+    val customFields: Map<String, String>? = null,
+
+    // Timestamps
+    val createdAt: Instant,
+    val updatedAt: Instant
+)
+
+@Serializable
+data class BusinessHour(
+    val isOpen: Boolean = true,
+    val openTime: String? = null, // HH:mm format
+    val closeTime: String? = null, // HH:mm format
+    val isAllDay: Boolean = false,
+    val breaks: List<BusinessBreak> = emptyList()
+)
+
+@Serializable
+data class BusinessBreak(
+    val startTime: String, // HH:mm format
+    val endTime: String,   // HH:mm format
+    val name: String? = null
+)
+
+// Request types
+@Serializable
+data class CreateBusinessRequest(
+    val name: String,
+    val description: String,
+    val category: String,
+    val address: BusinessAddress,
+    val contact: BusinessContactInfo,
+    val settings: BusinessSettings? = null
+)
+
+@Serializable
+data class UpdateBusinessRequest(
+    val name: String? = null,
+    val description: String? = null,
+    val category: String? = null,
+    val address: BusinessAddress? = null,
+    val contact: BusinessContactInfo? = null,
+    val settings: BusinessSettings? = null,
+    val isActive: Boolean? = null,
+    val logo: String? = null,
+    val coverImage: String? = null,
+    val businessHours: Map<String, BusinessHour>? = null,
+    val serviceAreas: List<String>? = null,
+    val socialMedia: Map<String, String>? = null
+)
+
+@Serializable
+data class BusinessFilters(
+    val country: String? = null,
+    val category: String? = null,
+    val status: BusinessVerificationStatus? = null,
+    val search: String? = null,
+    val isActive: Boolean? = null,
+    val isVerified: Boolean? = null,
+    val isFeatured: Boolean? = null,
+    val hasProducts: Boolean? = null
+)
+
+@Serializable
+data class BusinessResponse(
+    val businesses: List<Business>,
+    val total: Long,
+    val page: Int,
+    val pageSize: Int,
+    val totalPages: Long
+)

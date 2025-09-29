@@ -1,9 +1,15 @@
 package handlers
 
 import (
+	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -1584,19 +1590,65 @@ func (h *NotificationHandler) HandlePushWebhook(c *gin.Context) {
 
 // verifyWebhookSignature verifies webhook signature for security
 func (h *NotificationHandler) verifyWebhookSignature(r *http.Request, signature string, provider string) bool {
-	// This is a simplified implementation
-	// In production, you would implement proper HMAC verification
-	// based on the specific provider's webhook signature format
-
 	if signature == "" {
 		return false
 	}
 
-	// For demo purposes, just check if signature exists
-	// In real implementation:
-	// 1. Get the webhook secret for the provider
-	// 2. Compute HMAC of request body
-	// 3. Compare with provided signature
+	// Get webhook secret for the provider from config
+	secret := h.getWebhookSecret(provider)
+	if secret == "" {
+		h.logger.Warn("No webhook secret configured for provider", zap.String("provider", provider))
+		return false
+	}
 
-	return len(signature) > 0
+	// Read request body
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		h.logger.Error("Failed to read request body for signature verification", zap.Error(err))
+		return false
+	}
+
+	// Restore body for later use
+	r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+	// Compute HMAC-SHA256 signature
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	expectedSignature := hex.EncodeToString(mac.Sum(nil))
+
+	// Compare signatures (provider-specific format handling)
+	switch provider {
+	case "email", "sendgrid":
+		// SendGrid format: sha256=<hash>
+		if strings.HasPrefix(signature, "sha256=") {
+			signature = signature[7:] // Remove "sha256=" prefix
+		}
+	case "sms", "twilio":
+		// Twilio format: <hash>
+		// No prefix, use as-is
+	case "push", "fcm":
+		// FCM format: varies
+		// Handle specific FCM signature format if needed
+	default:
+		// Generic format: assume no prefix
+	}
+
+	// Secure comparison to prevent timing attacks
+	return hmac.Equal([]byte(expectedSignature), []byte(signature))
+}
+
+// getWebhookSecret retrieves webhook secret for a provider
+func (h *NotificationHandler) getWebhookSecret(provider string) string {
+	// In a real implementation, this would get secrets from secure storage
+	// For now, return placeholder values or get from environment
+	switch provider {
+	case "email", "sendgrid":
+		return os.Getenv("SENDGRID_WEBHOOK_SECRET")
+	case "sms", "twilio":
+		return os.Getenv("TWILIO_WEBHOOK_SECRET")
+	case "push", "fcm":
+		return os.Getenv("FCM_WEBHOOK_SECRET")
+	default:
+		return os.Getenv("WEBHOOK_SECRET_" + strings.ToUpper(provider))
+	}
 }

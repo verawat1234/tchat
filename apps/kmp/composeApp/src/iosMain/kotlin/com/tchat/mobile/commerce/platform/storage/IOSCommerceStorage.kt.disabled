@@ -1,0 +1,107 @@
+package com.tchat.mobile.commerce.platform.storage
+
+import com.tchat.mobile.commerce.platform.storage.BaseCommerceStorage
+import platform.Foundation.*
+import platform.Security.*
+
+/**
+ * iOS-specific implementation of CommerceStorage
+ * Uses UserDefaults for regular data and Keychain for sensitive data
+ */
+class IOSCommerceStorage : BaseCommerceStorage() {
+
+    private val userDefaults = NSUserDefaults.standardUserDefaults
+    private val keychainService = "com.tchat.mobile.commerce"
+
+    override suspend fun saveToSecureStorage(key: String, value: String) {
+        val query = NSMutableDictionary().apply {
+            setObject(kSecClassGenericPassword, kSecClass)
+            setObject(keychainService, kSecAttrService)
+            setObject(key, kSecAttrAccount)
+            setObject(value.encodeToByteArray().toNSData(), kSecValueData)
+        }
+
+        // Delete existing item first
+        SecItemDelete(query)
+
+        // Add new item
+        SecItemAdd(query, null)
+    }
+
+    override suspend fun getFromSecureStorage(key: String): String? {
+        val query = NSMutableDictionary().apply {
+            setObject(kSecClassGenericPassword, kSecClass)
+            setObject(keychainService, kSecAttrService)
+            setObject(key, kSecAttrAccount)
+            setObject(kCFBooleanTrue, kSecReturnData)
+            setObject(kSecMatchLimitOne, kSecMatchLimit)
+        }
+
+        val result = kotlin.native.ref.alloc<CFTypeRefVar>()
+        val status = SecItemCopyMatching(query, result.ptr)
+
+        return if (status == errSecSuccess) {
+            val data = result.value as NSData
+            data.toByteArray().decodeToString()
+        } else {
+            null
+        }
+    }
+
+    override suspend fun removeFromSecureStorage(key: String) {
+        val query = NSMutableDictionary().apply {
+            setObject(kSecClassGenericPassword, kSecClass)
+            setObject(keychainService, kSecAttrService)
+            setObject(key, kSecAttrAccount)
+        }
+
+        SecItemDelete(query)
+    }
+
+    override suspend fun saveToStorage(key: String, value: String) {
+        userDefaults.setObject(value, key)
+        userDefaults.synchronize()
+    }
+
+    override suspend fun getFromStorage(key: String): String? {
+        return userDefaults.stringForKey(key)
+    }
+
+    override suspend fun removeFromStorage(key: String) {
+        userDefaults.removeObjectForKey(key)
+        userDefaults.synchronize()
+    }
+
+    override suspend fun getAllStorageKeys(): List<String> {
+        val allKeys = mutableListOf<String>()
+
+        // Get UserDefaults keys
+        val userDefaultsDict = userDefaults.dictionaryRepresentation()
+        userDefaultsDict.allKeys.forEach { key ->
+            if (key is NSString && key.toString().startsWith("commerce_")) {
+                allKeys.add(key.toString())
+            }
+        }
+
+        // Get Keychain keys (this is more complex and might not be needed for basic functionality)
+        // For now, we'll just return UserDefaults keys
+
+        return allKeys
+    }
+}
+
+/**
+ * Extension to convert NSData to ByteArray
+ */
+private fun NSData.toByteArray(): ByteArray {
+    return ByteArray(length.toInt()) { index ->
+        bytes()!!.reinterpret<ByteVar>()[index]
+    }
+}
+
+/**
+ * Extension to convert ByteArray to NSData
+ */
+private fun ByteArray.toNSData(): NSData {
+    return NSData.create(bytes = refTo(0).getPointer(this@toNSData), length = size.toULong())
+}

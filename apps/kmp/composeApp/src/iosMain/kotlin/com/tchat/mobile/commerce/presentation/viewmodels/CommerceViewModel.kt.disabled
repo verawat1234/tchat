@@ -1,0 +1,291 @@
+package com.tchat.mobile.commerce.presentation.viewmodels
+
+import com.tchat.mobile.commerce.data.models.*
+import com.tchat.mobile.commerce.domain.managers.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+
+/**
+ * Main iOS Commerce ViewModel that coordinates all commerce functionality
+ * Provides unified access to cart, products, categories, and business logic for SwiftUI
+ */
+class CommerceViewModel(
+    private val commerceManager: CommerceManager,
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Main)
+) {
+
+    // Sub-ViewModels
+    val cartViewModel: CartViewModel = CartViewModel(commerceManager.cartManager, scope)
+    val productViewModel: ProductViewModel = ProductViewModel(commerceManager.productManager, scope)
+    val categoryViewModel: CategoryViewModel = CategoryViewModel(commerceManager.categoryManager, scope)
+
+    // Exposed state for SwiftUI
+    val isInitialized: StateFlow<Boolean> = commerceManager.isInitialized
+    val isLoading: StateFlow<Boolean> = commerceManager.isLoading
+    val error: StateFlow<String?> = commerceManager.error
+
+    // Commerce stats
+    val commerceStats: CommerceStats
+        get() = commerceManager.getCommerceStats()
+
+    // Initialization and lifecycle
+    fun initialize(onResult: (Result<Unit>) -> Unit = {}) {
+        scope.launch {
+            val result = commerceManager.initialize()
+            onResult(result)
+        }
+    }
+
+    fun refreshAllData(onResult: (Result<Unit>) -> Unit = {}) {
+        scope.launch {
+            val result = commerceManager.refreshAllData()
+            onResult(result)
+        }
+    }
+
+    fun syncWithServer(onResult: (Result<Unit>) -> Unit = {}) {
+        scope.launch {
+            val result = commerceManager.syncWithServer()
+            onResult(result)
+        }
+    }
+
+    fun clearAllCache(onResult: (Result<Unit>) -> Unit = {}) {
+        scope.launch {
+            val result = commerceManager.clearAllCache()
+            onResult(result)
+        }
+    }
+
+    // Cross-domain operations
+    fun searchEverything(
+        query: String,
+        onResult: (Result<CommerceSearchResult>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = commerceManager.searchEverything(query)
+            onResult(result)
+        }
+    }
+
+    fun getRecommendations(
+        userId: String? = null,
+        onResult: (Result<CommerceRecommendations>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = commerceManager.getRecommendations(userId)
+            onResult(result)
+        }
+    }
+
+    // Quick access methods
+    fun addToCart(
+        productId: String,
+        quantity: Int = 1,
+        variantId: String? = null,
+        onResult: (Result<Cart>) -> Unit = {}
+    ) {
+        cartViewModel.addProductToCart(
+            productId = productId,
+            quantity = quantity,
+            variantId = variantId,
+            onResult = onResult
+        )
+    }
+
+    fun isProductInCart(productId: String, variantId: String? = null): Boolean {
+        return cartViewModel.isProductInCart(productId, variantId)
+    }
+
+    fun getCartItemCount(): Int {
+        return cartViewModel.getTotalItemsCount()
+    }
+
+    fun getCartTotal(): Double {
+        return cartViewModel.cartTotal.value
+    }
+
+    fun hasCartItems(): Boolean {
+        return cartViewModel.hasItems()
+    }
+
+    // Utility methods for SwiftUI
+    fun isOnline(): Boolean {
+        return commerceStats.isOnline
+    }
+
+    fun getTotalProductsCount(): Int {
+        return commerceStats.totalProducts
+    }
+
+    fun getTotalCategoriesCount(): Int {
+        return commerceStats.totalCategories
+    }
+
+    fun getFormattedCartTotal(currencySymbol: String = "$"): String {
+        return cartViewModel.getFormattedTotal(currencySymbol)
+    }
+
+    // State management helpers
+    fun hasError(): Boolean {
+        return error.value != null
+    }
+
+    fun getCurrentError(): String? {
+        return error.value
+    }
+
+    fun clearError() {
+        // Would need to add error clearing to managers
+    }
+
+    // Quick product operations
+    fun quickSearchProducts(
+        query: String,
+        onResult: (Result<ProductResponse>) -> Unit = {}
+    ) {
+        productViewModel.searchProducts(query, onResult = onResult)
+    }
+
+    fun quickGetProduct(
+        productId: String,
+        onResult: (Result<Product>) -> Unit = {}
+    ) {
+        productViewModel.loadProduct(productId, onResult = onResult)
+    }
+
+    // Quick category operations
+    fun quickGetCategory(
+        categoryId: String,
+        onResult: (Result<Category>) -> Unit = {}
+    ) {
+        categoryViewModel.loadCategory(categoryId, onResult = onResult)
+    }
+
+    fun quickGetSubCategories(
+        parentId: String,
+        onResult: (Result<List<Category>>) -> Unit = {}
+    ) {
+        categoryViewModel.loadSubCategories(parentId, onResult = onResult)
+    }
+
+    // Batch operations for performance
+    fun loadHomeData(onResult: (Result<HomeData>) -> Unit = {}) {
+        scope.launch {
+            try {
+                // Load all home screen data in parallel
+                val featuredProducts = commerceManager.productManager.getFeaturedProducts(10)
+                val featuredCategories = commerceManager.categoryManager.getFeaturedCategories(5)
+                val newArrivals = commerceManager.productManager.getNewArrivals(8)
+                val onSaleProducts = commerceManager.productManager.getOnSaleProducts(8)
+
+                val homeData = HomeData(
+                    featuredProducts = featuredProducts.getOrElse { emptyList() },
+                    featuredCategories = featuredCategories.getOrElse { emptyList() },
+                    newArrivals = newArrivals.getOrElse { emptyList() },
+                    onSaleProducts = onSaleProducts.getOrElse { emptyList() }
+                )
+
+                onResult(Result.success(homeData))
+            } catch (e: Exception) {
+                onResult(Result.failure(e))
+            }
+        }
+    }
+
+    fun loadCartSummary(): CartSummary {
+        return cartViewModel.cartSummary
+    }
+
+    // App lifecycle methods
+    fun onAppForeground() {
+        scope.launch {
+            // Sync with server when app comes to foreground
+            commerceManager.syncWithServer()
+        }
+    }
+
+    fun onAppBackground() {
+        // Any cleanup needed when app goes to background
+    }
+
+    fun onLowMemory() {
+        scope.launch {
+            // Clear non-essential cache to free memory
+            productViewModel.clearCurrentProduct()
+            categoryViewModel.clearCurrentCategory()
+        }
+    }
+}
+
+/**
+ * Home data model for SwiftUI home screen
+ */
+data class HomeData(
+    val featuredProducts: List<Product>,
+    val featuredCategories: List<Category>,
+    val newArrivals: List<Product>,
+    val onSaleProducts: List<Product>
+)
+
+/**
+ * iOS-specific extension for CommerceSearchResult
+ */
+fun CommerceSearchResult.toSwiftUIFormat(): Map<String, Any> {
+    return mapOf(
+        "query" to query,
+        "products" to products.map { it.toSwiftUIFormat() },
+        "categories" to categories.map { it.toSwiftUIFormat() },
+        "businesses" to businesses.map { it.toSwiftUIFormat() },
+        "totalResults" to totalResults
+    )
+}
+
+/**
+ * iOS-specific extension for Business model
+ */
+fun Business.toSwiftUIFormat(): Map<String, Any> {
+    return mapOf(
+        "id" to id,
+        "name" to name,
+        "description" to description,
+        "category" to category,
+        "logo" to (logo ?: ""),
+        "coverImage" to (coverImage ?: ""),
+        "isActive" to isActive,
+        "isVerified" to isVerified,
+        "isFeatured" to isFeatured,
+        "address" to address.toSwiftUIFormat(),
+        "contact" to contact.toSwiftUIFormat(),
+        "createdAt" to createdAt.toString(),
+        "updatedAt" to updatedAt.toString()
+    )
+}
+
+/**
+ * iOS-specific extension for BusinessAddress model
+ */
+fun BusinessAddress.toSwiftUIFormat(): Map<String, Any> {
+    return mapOf(
+        "street" to street,
+        "city" to city,
+        "state" to state,
+        "postalCode" to postalCode,
+        "country" to country
+    )
+}
+
+/**
+ * iOS-specific extension for BusinessContactInfo model
+ */
+fun BusinessContactInfo.toSwiftUIFormat(): Map<String, Any> {
+    return mapOf(
+        "email" to email,
+        "phone" to (phone ?: ""),
+        "website" to (website ?: ""),
+        "supportEmail" to (supportEmail ?: ""),
+        "supportPhone" to (supportPhone ?: "")
+    )
+}

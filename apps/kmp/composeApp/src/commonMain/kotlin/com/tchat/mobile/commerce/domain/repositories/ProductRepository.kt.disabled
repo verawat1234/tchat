@@ -1,0 +1,347 @@
+package com.tchat.mobile.commerce.domain.repositories
+
+import com.tchat.mobile.commerce.data.api.CommerceApiClient
+import com.tchat.mobile.commerce.data.models.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+/**
+ * Repository interface for product operations
+ * Provides product discovery, search, and caching
+ */
+interface ProductRepository {
+    val products: StateFlow<List<Product>>
+    val featuredProducts: StateFlow<List<Product>>
+    val productsLoading: StateFlow<Boolean>
+    val productsError: StateFlow<String?>
+
+    suspend fun getProducts(
+        filters: ProductFilters? = null,
+        page: Int = 1,
+        pageSize: Int = 20,
+        sortBy: String = "created_at",
+        sortOrder: String = "desc",
+        forceRefresh: Boolean = false
+    ): Result<ProductResponse>
+
+    suspend fun getProduct(productId: String, forceRefresh: Boolean = false): Result<Product>
+    suspend fun searchProducts(query: String, filters: ProductFilters? = null): Result<ProductResponse>
+    suspend fun getFeaturedProducts(limit: Int = 10, forceRefresh: Boolean = false): Result<List<Product>>
+    suspend fun getProductsByCategory(categoryId: String, page: Int = 1, pageSize: Int = 20): Result<ProductResponse>
+    suspend fun getProductsByBusiness(businessId: String, page: Int = 1, pageSize: Int = 20): Result<ProductResponse>
+
+    // Caching
+    suspend fun getCachedProduct(productId: String): Product?
+    suspend fun cacheProduct(product: Product)
+    suspend fun getCachedProducts(): List<Product>
+    suspend fun cacheProducts(products: List<Product>)
+    suspend fun clearProductCache()
+}
+
+/**
+ * Implementation of ProductRepository
+ * Manages product data with caching and offline support
+ */
+class ProductRepositoryImpl(
+    private val apiClient: CommerceApiClient,
+    private val productStorage: ProductStorage
+) : ProductRepository {
+
+    private val _products = MutableStateFlow<List<Product>>(emptyList())
+    override val products: StateFlow<List<Product>> = _products.asStateFlow()
+
+    private val _featuredProducts = MutableStateFlow<List<Product>>(emptyList())
+    override val featuredProducts: StateFlow<List<Product>> = _featuredProducts.asStateFlow()
+
+    private val _productsLoading = MutableStateFlow(false)
+    override val productsLoading: StateFlow<Boolean> = _productsLoading.asStateFlow()
+
+    private val _productsError = MutableStateFlow<String?>(null)
+    override val productsError: StateFlow<String?> = _productsError.asStateFlow()
+
+    private val productCache = mutableMapOf<String, Product>()
+    private var lastProductsQuery: ProductQuery? = null
+
+    init {
+        loadCachedProducts()
+    }
+
+    override suspend fun getProducts(
+        filters: ProductFilters?,
+        page: Int,
+        pageSize: Int,
+        sortBy: String,
+        sortOrder: String,
+        forceRefresh: Boolean
+    ): Result<ProductResponse> {
+        _productsLoading.value = true
+        _productsError.value = null
+
+        val currentQuery = ProductQuery(filters, page, pageSize, sortBy, sortOrder)
+
+        // Return cached results if same query and not forcing refresh
+        if (!forceRefresh && lastProductsQuery == currentQuery && _products.value.isNotEmpty()) {
+            _productsLoading.value = false
+            return Result.success(
+                ProductResponse(
+                    products = _products.value,
+                    total = _products.value.size.toLong(),
+                    page = page,
+                    pageSize = pageSize,
+                    totalPages = (_products.value.size / pageSize).toLong() + 1
+                )
+            )
+        }
+
+        return try {
+            val result = apiClient.getProducts(filters, page, pageSize, sortBy, sortOrder)
+            result.onSuccess { response ->
+                if (page == 1) {
+                    _products.value = response.products
+                } else {
+                    _products.value = _products.value + response.products
+                }
+                lastProductsQuery = currentQuery
+                cacheProducts(response.products)
+            }.onFailure { error ->
+                _productsError.value = error.message
+                // Fallback to cached products
+                val cached = getCachedProducts()
+                if (cached.isNotEmpty()) {
+                    _products.value = cached
+                }
+            }
+            _productsLoading.value = false
+            result
+        } catch (e: Exception) {
+            _productsLoading.value = false
+            _productsError.value = e.message
+            val cached = getCachedProducts()
+            if (cached.isNotEmpty()) {
+                _products.value = cached
+                Result.success(
+                    ProductResponse(
+                        products = cached,
+                        total = cached.size.toLong(),
+                        page = 1,
+                        pageSize = cached.size,
+                        totalPages = 1
+                    )
+                )
+            } else {
+                Result.failure(e)
+            }
+        }
+    }
+
+    override suspend fun getProduct(productId: String, forceRefresh: Boolean): Result<Product> {
+        _productsError.value = null
+
+        // Return cached product if available and not forcing refresh
+        if (!forceRefresh) {
+            productCache[productId]?.let { cachedProduct ->
+                return Result.success(cachedProduct)
+            }
+            getCachedProduct(productId)?.let { cachedProduct ->
+                productCache[productId] = cachedProduct
+                return Result.success(cachedProduct)
+            }
+        }
+
+        return try {
+            val result = apiClient.getProduct(productId)
+            result.onSuccess { product ->
+                productCache[productId] = product
+                cacheProduct(product)
+
+                // Update product in the products list if it exists
+                val currentProducts = _products.value.toMutableList()
+                val index = currentProducts.indexOfFirst { it.id == productId }
+                if (index != -1) {
+                    currentProducts[index] = product
+                    _products.value = currentProducts
+                }
+            }.onFailure { error ->
+                _productsError.value = error.message
+            }
+            result
+        } catch (e: Exception) {
+            _productsError.value = e.message
+            // Try to return cached product as fallback
+            getCachedProduct(productId)?.let { cachedProduct ->
+                Result.success(cachedProduct)
+            } ?: Result.failure(e)
+        }
+    }
+
+    override suspend fun searchProducts(query: String, filters: ProductFilters?): Result<ProductResponse> {
+        _productsLoading.value = true
+        _productsError.value = null
+
+        return try {
+            val result = apiClient.searchProducts(query, filters)
+            result.onSuccess { response ->
+                // Don't replace main products list for search results
+                cacheProducts(response.products)
+            }.onFailure { error ->
+                _productsError.value = error.message
+            }
+            _productsLoading.value = false
+            result
+        } catch (e: Exception) {
+            _productsLoading.value = false
+            _productsError.value = e.message
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getFeaturedProducts(limit: Int, forceRefresh: Boolean): Result<List<Product>> {
+        _productsError.value = null
+
+        // Return cached featured products if available and not forcing refresh
+        if (!forceRefresh && _featuredProducts.value.isNotEmpty()) {
+            return Result.success(_featuredProducts.value)
+        }
+
+        return try {
+            val result = apiClient.getFeaturedProducts(limit)
+            result.onSuccess { products ->
+                _featuredProducts.value = products
+                cacheProducts(products)
+                products.forEach { product ->
+                    productCache[product.id] = product
+                }
+            }.onFailure { error ->
+                _productsError.value = error.message
+                // Try to return cached featured products
+                val cached = productStorage.getFeaturedProducts()
+                if (cached.isNotEmpty()) {
+                    _featuredProducts.value = cached
+                    return Result.success(cached)
+                }
+            }
+            result
+        } catch (e: Exception) {
+            _productsError.value = e.message
+            val cached = productStorage.getFeaturedProducts()
+            if (cached.isNotEmpty()) {
+                _featuredProducts.value = cached
+                Result.success(cached)
+            } else {
+                Result.failure(e)
+            }
+        }
+    }
+
+    override suspend fun getProductsByCategory(
+        categoryId: String,
+        page: Int,
+        pageSize: Int
+    ): Result<ProductResponse> {
+        _productsLoading.value = true
+        _productsError.value = null
+
+        return try {
+            val result = apiClient.getProductsByCategory(categoryId, page, pageSize)
+            result.onSuccess { response ->
+                cacheProducts(response.products)
+            }.onFailure { error ->
+                _productsError.value = error.message
+            }
+            _productsLoading.value = false
+            result
+        } catch (e: Exception) {
+            _productsLoading.value = false
+            _productsError.value = e.message
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getProductsByBusiness(
+        businessId: String,
+        page: Int,
+        pageSize: Int
+    ): Result<ProductResponse> {
+        _productsLoading.value = true
+        _productsError.value = null
+
+        return try {
+            val result = apiClient.getBusinessProducts(businessId, page, pageSize)
+            result.onSuccess { response ->
+                cacheProducts(response.products)
+            }.onFailure { error ->
+                _productsError.value = error.message
+            }
+            _productsLoading.value = false
+            result
+        } catch (e: Exception) {
+            _productsLoading.value = false
+            _productsError.value = e.message
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getCachedProduct(productId: String): Product? {
+        return productStorage.getProduct(productId)
+    }
+
+    override suspend fun cacheProduct(product: Product) {
+        productStorage.saveProduct(product)
+    }
+
+    override suspend fun getCachedProducts(): List<Product> {
+        return productStorage.getProducts()
+    }
+
+    override suspend fun cacheProducts(products: List<Product>) {
+        productStorage.saveProducts(products)
+    }
+
+    override suspend fun clearProductCache() {
+        productStorage.clearProducts()
+        productCache.clear()
+        _products.value = emptyList()
+        _featuredProducts.value = emptyList()
+    }
+
+    private fun loadCachedProducts() {
+        val cachedProducts = productStorage.getProducts()
+        if (cachedProducts.isNotEmpty()) {
+            _products.value = cachedProducts
+            cachedProducts.forEach { product ->
+                productCache[product.id] = product
+            }
+        }
+
+        val cachedFeatured = productStorage.getFeaturedProducts()
+        if (cachedFeatured.isNotEmpty()) {
+            _featuredProducts.value = cachedFeatured
+        }
+    }
+}
+
+/**
+ * Storage interface for product data and caching
+ */
+interface ProductStorage {
+    fun getProduct(productId: String): Product?
+    fun saveProduct(product: Product)
+    fun getProducts(): List<Product>
+    fun saveProducts(products: List<Product>)
+    fun getFeaturedProducts(): List<Product>
+    fun saveFeaturedProducts(products: List<Product>)
+    fun clearProducts()
+}
+
+/**
+ * Represents a product query for caching comparison
+ */
+private data class ProductQuery(
+    val filters: ProductFilters?,
+    val page: Int,
+    val pageSize: Int,
+    val sortBy: String,
+    val sortOrder: String
+)

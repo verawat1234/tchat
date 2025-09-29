@@ -1,0 +1,87 @@
+# Azure DevOps Template: Setup Test Environment
+# This template sets up the complete test environment for integration testing
+
+parameters:
+  - name: useDocker
+    type: boolean
+    default: true
+  - name: timeout
+    type: number
+    default: 60
+
+steps:
+  - task: GoTool@0
+    displayName: 'Install Go $(GO_VERSION)'
+    inputs:
+      version: '$(GO_VERSION)'
+
+  - task: Cache@2
+    displayName: 'Cache Go modules'
+    inputs:
+      key: 'go | "$(Agent.OS)" | go.sum'
+      restoreKeys: |
+        go | "$(Agent.OS)"
+        go
+      path: $(GOPATH)/pkg/mod
+
+  - script: |
+      echo "📦 Installing Go dependencies..."
+      go mod download
+      go mod verify
+    displayName: 'Install Go Dependencies'
+
+  - ${{ if eq(parameters.useDocker, true) }}:
+    - script: |
+        echo "🐳 Setting up Docker test environment..."
+        cd tests/integration/setup
+
+        # Start Docker services
+        docker-compose -f docker-compose.test.yml down -v --remove-orphans || true
+        docker-compose -f docker-compose.test.yml up -d --build
+
+        echo "⏳ Waiting for services to be ready..."
+        sleep ${{ parameters.timeout }}
+
+        # Validate services
+        docker exec tchat-test-setup /scripts/validate-test-environment.sh
+
+        echo "✅ Test environment ready!"
+      displayName: 'Setup Docker Environment'
+      timeoutInMinutes: ${{ parameters.timeout }}
+
+  - ${{ if eq(parameters.useDocker, false) }}:
+    - script: |
+        echo "🔧 Setting up local test environment..."
+
+        # Install migrate tool
+        go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+
+        # Wait for services and run migrations
+        until pg_isready -h localhost -p 5432 -U tchat_test; do sleep 1; done
+        migrate -path backend/migrations -database "$(DATABASE_URL)" up
+
+        echo "✅ Local test environment ready!"
+      displayName: 'Setup Local Environment'
+
+  - script: |
+      echo "🔍 Validating test environment..."
+
+      # Check Go environment
+      go version
+      echo "GOPATH: $GOPATH"
+      echo "GOROOT: $GOROOT"
+
+      # Check database connectivity
+      echo "Testing database connection..."
+      if command -v psql &> /dev/null; then
+        PGPASSWORD=tchat_test_password psql -h localhost -U tchat_test -d tchat_test -c '\q' || echo "⚠️ Database connection failed"
+      fi
+
+      # Check Redis connectivity
+      if command -v redis-cli &> /dev/null; then
+        redis-cli -h localhost ping || echo "⚠️ Redis connection failed"
+      fi
+
+      echo "✅ Environment validation completed!"
+    displayName: 'Validate Environment'
+    condition: always()

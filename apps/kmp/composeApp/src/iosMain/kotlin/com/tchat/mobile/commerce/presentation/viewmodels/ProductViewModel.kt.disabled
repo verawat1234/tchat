@@ -1,0 +1,298 @@
+package com.tchat.mobile.commerce.presentation.viewmodels
+
+import com.tchat.mobile.commerce.data.models.*
+import com.tchat.mobile.commerce.domain.managers.ProductManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+
+/**
+ * iOS-specific Product ViewModel that bridges KMP commerce logic with SwiftUI
+ * Provides observable state and actions for iOS product discovery and management
+ */
+class ProductViewModel(
+    private val productManager: ProductManager,
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Main)
+) {
+
+    // Exposed state for SwiftUI
+    val products: StateFlow<List<Product>> = productManager.products
+    val featuredProducts: StateFlow<List<Product>> = productManager.featuredProducts
+    val isLoading: StateFlow<Boolean> = productManager.productsLoading
+    val error: StateFlow<String?> = productManager.productsError
+
+    // Current product for detail view
+    private var _currentProduct: Product? = null
+    val currentProduct: Product? get() = _currentProduct
+
+    // Search and filter state
+    private var _searchQuery: String = ""
+    val searchQuery: String get() = _searchQuery
+
+    private var _currentFilters: ProductFilters? = null
+    val currentFilters: ProductFilters? get() = _currentFilters
+
+    // Action methods for SwiftUI
+    fun loadProducts(
+        filters: ProductFilters? = null,
+        page: Int = 1,
+        pageSize: Int = 20,
+        sortBy: String = "created_at",
+        sortOrder: String = "desc",
+        forceRefresh: Boolean = false,
+        onResult: (Result<ProductResponse>) -> Unit = {}
+    ) {
+        _currentFilters = filters
+        scope.launch {
+            val result = productManager.getProducts(
+                filters = filters,
+                page = page,
+                pageSize = pageSize,
+                sortBy = sortBy,
+                sortOrder = sortOrder,
+                forceRefresh = forceRefresh
+            )
+            onResult(result)
+        }
+    }
+
+    fun loadProduct(
+        productId: String,
+        forceRefresh: Boolean = false,
+        onResult: (Result<Product>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = productManager.getProduct(productId, forceRefresh)
+            result.onSuccess { product ->
+                _currentProduct = product
+            }
+            onResult(result)
+        }
+    }
+
+    fun searchProducts(
+        query: String,
+        filters: ProductFilters? = null,
+        onResult: (Result<ProductResponse>) -> Unit = {}
+    ) {
+        _searchQuery = query
+        _currentFilters = filters
+        scope.launch {
+            val result = productManager.searchProducts(query, filters)
+            onResult(result)
+        }
+    }
+
+    fun loadFeaturedProducts(
+        limit: Int = 10,
+        forceRefresh: Boolean = false,
+        onResult: (Result<List<Product>>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = productManager.getFeaturedProducts(limit, forceRefresh)
+            onResult(result)
+        }
+    }
+
+    fun loadProductsByCategory(
+        categoryId: String,
+        page: Int = 1,
+        pageSize: Int = 20,
+        onResult: (Result<ProductResponse>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = productManager.getProductsByCategory(categoryId, page, pageSize)
+            onResult(result)
+        }
+    }
+
+    fun loadProductsByBusiness(
+        businessId: String,
+        page: Int = 1,
+        pageSize: Int = 20,
+        onResult: (Result<ProductResponse>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = productManager.getProductsByBusiness(businessId, page, pageSize)
+            onResult(result)
+        }
+    }
+
+    fun loadRelatedProducts(
+        productId: String,
+        limit: Int = 5,
+        onResult: (Result<List<Product>>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = productManager.getRelatedProducts(productId, limit)
+            onResult(result)
+        }
+    }
+
+    fun loadRecommendations(
+        userId: String? = null,
+        limit: Int = 10,
+        onResult: (Result<List<Product>>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = productManager.getProductRecommendations(userId, limit)
+            onResult(result)
+        }
+    }
+
+    fun loadNewArrivals(
+        limit: Int = 10,
+        onResult: (Result<List<Product>>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = productManager.getNewArrivals(limit)
+            onResult(result)
+        }
+    }
+
+    fun loadBestSellers(
+        limit: Int = 10,
+        onResult: (Result<List<Product>>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = productManager.getBestSellers(limit)
+            onResult(result)
+        }
+    }
+
+    fun loadOnSaleProducts(
+        limit: Int = 10,
+        onResult: (Result<List<Product>>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = productManager.getOnSaleProducts(limit)
+            onResult(result)
+        }
+    }
+
+    // Filter and sort utilities
+    fun buildFilters(
+        category: String? = null,
+        businessId: String? = null,
+        priceRange: Pair<Double, Double>? = null,
+        inStock: Boolean? = null,
+        tags: List<String>? = null
+    ): ProductFilters {
+        return productManager.buildFilters(category, businessId, priceRange, inStock, tags)
+    }
+
+    fun getSortOptions(): List<ProductSortOption> {
+        return productManager.getSortOptions()
+    }
+
+    // Utility methods for SwiftUI
+    fun getFormattedPrice(product: Product, currencySymbol: String = "$"): String {
+        return "$currencySymbol${String.format("%.2f", product.price)}"
+    }
+
+    fun getFormattedComparePrice(product: Product, currencySymbol: String = "$"): String? {
+        return product.compareAtPrice?.let { price ->
+            "$currencySymbol${String.format("%.2f", price)}"
+        }
+    }
+
+    fun isOnSale(product: Product): Boolean {
+        return product.isOnSale || (product.compareAtPrice != null && product.compareAtPrice > product.price)
+    }
+
+    fun getDiscountPercentage(product: Product): Int? {
+        return if (product.compareAtPrice != null && product.compareAtPrice > product.price) {
+            val discount = ((product.compareAtPrice - product.price) / product.compareAtPrice * 100).toInt()
+            discount
+        } else null
+    }
+
+    fun getMainImage(product: Product): String? {
+        return product.images.find { it.isMain }?.url ?: product.images.firstOrNull()?.url
+    }
+
+    fun getAvailableVariants(product: Product): List<ProductVariant> {
+        return product.variants.filter { it.isActive }
+    }
+
+    fun isInStock(product: Product, variantId: String? = null): Boolean {
+        return if (variantId != null) {
+            val variant = product.variants.find { it.id == variantId }
+            variant?.inventory?.quantity ?: 0 > 0
+        } else {
+            product.inventory.quantity > 0
+        }
+    }
+
+    fun getStockLevel(product: Product, variantId: String? = null): StockLevel {
+        val quantity = if (variantId != null) {
+            val variant = product.variants.find { it.id == variantId }
+            variant?.inventory?.quantity ?: 0
+        } else {
+            product.inventory.quantity
+        }
+
+        return when {
+            quantity <= 0 -> StockLevel.OUT_OF_STOCK
+            quantity <= product.inventory.lowStockThreshold -> StockLevel.LOW_STOCK
+            else -> StockLevel.IN_STOCK
+        }
+    }
+
+    fun clearCurrentProduct() {
+        _currentProduct = null
+    }
+
+    fun clearSearch() {
+        _searchQuery = ""
+        _currentFilters = null
+    }
+}
+
+/**
+ * Stock level enumeration for SwiftUI
+ */
+enum class StockLevel {
+    IN_STOCK,
+    LOW_STOCK,
+    OUT_OF_STOCK
+}
+
+/**
+ * iOS-specific extension for Product model to make it more SwiftUI-friendly
+ */
+fun Product.toSwiftUIFormat(): Map<String, Any> {
+    return mapOf(
+        "id" to id,
+        "businessId" to businessId,
+        "name" to name,
+        "description" to description,
+        "category" to category,
+        "price" to price,
+        "compareAtPrice" to (compareAtPrice ?: 0.0),
+        "currency" to currency,
+        "images" to images.map { it.toSwiftUIFormat() },
+        "isOnSale" to isOnSale,
+        "isFeatured" to isFeatured,
+        "averageRating" to averageRating,
+        "reviewCount" to reviewCount,
+        "isVisible" to isVisible,
+        "tags" to tags,
+        "createdAt" to createdAt.toString(),
+        "updatedAt" to updatedAt.toString()
+    )
+}
+
+/**
+ * iOS-specific extension for ProductImage model
+ */
+fun ProductImage.toSwiftUIFormat(): Map<String, Any> {
+    return mapOf(
+        "id" to id,
+        "url" to url,
+        "altText" to (altText ?: ""),
+        "isMain" to isMain,
+        "sortOrder" to sortOrder
+    )
+}

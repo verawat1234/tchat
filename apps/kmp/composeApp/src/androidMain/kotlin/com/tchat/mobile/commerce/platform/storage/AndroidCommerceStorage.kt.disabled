@@ -1,0 +1,64 @@
+package com.tchat.mobile.commerce.platform.storage
+
+import android.content.Context
+import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
+import com.tchat.mobile.commerce.platform.storage.BaseCommerceStorage
+
+/**
+ * Android-specific implementation of CommerceStorage
+ * Uses SharedPreferences for regular data and EncryptedSharedPreferences for sensitive data
+ */
+class AndroidCommerceStorage(private val context: Context) : BaseCommerceStorage() {
+
+    private val masterKey: MasterKey by lazy {
+        MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+    }
+
+    private val regularPrefs: SharedPreferences by lazy {
+        context.getSharedPreferences("tchat_commerce_prefs", Context.MODE_PRIVATE)
+    }
+
+    private val securePrefs: SharedPreferences by lazy {
+        EncryptedSharedPreferences.create(
+            context,
+            "tchat_commerce_secure_prefs",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
+
+    override suspend fun saveToSecureStorage(key: String, value: String) {
+        securePrefs.edit().putString(key, value).apply()
+    }
+
+    override suspend fun getFromSecureStorage(key: String): String? {
+        return securePrefs.getString(key, null)
+    }
+
+    override suspend fun removeFromSecureStorage(key: String) {
+        securePrefs.edit().remove(key).apply()
+    }
+
+    override suspend fun saveToStorage(key: String, value: String) {
+        regularPrefs.edit().putString(key, value).apply()
+    }
+
+    override suspend fun getFromStorage(key: String): String? {
+        return regularPrefs.getString(key, null)
+    }
+
+    override suspend fun removeFromStorage(key: String) {
+        regularPrefs.edit().remove(key).apply()
+    }
+
+    override suspend fun getAllStorageKeys(): List<String> {
+        val regularKeys = regularPrefs.all.keys.toList()
+        val secureKeys = securePrefs.all.keys.toList()
+        return regularKeys + secureKeys
+    }
+}

@@ -1,0 +1,429 @@
+package com.tchat.mobile.commerce.presentation.screens
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tchat.mobile.commerce.presentation.components.CartFab
+import com.tchat.mobile.commerce.presentation.components.HorizontalProductList
+import com.tchat.mobile.commerce.presentation.viewmodels.CommerceViewModel
+
+/**
+ * Commerce home screen showcasing KMP integration with Android Compose
+ * Demonstrates cart management, product discovery, and cross-platform state synchronization
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CommerceHomeScreen(
+    viewModel: CommerceViewModel,
+    onNavigateToSearch: () -> Unit,
+    onNavigateToCart: () -> Unit,
+    onNavigateToProduct: (String) -> Unit,
+    onNavigateToCategory: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isInitialized by viewModel.isInitialized.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val featuredProducts by viewModel.featuredProducts.collectAsStateWithLifecycle()
+    val featuredCategories by viewModel.featuredCategories.collectAsStateWithLifecycle()
+    val cartItemCount by viewModel.cartItemCount.collectAsStateWithLifecycle()
+
+    // Show snackbar for messages
+    uiState.snackbarMessage?.let { message ->
+        LaunchedEffect(message) {
+            viewModel.dismissSnackbar()
+        }
+    }
+
+    // Load home data when initialized
+    LaunchedEffect(isInitialized) {
+        if (isInitialized && !uiState.isLoadingHome) {
+            viewModel.loadHomeData()
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Commerce Demo",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                actions = {
+                    IconButton(onClick = onNavigateToSearch) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search"
+                        )
+                    }
+                    IconButton(onClick = { viewModel.refreshAllData() }) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Refresh"
+                        )
+                    }
+                    IconButton(onClick = onNavigateToCart) {
+                        BadgedBox(
+                            badge = {
+                                if (cartItemCount > 0) {
+                                    Badge {
+                                        Text(cartItemCount.toString())
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ShoppingCart,
+                                contentDescription = "Cart"
+                            )
+                        }
+                    }
+                }
+            )
+        },
+        floatingActionButton = {
+            CartFab(
+                itemCount = cartItemCount,
+                onClick = onNavigateToCart
+            )
+        }
+    ) { paddingValues ->
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            when {
+                !isInitialized && uiState.isInitializing -> {
+                    // Initial loading state
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            CircularProgressIndicator()
+                            Text(
+                                text = "Initializing Commerce...",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    }
+                }
+
+                uiState.initializationError != null -> {
+                    // Error state
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Text(
+                                text = "Failed to initialize",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = uiState.initializationError!!,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Button(onClick = { viewModel.initialize() }) {
+                                Text("Retry")
+                            }
+                        }
+                    }
+                }
+
+                else -> {
+                    // Main content
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(24.dp),
+                        contentPadding = PaddingValues(bottom = 80.dp) // Space for FAB
+                    ) {
+                        item {
+                            // Commerce stats card
+                            CommerceStatsCard(
+                                stats = viewModel.getCommerceStats(),
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                        }
+
+                        item {
+                            // Featured categories
+                            if (featuredCategories.isNotEmpty()) {
+                                FeaturedCategoriesSection(
+                                    categories = featuredCategories,
+                                    onCategoryClick = onNavigateToCategory
+                                )
+                            }
+                        }
+
+                        item {
+                            // Featured products
+                            if (featuredProducts.isNotEmpty()) {
+                                HorizontalProductList(
+                                    products = featuredProducts,
+                                    title = "Featured Products",
+                                    onProductClick = onNavigateToProduct,
+                                    onAddToCart = { productId ->
+                                        viewModel.addToCart(productId)
+                                    },
+                                    isInCart = { productId ->
+                                        viewModel.isProductInCart(productId)
+                                    }
+                                )
+                            }
+                        }
+
+                        item {
+                            // New arrivals
+                            if (uiState.newArrivals.isNotEmpty()) {
+                                HorizontalProductList(
+                                    products = uiState.newArrivals,
+                                    title = "New Arrivals",
+                                    onProductClick = onNavigateToProduct,
+                                    onAddToCart = { productId ->
+                                        viewModel.addToCart(productId)
+                                    },
+                                    isInCart = { productId ->
+                                        viewModel.isProductInCart(productId)
+                                    }
+                                )
+                            }
+                        }
+
+                        item {
+                            // On sale products
+                            if (uiState.onSaleProducts.isNotEmpty()) {
+                                HorizontalProductList(
+                                    products = uiState.onSaleProducts,
+                                    title = "On Sale",
+                                    onProductClick = onNavigateToProduct,
+                                    onAddToCart = { productId ->
+                                        viewModel.addToCart(productId)
+                                    },
+                                    isInCart = { productId ->
+                                        viewModel.isProductInCart(productId)
+                                    }
+                                )
+                            }
+                        }
+
+                        item {
+                            // KMP demonstration card
+                            KMPDemoCard(
+                                onSyncClick = { viewModel.syncWithServer() },
+                                onRefreshClick = { viewModel.refreshAllData() },
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                        }
+                    }
+
+                    // Loading overlay
+                    if (uiState.isLoadingHome) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(paddingValues),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Card(
+                                modifier = Modifier.padding(32.dp),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    CircularProgressIndicator()
+                                    Text("Loading...")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommerceStatsCard(
+    stats: com.tchat.mobile.commerce.domain.managers.CommerceStats,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Commerce Overview",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                StatsItem(
+                    label = "Products",
+                    value = stats.totalProducts.toString()
+                )
+                StatsItem(
+                    label = "Categories",
+                    value = stats.totalCategories.toString()
+                )
+                StatsItem(
+                    label = "Cart Items",
+                    value = stats.cartItems.toString()
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                StatsItem(
+                    label = "Cart Value",
+                    value = "${stats.currency} ${String.format("%.2f", stats.cartValue)}"
+                )
+                StatsItem(
+                    label = "Status",
+                    value = if (stats.isOnline) "Online" else "Offline",
+                    valueColor = if (stats.isOnline) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatsItem(
+    label: String,
+    value: String,
+    valueColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = valueColor
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun FeaturedCategoriesSection(
+    categories: List<com.tchat.mobile.commerce.data.models.Category>,
+    onCategoryClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "Categories",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+
+        // Simple horizontal list of categories
+        // In a real app, you'd have proper category components
+        Text(
+            text = "Featured: ${categories.take(3).joinToString { it.name }}",
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+    }
+}
+
+@Composable
+private fun KMPDemoCard(
+    onSyncClick: () -> Unit,
+    onRefreshClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "KMP Commerce Demo",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                text = "This demonstrates Kotlin Multiplatform commerce functionality with shared business logic, repositories, and state management across Android and iOS.",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onSyncClick,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Sync Server")
+                }
+
+                OutlinedButton(
+                    onClick = onRefreshClick,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Refresh Data")
+                }
+            }
+        }
+    }
+}

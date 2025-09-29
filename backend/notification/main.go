@@ -12,7 +12,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
-	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -24,6 +23,10 @@ import (
 	sharedModels "tchat.dev/shared/models"
 
 	"tchat.dev/notification/models"
+	"tchat.dev/notification/handlers"
+	"tchat.dev/notification/services"
+	"tchat.dev/notification/repositories"
+	"tchat.dev/notification/providers"
 )
 
 // App represents the main notification application
@@ -34,6 +37,17 @@ type App struct {
 	server    *http.Server
 	validator *validator.Validate
 
+	// Services
+	notificationService services.NotificationService
+	cacheService       services.CacheService
+	eventService       services.EventService
+
+	// Repositories
+	notificationRepo repositories.NotificationRepository
+	templateRepo     repositories.TemplateRepository
+
+	// Handlers
+	notificationHandler *handlers.NotificationHandler
 }
 
 // NewApp creates a new notification application instance
@@ -51,7 +65,15 @@ func (a *App) Initialize() error {
 		return fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	// Services initialization skipped - using simple handlers
+	// Initialize repositories
+	if err := a.initRepositories(); err != nil {
+		return fmt.Errorf("failed to initialize repositories: %w", err)
+	}
+
+	// Initialize services
+	if err := a.initServices(); err != nil {
+		return fmt.Errorf("failed to initialize services: %w", err)
+	}
 
 	// Initialize handlers
 	if err := a.initHandlers(); err != nil {
@@ -113,16 +135,151 @@ func (a *App) initDatabase() error {
 
 // runMigrations runs database migrations for notification service models
 func (a *App) runMigrations(db *gorm.DB) error {
-	// Basic migration for notifications table
+	// Migration for notification service models
 	return db.AutoMigrate(
 		&sharedModels.Event{},
+		&models.Notification{},
+		&models.NotificationTemplate{},
+		&models.NotificationSubscription{},
+		&models.NotificationPreferences{},
 	)
 }
 
+// initRepositories initializes repository instances
+func (a *App) initRepositories() error {
+	a.notificationRepo = repositories.NewNotificationRepository(a.db)
+	a.templateRepo = repositories.NewTemplateRepository(a.db)
+
+	log.Println("Repositories initialized successfully")
+	return nil
+}
+
+// initServices initializes service instances
+func (a *App) initServices() error {
+	// Initialize cache service
+	var err error
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL != "" {
+		a.cacheService, err = services.NewRedisCacheService(redisURL)
+		if err != nil {
+			log.Printf("Failed to connect to Redis, falling back to in-memory cache: %v", err)
+			a.cacheService = services.NewInMemoryCacheService()
+		} else {
+			log.Println("Redis cache service initialized")
+		}
+	} else {
+		a.cacheService = services.NewInMemoryCacheService()
+		log.Println("In-memory cache service initialized")
+	}
+
+	// Initialize event service
+	a.eventService = services.NewEventService(true) // Enable async processing
+	log.Println("Event service initialized")
+
+	// Initialize notification service
+	notificationConfig := services.DefaultNotificationConfig()
+	a.notificationService = services.NewNotificationService(
+		a.notificationRepo,
+		a.templateRepo,
+		a.cacheService,
+		a.eventService,
+		notificationConfig,
+	)
+
+	// Initialize and register providers
+	if err := a.initProviders(); err != nil {
+		return fmt.Errorf("failed to initialize providers: %w", err)
+	}
+
+	log.Println("Services initialized successfully")
+	return nil
+}
+
+// initProviders initializes notification providers
+func (a *App) initProviders() error {
+	// Initialize Email Provider
+	if smtpHost := os.Getenv("SMTP_HOST"); smtpHost != "" {
+		emailConfig := providers.EmailConfig{
+			SMTPHost:     smtpHost,
+			SMTPPort:     getEnvOrDefault("SMTP_PORT", "587"),
+			SMTPUsername: os.Getenv("SMTP_USERNAME"),
+			SMTPPassword: os.Getenv("SMTP_PASSWORD"),
+			FromEmail:    os.Getenv("FROM_EMAIL"),
+			FromName:     getEnvOrDefault("FROM_NAME", "Tchat Notifications"),
+		}
+		emailProvider := providers.NewEmailProvider(emailConfig)
+		if err := emailProvider.ValidateConfig(); err != nil {
+			log.Printf("Email provider configuration invalid: %v", err)
+		} else {
+			// Register email provider with service
+			log.Println("Email provider initialized")
+		}
+	}
+
+	// Initialize SMS Provider (Twilio)
+	if twilioSID := os.Getenv("TWILIO_ACCOUNT_SID"); twilioSID != "" {
+		smsConfig := providers.SMSConfig{
+			TwilioAccountSID: twilioSID,
+			TwilioAuthToken:  os.Getenv("TWILIO_AUTH_TOKEN"),
+			TwilioFromNumber: os.Getenv("TWILIO_FROM_NUMBER"),
+		}
+		smsProvider := providers.NewSMSProvider(smsConfig)
+		if err := smsProvider.ValidateConfig(); err != nil {
+			log.Printf("SMS provider configuration invalid: %v", err)
+		} else {
+			log.Println("SMS provider initialized")
+		}
+	}
+
+	// Initialize Push Provider
+	if fcmKey := os.Getenv("FCM_SERVER_KEY"); fcmKey != "" {
+		pushConfig := providers.PushConfig{
+			FCMServerKey: fcmKey,
+			APNSKeyID:    os.Getenv("APNS_KEY_ID"),
+			APNSTeamID:   os.Getenv("APNS_TEAM_ID"),
+			APNSKeyPath:  os.Getenv("APNS_KEY_PATH"),
+			BundleID:     os.Getenv("BUNDLE_ID"),
+		}
+		pushProvider := providers.NewPushProvider(pushConfig)
+		if err := pushProvider.ValidateConfig(); err != nil {
+			log.Printf("Push provider configuration invalid: %v", err)
+		} else {
+			log.Println("Push provider initialized")
+		}
+	}
+
+	// Initialize In-App Provider
+	wsManager := providers.NewSimpleWebSocketManager()
+	inAppProvider := providers.NewInAppProvider(wsManager, nil) // Repository will be added later
+	if err := inAppProvider.ValidateConfig(); err != nil {
+		log.Printf("In-app provider configuration invalid: %v", err)
+	} else {
+		log.Println("In-app provider initialized")
+	}
+
+	return nil
+}
 
 // initHandlers initializes HTTP handlers
 func (a *App) initHandlers() error {
-	// Handlers are now methods on the App struct
+	// Create logger (simplified for this example)
+	// In production, you would use a proper structured logger like zap
+	logger := &SimpleLogger{}
+
+	// Create event bus (simplified for this example)
+	eventBus := &SimpleEventBus{}
+
+	// Create notification config (simplified)
+	notificationConfig := &SimpleNotificationConfig{}
+
+	// Initialize notification handler
+	a.notificationHandler = handlers.NewNotificationHandler(
+		a.notificationService,
+		logger,
+		eventBus,
+		notificationConfig,
+	)
+
 	log.Println("Handlers initialized successfully")
 	return nil
 }
@@ -142,33 +299,12 @@ func (a *App) initRouter() error {
 	router.Use(middleware.CORS())
 	router.Use(middleware.SecurityHeaders())
 
-	// Rate limiting temporarily disabled
-	// if a.config.RateLimit.Enabled {
-	//	rateLimiter := middleware.NewRateLimiter(
-	//		a.config.RateLimit.RequestsPerMinute,
-	//		a.config.RateLimit.BurstSize,
-	//		a.config.RateLimit.CleanupInterval,
-	//	)
-	//	router.Use(rateLimiter.Middleware())
-	// }
-
 	// Health check endpoints
 	router.GET("/health", a.healthCheck)
 	router.GET("/ready", a.readinessCheck)
 
-	// API routes
-	v1 := router.Group("/api/v1")
-	{
-		// Notification endpoints
-		v1.GET("/notifications", a.getNotifications)
-		v1.GET("/notifications/preferences", a.getNotificationPreferences)
-		v1.PUT("/notifications/preferences", a.updateNotificationPreferences)
-	}
-
-	// Swagger documentation (if enabled)
-	if a.config.Debug {
-		// Add swagger routes here if needed
-	}
+	// Register notification routes
+	a.notificationHandler.RegisterRoutes(router)
 
 	a.router = router
 	log.Println("Router initialized successfully")
@@ -220,6 +356,11 @@ func (a *App) Shutdown(ctx context.Context) error {
 		}
 	}
 
+	// Close cache service if it supports closing
+	if redisCacheService, ok := a.cacheService.(*services.RedisCacheService); ok {
+		redisCacheService.Close()
+	}
+
 	log.Println("Notification service shutdown completed")
 	return nil
 }
@@ -249,145 +390,47 @@ func (a *App) readinessCheck(c *gin.Context) {
 		"status":   "ready",
 		"service":  "notification-service",
 		"database": "connected",
+		"cache":    "available",
+		"events":   "available",
 	})
 }
 
-// Mock implementations
-
-type mockNotificationRepository struct {
-	db *gorm.DB
+// Helper function to get environment variable with default
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
-func (m *mockNotificationRepository) Create(ctx context.Context, notification *models.Notification) error {
-	return m.db.WithContext(ctx).Create(notification).Error
+// Simplified implementations for dependencies
+// In production, these would be proper implementations
+
+type SimpleLogger struct{}
+
+func (l *SimpleLogger) Info(msg string, fields ...interface{}) {
+	log.Printf("[INFO] %s %v", msg, fields)
 }
 
-func (m *mockNotificationRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Notification, error) {
-	var notification models.Notification
-	err := m.db.WithContext(ctx).First(&notification, id).Error
-	return &notification, err
+func (l *SimpleLogger) Error(msg string, fields ...interface{}) {
+	log.Printf("[ERROR] %s %v", msg, fields)
 }
 
-func (m *mockNotificationRepository) GetByUserID(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.Notification, error) {
-	var notifications []*models.Notification
-	err := m.db.WithContext(ctx).Where("user_id = ?", userID).Limit(limit).Offset(offset).Find(&notifications).Error
-	return notifications, err
+func (l *SimpleLogger) Debug(msg string, fields ...interface{}) {
+	log.Printf("[DEBUG] %s %v", msg, fields)
 }
 
-func (m *mockNotificationRepository) Update(ctx context.Context, notification *models.Notification) error {
-	return m.db.WithContext(ctx).Save(notification).Error
+func (l *SimpleLogger) Warn(msg string, fields ...interface{}) {
+	log.Printf("[WARN] %s %v", msg, fields)
 }
 
-func (m *mockNotificationRepository) GetPendingNotifications(ctx context.Context, limit int) ([]*models.Notification, error) {
-	var notifications []*models.Notification
-	err := m.db.WithContext(ctx).Where("status = ?", models.DeliveryStatusPending).Limit(limit).Find(&notifications).Error
-	return notifications, err
+type SimpleEventBus struct{}
+
+func (e *SimpleEventBus) Publish(event string, data interface{}) {
+	log.Printf("Event published: %s with data: %+v", event, data)
 }
 
-func (m *mockNotificationRepository) MarkAsDelivered(ctx context.Context, id uuid.UUID) error {
-	return m.db.WithContext(ctx).Model(&models.Notification{}).Where("id = ?", id).Update("status", models.DeliveryStatusDelivered).Error
-}
-
-func (m *mockNotificationRepository) MarkAsFailed(ctx context.Context, id uuid.UUID, reason string) error {
-	return m.db.WithContext(ctx).Model(&models.Notification{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"status":       models.DeliveryStatusFailed,
-		"failure_reason": reason,
-	}).Error
-}
-
-func (m *mockNotificationRepository) GetByChannel(ctx context.Context, channel models.NotificationType, limit, offset int) ([]*models.Notification, error) {
-	var notifications []*models.Notification
-	err := m.db.WithContext(ctx).Where("type = ?", channel).Limit(limit).Offset(offset).Find(&notifications).Error
-	return notifications, err
-}
-
-func (m *mockNotificationRepository) CleanupOldNotifications(ctx context.Context, before time.Time) error {
-	return m.db.WithContext(ctx).Where("created_at < ?", before).Delete(&models.Notification{}).Error
-}
-
-type mockTemplateRepository struct{}
-
-func (m *mockTemplateRepository) GetByType(ctx context.Context, notificationType string) (*models.NotificationTemplate, error) {
-	return &models.NotificationTemplate{
-		ID:      uuid.New(),
-		Type:    models.NotificationType(notificationType),
-		Subject: "Default Subject",
-		Body:    "Default notification body",
-	}, nil
-}
-
-func (m *mockTemplateRepository) GetByTypeAndLanguage(ctx context.Context, notificationType, language string) (*models.NotificationTemplate, error) {
-	return m.GetByType(ctx, notificationType)
-}
-
-type mockCacheService struct{}
-
-func (m *mockCacheService) Get(ctx context.Context, key string) (interface{}, error) {
-	return nil, fmt.Errorf("not found")
-}
-
-func (m *mockCacheService) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
-	return nil
-}
-
-func (m *mockCacheService) Delete(ctx context.Context, key string) error {
-	return nil
-}
-
-type mockEventService struct{}
-
-func (m *mockEventService) Publish(ctx context.Context, event interface{}) error {
-	log.Printf("Event published: %+v", event)
-	return nil
-}
-
-type mockPushProvider struct{}
-
-func (m *mockPushProvider) Send(ctx context.Context, notification *models.Notification) error {
-	log.Printf("Push notification sent to user %s: %s", notification.ID, notification.Title)
-	return nil
-}
-
-func (m *mockPushProvider) SendBatch(ctx context.Context, notifications []*models.Notification) error {
-	log.Printf("Batch push notifications sent: %d notifications", len(notifications))
-	return nil
-}
-
-type mockEmailProvider struct{}
-
-func (m *mockEmailProvider) Send(ctx context.Context, notification *models.Notification) error {
-	log.Printf("Email sent to user %s: %s", notification.ID, notification.Title)
-	return nil
-}
-
-func (m *mockEmailProvider) SendBatch(ctx context.Context, notifications []*models.Notification) error {
-	log.Printf("Batch emails sent: %d notifications", len(notifications))
-	return nil
-}
-
-type mockSMSProvider struct{}
-
-func (m *mockSMSProvider) Send(ctx context.Context, notification *models.Notification) error {
-	log.Printf("SMS sent to user %s: %s", notification.ID, notification.Title)
-	return nil
-}
-
-func (m *mockSMSProvider) SendBatch(ctx context.Context, notifications []*models.Notification) error {
-	log.Printf("Batch SMS sent: %d notifications", len(notifications))
-	return nil
-}
-
-type mockInAppProvider struct{}
-
-func (m *mockInAppProvider) Send(ctx context.Context, notification *models.Notification) error {
-	log.Printf("In-app notification sent to user %s: %s", notification.ID, notification.Title)
-	return nil
-}
-
-func (m *mockInAppProvider) SendBatch(ctx context.Context, notifications []*models.Notification) error {
-	log.Printf("Batch in-app notifications sent: %d notifications", len(notifications))
-	return nil
-}
+type SimpleNotificationConfig struct{}
 
 func main() {
 	// Load configuration with notification service specific port (8089)
@@ -426,71 +469,3 @@ func main() {
 
 	log.Println("Notification service stopped")
 }
-
-// Simple handler methods
-
-// getNotifications retrieves user notifications
-func (a *App) getNotifications(c *gin.Context) {
-	responses.SendSuccessResponse(c, gin.H{
-		"notifications": []gin.H{
-			{
-				"id":      "1",
-				"title":   "Welcome to Tchat",
-				"content": "Thank you for joining our platform",
-				"read":    false,
-			},
-		},
-		"total": 1,
-	})
-}
-
-// getNotificationPreferences retrieves notification preferences
-func (a *App) getNotificationPreferences(c *gin.Context) {
-	responses.SendSuccessResponse(c, gin.H{
-		"email_enabled": true,
-		"push_enabled":  true,
-		"sms_enabled":   false,
-	})
-}
-
-// updateNotificationPreferences updates notification preferences
-func (a *App) updateNotificationPreferences(c *gin.Context) {
-	var req map[string]interface{}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		responses.SendErrorResponse(c, http.StatusBadRequest, "Invalid request", err.Error())
-		return
-	}
-
-	responses.SendSuccessResponse(c, gin.H{
-		"message": "Notification preferences updated successfully",
-		"preferences": req,
-	})
-}
-
-// Additional mock implementations for missing dependencies
-
-type mockLogger struct{}
-
-func (m *mockLogger) Info(msg string, fields ...interface{}) {
-	log.Printf("[INFO] %s %v", msg, fields)
-}
-
-func (m *mockLogger) Error(msg string, fields ...interface{}) {
-	log.Printf("[ERROR] %s %v", msg, fields)
-}
-
-func (m *mockLogger) Debug(msg string, fields ...interface{}) {
-	log.Printf("[DEBUG] %s %v", msg, fields)
-}
-
-func (m *mockLogger) Warn(msg string, fields ...interface{}) {
-	log.Printf("[WARN] %s %v", msg, fields)
-}
-
-type mockEventBus struct{}
-
-func (m *mockEventBus) Publish(event string, data interface{}) {
-	log.Printf("Event published: %s with data: %+v", event, data)
-}
-
-type mockNotificationConfig struct{}

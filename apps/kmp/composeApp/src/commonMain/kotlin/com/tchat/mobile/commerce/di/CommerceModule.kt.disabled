@@ -1,0 +1,113 @@
+package com.tchat.mobile.commerce.di
+
+import com.tchat.mobile.commerce.data.api.CommerceApiClient
+import com.tchat.mobile.commerce.data.api.CommerceApiClientImpl
+import com.tchat.mobile.commerce.domain.managers.CartManager
+import com.tchat.mobile.commerce.domain.managers.CartManagerImpl
+import com.tchat.mobile.commerce.domain.managers.CategoryManager
+import com.tchat.mobile.commerce.domain.managers.CategoryManagerImpl
+import com.tchat.mobile.commerce.domain.managers.CommerceManager
+import com.tchat.mobile.commerce.domain.managers.CommerceManagerImpl
+import com.tchat.mobile.commerce.domain.managers.ProductManager
+import com.tchat.mobile.commerce.domain.managers.ProductManagerImpl
+import com.tchat.mobile.commerce.domain.repositories.CartRepository
+import com.tchat.mobile.commerce.domain.repositories.CartRepositoryImpl
+import com.tchat.mobile.commerce.domain.repositories.CategoryRepository
+import com.tchat.mobile.commerce.domain.repositories.CategoryRepositoryImpl
+import com.tchat.mobile.commerce.domain.repositories.ProductRepository
+import com.tchat.mobile.commerce.domain.repositories.ProductRepositoryImpl
+import com.tchat.mobile.commerce.platform.storage.CommerceStorage
+import org.koin.dsl.module
+
+/**
+ * Koin dependency injection module for commerce functionality
+ * Provides all commerce-related dependencies in a modular way
+ */
+val commerceModule = module {
+
+    // API Client
+    single<CommerceApiClient> {
+        CommerceApiClientImpl(
+            httpClient = get(), // Assumes HttpClient is provided by network module
+            baseUrl = "http://localhost:8080/api/v1/commerce"
+        )
+    }
+
+    // Storage (platform-specific implementation provided by platform modules)
+    // Platform modules should provide: single<CommerceStorage> { /* platform implementation */ }
+
+    // Repositories
+    single<CartRepository> {
+        CartRepositoryImpl(
+            apiClient = get(),
+            cartStorage = get<CommerceStorage>()
+        )
+    }
+
+    single<ProductRepository> {
+        ProductRepositoryImpl(
+            apiClient = get(),
+            productStorage = get<CommerceStorage>()
+        )
+    }
+
+    single<CategoryRepository> {
+        CategoryRepositoryImpl(
+            apiClient = get(),
+            categoryStorage = get<CommerceStorage>()
+        )
+    }
+
+    // Managers
+    single<CartManager> {
+        CartManagerImpl(
+            cartRepository = get(),
+            productRepository = get()
+        )
+    }
+
+    single<ProductManager> {
+        ProductManagerImpl(
+            productRepository = get(),
+            categoryRepository = get()
+        )
+    }
+
+    single<CategoryManager> {
+        CategoryManagerImpl(
+            categoryRepository = get(),
+            productRepository = get()
+        )
+    }
+
+    // Main Commerce Manager
+    single<CommerceManager> {
+        CommerceManagerImpl(
+            cartRepository = get(),
+            productRepository = get(),
+            categoryRepository = get()
+        )
+    }
+}
+
+/**
+ * Android-specific commerce module
+ * Provides Android platform implementations
+ */
+val androidCommerceModule = module {
+    single<CommerceStorage> {
+        com.tchat.mobile.commerce.platform.storage.AndroidCommerceStorage(
+            context = get() // Android Context should be provided by Android platform module
+        )
+    }
+}
+
+/**
+ * iOS-specific commerce module
+ * Provides iOS platform implementations
+ */
+val iosCommerceModule = module {
+    single<CommerceStorage> {
+        com.tchat.mobile.commerce.platform.storage.IOSCommerceStorage()
+    }
+}

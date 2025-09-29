@@ -19,6 +19,7 @@ import { ChatInput } from './ChatInput';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { toast } from "sonner";
 import { useGetUserChatsQuery } from '../services/microservicesApi';
+import { callService } from '../services/webrtc/CallService';
 
 interface ChatTabProps {
   user: any;
@@ -113,6 +114,7 @@ export function ChatTab({
   const voiceRecorderRef = useRef<MediaRecorder | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingTimer = useRef<NodeJS.Timeout | null>(null);
+
 
   // Personal Chat Data (All conversations: friends, family, AND chats with shops as customer)
   const personalDialogs: Dialog[] = [
@@ -350,6 +352,79 @@ export function ChatTab({
     'Food Business', 'Tech Support', 'Family', 'Friends', 'Work',
     'AI', 'Support', 'Sales', 'Automation', 'Partner'
   ];
+
+  // Voice and Video Call Handlers
+  const handleVoiceCall = useCallback(async () => {
+    if (!selectedDialog) return;
+
+    // Find the selected dialog from all available dialogs
+    const allDialogs = [...personalDialogs, ...businessDialogs];
+    const currentDialog = allDialogs.find(d => d.id === selectedDialog);
+
+    if (!currentDialog) {
+      toast.error('Unable to find contact information for call');
+      return;
+    }
+
+    try {
+      // Initialize the call service if not already done
+      await callService.initialize();
+
+      // Initiate voice call
+      const callId = await callService.initiateCall(currentDialog.id, currentDialog.name, {
+        type: 'voice',
+        enableVideo: false,
+        enableAudio: true,
+        quality: 'auto'
+      });
+
+      // Call the provided onVoiceCall handler if available
+      onVoiceCall?.(currentDialog.name, false);
+
+      // Show success feedback
+      toast.success(`Starting voice call with ${currentDialog.name}...`);
+
+    } catch (error) {
+      console.error('Failed to start voice call:', error);
+      toast.error('Failed to start voice call. Please try again.');
+    }
+  }, [selectedDialog, personalDialogs, businessDialogs, onVoiceCall]);
+
+  const handleVideoCall = useCallback(async () => {
+    if (!selectedDialog) return;
+
+    // Find the selected dialog from all available dialogs
+    const allDialogs = [...personalDialogs, ...businessDialogs];
+    const currentDialog = allDialogs.find(d => d.id === selectedDialog);
+
+    if (!currentDialog) {
+      toast.error('Unable to find contact information for call');
+      return;
+    }
+
+    try {
+      // Initialize the call service if not already done
+      await callService.initialize();
+
+      // Initiate video call
+      const callId = await callService.initiateCall(currentDialog.id, currentDialog.name, {
+        type: 'video',
+        enableVideo: true,
+        enableAudio: true,
+        quality: 'auto'
+      });
+
+      // Call the provided onVideoCall handler if available
+      onVideoCall?.(currentDialog.name, true);
+
+      // Show success feedback
+      toast.success(`Starting video call with ${currentDialog.name}...`);
+
+    } catch (error) {
+      console.error('Failed to start video call:', error);
+      toast.error('Failed to start video call. Please try again.');
+    }
+  }, [selectedDialog, personalDialogs, businessDialogs, onVideoCall]);
 
   // Sample messages for family chat
   const familyMessages: Message[] = [
@@ -1160,10 +1235,22 @@ export function ChatTab({
               </div>
               
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={() => console.log('Voice call')}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleVoiceCall()}
+                  aria-label="Start voice call"
+                  data-testid="voice-call-button"
+                >
                   <Phone className="w-5 h-5" />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={() => console.log('Video call')}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleVideoCall()}
+                  aria-label="Start video call"
+                  data-testid="video-call-button"
+                >
                   <Video className="w-5 h-5" />
                 </Button>
                 <Button variant="ghost" size="icon">

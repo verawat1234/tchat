@@ -405,3 +405,103 @@ func (h *CartHandler) GetAbandonmentAnalytics(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response)
 }
+
+// ApplyCoupon applies a coupon to the cart
+// @Summary Apply coupon to cart
+// @Description Apply a coupon code to reduce cart total
+// @Tags carts
+// @Accept json
+// @Produce json
+// @Param cartId path string true "Cart ID"
+// @Param coupon body models.ApplyCouponRequest true "Coupon data"
+// @Success 200 {object} models.Cart
+// @Failure 400 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /carts/{cartId}/coupons [post]
+func (h *CartHandler) ApplyCoupon(c *gin.Context) {
+	cartIDStr := c.Param("cartId")
+	cartID, err := uuid.Parse(cartIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid cart ID"})
+		return
+	}
+
+	var req models.ApplyCouponRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.cartService.ApplyCoupon(c.Request.Context(), cartID, req.CouponCode); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get updated cart to return
+	cart, err := h.cartService.GetCart(c.Request.Context(), nil, "")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, cart)
+}
+
+// RemoveCoupon removes a coupon from the cart
+// @Summary Remove coupon from cart
+// @Description Remove the applied coupon from cart
+// @Tags carts
+// @Param cartId path string true "Cart ID"
+// @Success 200 {object} models.Cart
+// @Failure 400 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /carts/{cartId}/coupons [delete]
+func (h *CartHandler) RemoveCoupon(c *gin.Context) {
+	cartIDStr := c.Param("cartId")
+	cartID, err := uuid.Parse(cartIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid cart ID"})
+		return
+	}
+
+	if err := h.cartService.RemoveCoupon(c.Request.Context(), cartID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get updated cart to return
+	cart, err := h.cartService.GetCart(c.Request.Context(), nil, "")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, cart)
+}
+
+// ValidateCart validates cart contents and pricing
+// @Summary Validate cart
+// @Description Validate cart items, pricing, and availability
+// @Tags carts
+// @Produce json
+// @Param cartId path string true "Cart ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /carts/{cartId}/validate [get]
+func (h *CartHandler) ValidateCart(c *gin.Context) {
+	cartIDStr := c.Param("cartId")
+	cartID, err := uuid.Parse(cartIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid cart ID"})
+		return
+	}
+
+	validation, err := h.cartService.ValidateCart(c.Request.Context(), cartID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, validation)
+}

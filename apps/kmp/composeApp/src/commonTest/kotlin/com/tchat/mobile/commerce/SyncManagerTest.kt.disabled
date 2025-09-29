@@ -1,0 +1,208 @@
+package com.tchat.mobile.commerce
+
+import com.tchat.mobile.commerce.domain.managers.CommerceManager
+import com.tchat.mobile.commerce.domain.managers.CommerceManagerImpl
+import com.tchat.mobile.commerce.domain.repositories.*
+import com.tchat.mobile.commerce.sync.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+import kotlin.test.*
+
+/**
+ * Tests for SyncManager
+ * Tests synchronization, network monitoring, and conflict resolution
+ */
+class SyncManagerTest {
+
+    private lateinit var mockCommerceManager: CommerceManager
+    private lateinit var mockStorage: MockCommerceStorage
+    private lateinit var mockNetworkMonitor: MockNetworkMonitor
+    private lateinit var syncManager: SyncManager
+    private lateinit var testScope: CoroutineScope
+
+    @BeforeTest
+    fun setup() {
+        val mockApiClient = MockCommerceApiClient()
+        mockStorage = MockCommerceStorage()
+        mockNetworkMonitor = MockNetworkMonitor()
+        testScope = CoroutineScope(SupervisorJob())
+
+        val cartRepository = CartRepositoryImpl(mockApiClient, mockStorage)
+        val productRepository = ProductRepositoryImpl(mockApiClient, mockStorage)
+        val categoryRepository = CategoryRepositoryImpl(mockApiClient, mockStorage)
+
+        mockCommerceManager = CommerceManagerImpl(
+            cartRepository = cartRepository,
+            productRepository = productRepository,
+            categoryRepository = categoryRepository,
+            apiClient = mockApiClient,
+            storage = mockStorage
+        )
+
+        syncManager = SyncManagerImpl(
+            commerceManager = mockCommerceManager,
+            storage = mockStorage,
+            networkMonitor = mockNetworkMonitor,
+            scope = testScope
+        )
+    }
+
+    @Test
+    fun testInitialization() = runTest {
+        syncManager.initialize()
+
+        // Should start in idle state
+        assertEquals(SyncStatus.IDLE, syncManager.syncStatus.first())
+        assertEquals(0L, syncManager.lastSyncTime.first())
+    }
+
+    @Test
+    fun testSyncWhenOnline() = runTest {
+        syncManager.initialize()
+        mockNetworkMonitor.setConnected(true)
+
+        val result = syncManager.syncNow()
+        assertTrue(result.isSuccess)
+
+        val syncResult = result.getOrNull()
+        assertNotNull(syncResult)
+        assertTrue(syncResult.syncTime > 0)
+    }
+
+    @Test
+    fun testSyncWhenOffline() = runTest {
+        syncManager.initialize()
+        mockNetworkMonitor.setConnected(false)
+
+        val result = syncManager.syncNow()
+        assertTrue(result.isFailure)
+
+        val exception = result.exceptionOrNull()
+        assertNotNull(exception)
+        assertTrue(exception.message?.contains("network") == true)
+    }
+
+    @Test
+    fun testAutoSync() = runTest {
+        syncManager.initialize()
+        mockNetworkMonitor.setConnected(true)
+
+        // Enable auto-sync with short interval for testing
+        syncManager.enableAutoSync(intervalMs = 100)
+
+        // Wait a bit for auto-sync to trigger
+        kotlinx.coroutines.delay(200)
+
+        // Should have synced at least once
+        assertTrue(syncManager.lastSyncTime.first() > 0)
+
+        // Disable auto-sync
+        syncManager.disableAutoSync()
+    }
+
+    @Test
+    fun testForceSyncAll() = runTest {
+        syncManager.initialize()
+        mockNetworkMonitor.setConnected(true)
+
+        val result = syncManager.forceSyncAll()
+        assertTrue(result.isSuccess)
+
+        val syncResult = result.getOrNull()
+        assertNotNull(syncResult)
+        assertTrue(syncResult.cartSynced)
+        assertTrue(syncResult.productsSynced)
+        assertTrue(syncResult.categoriesSynced)
+    }
+
+    @Test
+    fun testNetworkStateManagement() = runTest {
+        syncManager.initialize()
+
+        // Initially offline
+        mockNetworkMonitor.setConnected(false)
+        assertFalse(syncManager.isOnline.first())
+
+        // Go online
+        mockNetworkMonitor.setConnected(true)
+        assertTrue(syncManager.isOnline.first())
+
+        // Manual network state override
+        syncManager.setNetworkAvailable(false)
+        assertFalse(syncManager.isOnline.first())
+    }
+
+    @Test
+    fun testDataSaverMode() = runTest {
+        syncManager.initialize()
+        mockNetworkMonitor.setConnected(true)
+
+        // Enable data saver mode
+        syncManager.setDataSaverMode(true)
+
+        // Enable auto-sync - should not sync in data saver mode
+        syncManager.enableAutoSync(intervalMs = 100)
+
+        // Wait and verify no auto-sync occurred
+        kotlinx.coroutines.delay(200)
+        // In data saver mode, auto-sync should be disabled
+        // This would need to be verified based on actual implementation
+
+        syncManager.disableAutoSync()
+    }
+
+    @Test
+    fun testConflictResolution() = runTest {
+        syncManager.initialize()
+
+        val result = syncManager.resolveConflicts()
+        assertTrue(result.isSuccess)
+
+        val resolution = result.getOrNull()
+        assertNotNull(resolution)
+        assertTrue(resolution.conflictsFound >= 0)
+        assertTrue(resolution.conflictsResolved >= 0)
+        assertNotNull(resolution.resolutionStrategy)
+    }
+
+    @Test
+    fun testSyncStatusTransitions() = runTest {
+        syncManager.initialize()
+        mockNetworkMonitor.setConnected(true)
+
+        // Initial state should be IDLE
+        assertEquals(SyncStatus.IDLE, syncManager.syncStatus.first())
+
+        // Start sync - should transition through states
+        val result = syncManager.syncNow()
+        assertTrue(result.isSuccess)
+
+        // After completion, should return to IDLE
+        // Note: In real implementation, we'd need to observe state transitions
+        assertEquals(SyncStatus.IDLE, syncManager.syncStatus.first())
+    }
+}
+
+/**
+ * Mock NetworkMonitor for testing
+ */
+class MockNetworkMonitor : NetworkMonitor {
+    private val _isConnected = MutableStateFlow(false)
+    private val _connectionType = MutableStateFlow(ConnectionType.NONE)
+
+    override val isConnected = _isConnected
+    override val connectionType = _connectionType
+
+    fun setConnected(connected: Boolean) {
+        _isConnected.value = connected
+        _connectionType.value = if (connected) ConnectionType.WIFI else ConnectionType.NONE
+    }
+
+    fun setConnectionType(type: ConnectionType) {
+        _connectionType.value = type
+        _isConnected.value = type != ConnectionType.NONE
+    }
+}

@@ -5,14 +5,15 @@ import (
 
 	"github.com/google/uuid"
 	"tchat.dev/commerce/models"
+	sharedModels "tchat.dev/shared/models"
 )
 
 // BusinessService defines the interface for business operations
 type BusinessService interface {
 	GetBusinesses(ctx context.Context, filters models.BusinessFilters, pagination models.Pagination, sort models.SortOptions) (*models.BusinessResponse, error)
-	GetBusiness(ctx context.Context, id uuid.UUID) (*models.Business, error)
-	CreateBusiness(ctx context.Context, ownerID uuid.UUID, req *models.CreateBusinessRequest) (*models.Business, error)
-	UpdateBusiness(ctx context.Context, id uuid.UUID, req *models.UpdateBusinessRequest) (*models.Business, error)
+	GetBusiness(ctx context.Context, id uuid.UUID) (*sharedModels.Business, error)
+	CreateBusiness(ctx context.Context, ownerID uuid.UUID, req *models.CreateBusinessRequest) (*sharedModels.Business, error)
+	UpdateBusiness(ctx context.Context, id uuid.UUID, req *models.UpdateBusinessRequest) (*sharedModels.Business, error)
 	DeleteBusiness(ctx context.Context, id uuid.UUID) error
 	GetBusinessProducts(ctx context.Context, businessID uuid.UUID, pagination models.Pagination, sort models.SortOptions) (*models.ProductResponse, error)
 }
@@ -28,9 +29,9 @@ type ProductService interface {
 
 // BusinessRepository defines the interface for business data access
 type BusinessRepository interface {
-	FindBusinesses(ctx context.Context, filters models.BusinessFilters, pagination models.Pagination, sort models.SortOptions) ([]*models.Business, int64, error)
-	FindBusinessByID(ctx context.Context, id uuid.UUID) (*models.Business, error)
-	CreateBusiness(ctx context.Context, business *models.Business) error
+	FindBusinesses(ctx context.Context, filters models.BusinessFilters, pagination models.Pagination, sort models.SortOptions) ([]*sharedModels.Business, int64, error)
+	FindBusinessByID(ctx context.Context, id uuid.UUID) (*sharedModels.Business, error)
+	CreateBusiness(ctx context.Context, business *sharedModels.Business) error
 	UpdateBusiness(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error
 	DeleteBusiness(ctx context.Context, id uuid.UUID) error
 }

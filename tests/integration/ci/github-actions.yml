@@ -1,0 +1,503 @@
+# GitHub Actions workflow for Tchat integration testing
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run nightly at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  GO_VERSION: '1.22'
+  NODE_VERSION: '20'
+  POSTGRES_VERSION: '15'
+  REDIS_VERSION: '7'
+
+jobs:
+  # Quick validation for PRs
+  quick-tests:
+    name: Quick Integration Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: tchat_test
+          POSTGRES_USER: tchat_test
+          POSTGRES_PASSWORD: tchat_test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6380:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Install dependencies
+      run: |
+        go mod download
+        cd apps/web && npm ci
+
+    - name: Run database migrations
+      run: |
+        go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+        migrate -path backend/migrations -database "postgres://tchat_test:tchat_test_password@localhost:5433/tchat_test?sslmode=disable" up
+      env:
+        DATABASE_URL: postgres://tchat_test:tchat_test_password@localhost:5433/tchat_test?sslmode=disable
+
+    - name: Run quick integration tests
+      run: |
+        cd tests/integration/setup
+        go run test_runner.go \
+          -suites=backend-integration,frontend-integration \
+          -timeout=15m \
+          -max-parallel=2 \
+          -v
+      env:
+        TEST_DATABASE_URL: postgres://tchat_test:tchat_test_password@localhost:5433/tchat_test?sslmode=disable
+        REDIS_URL: redis://localhost:6380/0
+        CI: true
+
+  # Full test suite for main branches and nightly runs
+  full-tests:
+    name: Full Integration Test Suite
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'schedule'
+    timeout-minutes: 60
+
+    strategy:
+      matrix:
+        test-suite:
+          - backend-integration
+          - frontend-integration
+          - cross-platform
+          - performance
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Cache Docker layers
+      uses: actions/cache@v3
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-
+
+    - name: Start test services
+      run: |
+        cd tests/integration/setup
+        docker-compose -f docker-compose.test.yml up -d --build
+        echo "Waiting for services to be ready..."
+        sleep 45
+
+    - name: Validate test environment
+      run: |
+        cd tests/integration/setup
+        docker exec tchat-test-setup /scripts/validate-test-environment.sh
+
+    - name: Run ${{ matrix.test-suite }} tests
+      run: |
+        cd tests/integration/setup
+        go run test_runner.go \
+          -suites=${{ matrix.test-suite }} \
+          -timeout=30m \
+          -max-parallel=2 \
+          -coverage=coverage/coverage_${{ matrix.test-suite }} \
+          -v
+      env:
+        CI: true
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: tests/integration/setup/coverage/coverage_${{ matrix.test-suite }}_*.out
+        flags: integration,${{ matrix.test-suite }}
+        name: ${{ matrix.test-suite }}-coverage
+
+    - name: Upload test artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results-${{ matrix.test-suite }}
+        path: |
+          tests/integration/setup/coverage/
+          tests/integration/setup/test-results/
+        retention-days: 7
+
+    - name: Cleanup test environment
+      if: always()
+      run: |
+        cd tests/integration/setup
+        docker-compose -f docker-compose.test.yml down -v --remove-orphans
+
+  # Load testing for performance validation
+  load-tests:
+    name: Load Testing
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    timeout-minutes: 45
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Start load test environment
+      run: |
+        cd tests/integration/setup
+        docker-compose -f docker-compose.test.yml up -d --build
+        sleep 60
+
+    - name: Run load tests
+      run: |
+        cd tests/integration/setup
+        go run test_runner.go \
+          -suites=performance \
+          -pattern=TestLoad* \
+          -timeout=30m \
+          -max-parallel=1 \
+          -v
+      env:
+        LOAD_TEST_DURATION: 300s
+        LOAD_TEST_RPS: 1000
+        CI: true
+
+    - name: Generate performance report
+      run: |
+        cd tests/integration/performance
+        go test -bench=. -benchmem -timeout=10m ./... > performance-report.txt
+        cat performance-report.txt
+
+    - name: Upload performance artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: performance-results
+        path: |
+          tests/integration/performance/performance-report.txt
+          tests/integration/performance/load-test-results.json
+        retention-days: 30
+
+    - name: Comment performance results on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          try {
+            const report = fs.readFileSync('tests/integration/performance/performance-report.txt', 'utf8');
+            const body = `## 🚀 Performance Test Results\n\n\`\`\`\n${report}\n\`\`\``;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+          } catch (error) {
+            console.log('Performance report not found, skipping comment');
+          }
+
+    - name: Cleanup load test environment
+      if: always()
+      run: |
+        cd tests/integration/setup
+        docker-compose -f docker-compose.test.yml down -v --remove-orphans
+
+  # Security and compliance testing
+  security-tests:
+    name: Security Integration Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Install security tools
+      run: |
+        go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+        go install honnef.co/go/tools/cmd/staticcheck@latest
+
+    - name: Run security analysis
+      run: |
+        gosec -fmt json -out security-report.json ./...
+        staticcheck ./...
+
+    - name: Start test services for security tests
+      run: |
+        cd tests/integration/setup
+        docker-compose -f docker-compose.test.yml up -d postgres-test redis-test
+        sleep 30
+
+    - name: Run security-focused integration tests
+      run: |
+        cd tests/integration/setup
+        go run test_runner.go \
+          -suites=backend-integration \
+          -pattern=TestSecurity* \
+          -timeout=15m \
+          -v
+      env:
+        SECURITY_TEST_MODE: true
+
+    - name: Upload security artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-results
+        path: |
+          security-report.json
+        retention-days: 30
+
+  # Mobile integration tests (if applicable)
+  mobile-tests:
+    name: Mobile Integration Tests
+    runs-on: macos-latest
+    if: github.event_name == 'push' || github.event_name == 'schedule'
+    timeout-minutes: 45
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Set up Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Set up Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+
+    - name: Cache Gradle packages
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+
+    - name: Run Android tests
+      run: |
+        cd apps/mobile/android
+        ./gradlew test connectedAndroidTest
+      env:
+        API_BASE_URL: http://localhost:8080
+
+    - name: Run iOS tests
+      run: |
+        cd apps/mobile/ios
+        xcodebuild test \
+          -project TchatApp.xcodeproj \
+          -scheme TchatApp \
+          -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest'
+      env:
+        API_BASE_URL: http://localhost:8080
+
+    - name: Upload mobile test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: mobile-test-results
+        path: |
+          apps/mobile/android/build/reports/
+          apps/mobile/ios/build/reports/
+        retention-days: 7
+
+  # Deployment validation tests
+  deployment-tests:
+    name: Deployment Validation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Build all services
+      run: |
+        cd backend
+        for service in gateway auth content commerce messaging payment notification video social; do
+          echo "Building $service..."
+          cd $service && go build -o ../build/$service . && cd ..
+        done
+
+    - name: Test service startup
+      run: |
+        cd tests/integration/setup
+        docker-compose -f docker-compose.test.yml up -d
+        sleep 30
+
+        # Start services and validate they can serve requests
+        cd ../../../backend/build
+        for service in gateway auth content commerce; do
+          echo "Testing $service startup..."
+          timeout 10s ./$service &
+          sleep 2
+          if ! pgrep $service > /dev/null; then
+            echo "❌ $service failed to start"
+            exit 1
+          fi
+          pkill $service
+        done
+
+    - name: Run deployment smoke tests
+      run: |
+        cd tests/integration/setup
+        go run test_runner.go \
+          -suites=backend-integration \
+          -pattern=TestSmoke* \
+          -timeout=10m \
+          -v
+      env:
+        SMOKE_TEST_MODE: true
+
+  # Test result aggregation and notification
+  test-results:
+    name: Test Results Summary
+    runs-on: ubuntu-latest
+    needs: [quick-tests, full-tests, load-tests, security-tests, mobile-tests, deployment-tests]
+    if: always()
+
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+
+    - name: Generate test summary
+      run: |
+        echo "# 🧪 Test Results Summary" > test-summary.md
+        echo "" >> test-summary.md
+        echo "## Test Suite Results" >> test-summary.md
+        echo "" >> test-summary.md
+
+        # Check each job status
+        if [[ "${{ needs.quick-tests.result }}" == "success" ]]; then
+          echo "✅ Quick Tests: Passed" >> test-summary.md
+        else
+          echo "❌ Quick Tests: Failed" >> test-summary.md
+        fi
+
+        if [[ "${{ needs.full-tests.result }}" == "success" ]]; then
+          echo "✅ Full Tests: Passed" >> test-summary.md
+        else
+          echo "❌ Full Tests: Failed" >> test-summary.md
+        fi
+
+        if [[ "${{ needs.load-tests.result }}" == "success" ]]; then
+          echo "✅ Load Tests: Passed" >> test-summary.md
+        else
+          echo "❌ Load Tests: Failed" >> test-summary.md
+        fi
+
+        if [[ "${{ needs.security-tests.result }}" == "success" ]]; then
+          echo "✅ Security Tests: Passed" >> test-summary.md
+        else
+          echo "❌ Security Tests: Failed" >> test-summary.md
+        fi
+
+        echo "" >> test-summary.md
+        echo "## Coverage Reports" >> test-summary.md
+        echo "Coverage reports are available in the artifacts section." >> test-summary.md
+
+    - name: Comment test summary on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const summary = fs.readFileSync('test-summary.md', 'utf8');
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: summary
+          });
+
+    - name: Upload test summary
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-summary
+        path: test-summary.md
+        retention-days: 30

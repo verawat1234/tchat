@@ -1,0 +1,189 @@
+package com.tchat.mobile.commerce.presentation.viewmodels
+
+import com.tchat.mobile.commerce.data.models.*
+import com.tchat.mobile.commerce.domain.managers.CartManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+
+/**
+ * iOS-specific Cart ViewModel that bridges KMP commerce logic with SwiftUI
+ * Provides observable state and actions for iOS UI components
+ */
+class CartViewModel(
+    private val cartManager: CartManager,
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Main)
+) {
+
+    // Exposed state for SwiftUI
+    val currentCart: StateFlow<Cart?> = cartManager.currentCart
+    val cartItems: StateFlow<List<CartItem>> = cartManager.cartItems
+    val cartItemCount: StateFlow<Int> = cartManager.cartItemCount
+    val cartTotal: StateFlow<Double> = cartManager.cartTotal
+    val isLoading: StateFlow<Boolean> = cartManager.cartLoading
+    val error: StateFlow<String?> = cartManager.cartError
+
+    // Cart summary for SwiftUI consumption
+    val cartSummary: CartSummary
+        get() = cartManager.getCartSummary()
+
+    // Cart items grouped by business
+    val itemsByBusiness: Map<String, List<CartItem>>
+        get() = cartManager.getCartItemsByBusiness()
+
+    // Action methods for SwiftUI
+    fun addProductToCart(
+        productId: String,
+        quantity: Int = 1,
+        variantId: String? = null,
+        isGift: Boolean = false,
+        giftMessage: String? = null,
+        onResult: (Result<Cart>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = cartManager.addProductToCart(
+                productId = productId,
+                quantity = quantity,
+                variantId = variantId,
+                isGift = isGift,
+                giftMessage = giftMessage
+            )
+            onResult(result)
+        }
+    }
+
+    fun updateItemQuantity(
+        itemId: String,
+        quantity: Int,
+        onResult: (Result<Cart>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = cartManager.updateCartItemQuantity(itemId, quantity)
+            onResult(result)
+        }
+    }
+
+    fun removeItem(
+        itemId: String,
+        onResult: (Result<Cart>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = cartManager.removeItemFromCart(itemId)
+            onResult(result)
+        }
+    }
+
+    fun clearCart(onResult: (Result<Cart>) -> Unit = {}) {
+        scope.launch {
+            val result = cartManager.clearCart()
+            onResult(result)
+        }
+    }
+
+    fun applyCoupon(
+        couponCode: String,
+        onResult: (Result<Cart>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = cartManager.applyCouponCode(couponCode)
+            onResult(result)
+        }
+    }
+
+    fun removeCoupon(onResult: (Result<Cart>) -> Unit = {}) {
+        scope.launch {
+            val result = cartManager.removeCoupon()
+            onResult(result)
+        }
+    }
+
+    fun validateCart(onResult: (Result<CartValidation>) -> Unit = {}) {
+        scope.launch {
+            val result = cartManager.validateCartBeforeCheckout()
+            onResult(result)
+        }
+    }
+
+    fun refreshCart(onResult: (Result<Cart>) -> Unit = {}) {
+        scope.launch {
+            val result = cartManager.refreshCart()
+            onResult(result)
+        }
+    }
+
+    fun syncWithServer(onResult: (Result<Cart>) -> Unit = {}) {
+        scope.launch {
+            val result = cartManager.syncCartWithServer()
+            onResult(result)
+        }
+    }
+
+    // Utility methods for SwiftUI
+    fun getItemQuantity(productId: String, variantId: String? = null): Int {
+        return currentCart.value?.items
+            ?.find { it.productId == productId && it.variantId == variantId }
+            ?.quantity ?: 0
+    }
+
+    fun isProductInCart(productId: String, variantId: String? = null): Boolean {
+        return getItemQuantity(productId, variantId) > 0
+    }
+
+    fun getCartItemByProduct(productId: String, variantId: String? = null): CartItem? {
+        return currentCart.value?.items
+            ?.find { it.productId == productId && it.variantId == variantId }
+    }
+
+    fun getTotalItemsCount(): Int {
+        return cartItemCount.value
+    }
+
+    fun getFormattedTotal(currencySymbol: String = "$"): String {
+        val total = cartTotal.value
+        return "$currencySymbol${String.format("%.2f", total)}"
+    }
+
+    fun hasItems(): Boolean {
+        return cartItemCount.value > 0
+    }
+
+    fun hasValidationIssues(): Boolean {
+        // This would require storing validation results
+        return false // Simplified for now
+    }
+}
+
+/**
+ * iOS-specific extension for Cart model to make it more SwiftUI-friendly
+ */
+fun Cart.toSwiftUIFormat(): Map<String, Any> {
+    return mapOf(
+        "id" to id,
+        "itemCount" to itemCount,
+        "totalAmount" to totalAmount,
+        "currency" to currency,
+        "items" to items.map { it.toSwiftUIFormat() },
+        "createdAt" to createdAt.toString(),
+        "updatedAt" to updatedAt.toString()
+    )
+}
+
+/**
+ * iOS-specific extension for CartItem model
+ */
+fun CartItem.toSwiftUIFormat(): Map<String, Any> {
+    return mapOf(
+        "id" to id,
+        "productId" to productId,
+        "productName" to productName,
+        "quantity" to quantity,
+        "unitPrice" to unitPrice,
+        "totalPrice" to totalPrice,
+        "currency" to currency,
+        "productImage" to (productImage ?: ""),
+        "isAvailable" to isAvailable,
+        "isGift" to isGift,
+        "giftMessage" to (giftMessage ?: "")
+    )
+}

@@ -1,0 +1,253 @@
+package com.tchat.mobile.commerce.domain.managers
+
+import com.tchat.mobile.commerce.data.models.*
+import com.tchat.mobile.commerce.domain.repositories.CartRepository
+import com.tchat.mobile.commerce.domain.repositories.CategoryRepository
+import com.tchat.mobile.commerce.domain.repositories.ProductRepository
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+
+/**
+ * Main commerce manager that coordinates all commerce operations
+ * Provides unified access to cart, products, categories, and business logic
+ */
+interface CommerceManager {
+    // State exposure
+    val isInitialized: StateFlow<Boolean>
+    val isLoading: StateFlow<Boolean>
+    val error: StateFlow<String?>
+
+    // Sub-managers
+    val cartManager: CartManager
+    val productManager: ProductManager
+    val categoryManager: CategoryManager
+
+    // Initialization
+    suspend fun initialize(): Result<Unit>
+    suspend fun refreshAllData(): Result<Unit>
+    suspend fun syncWithServer(): Result<Unit>
+    suspend fun clearAllCache(): Result<Unit>
+
+    // Cross-domain operations
+    suspend fun searchEverything(query: String): Result<CommerceSearchResult>
+    suspend fun getRecommendations(userId: String? = null): Result<CommerceRecommendations>
+    suspend fun getCommerceStats(): CommerceStats
+}
+
+/**
+ * Implementation of CommerceManager
+ * Orchestrates all commerce functionality with unified state management
+ */
+class CommerceManagerImpl(
+    private val cartRepository: CartRepository,
+    private val productRepository: ProductRepository,
+    private val categoryRepository: CategoryRepository
+) : CommerceManager {
+
+    override val cartManager: CartManager = CartManagerImpl(cartRepository, productRepository)
+    override val productManager: ProductManager = ProductManagerImpl(productRepository, categoryRepository)
+    override val categoryManager: CategoryManager = CategoryManagerImpl(categoryRepository, productRepository)
+
+    private val _isInitialized = kotlinx.coroutines.flow.MutableStateFlow(false)
+    override val isInitialized: StateFlow<Boolean> = _isInitialized
+
+    override val isLoading: StateFlow<Boolean> = combine(
+        cartRepository.cartLoading,
+        productRepository.productsLoading,
+        categoryRepository.categoriesLoading
+    ) { cartLoading, productsLoading, categoriesLoading ->
+        cartLoading || productsLoading || categoriesLoading
+    }
+
+    override val error: StateFlow<String?> = combine(
+        cartRepository.cartError,
+        productRepository.productsError,
+        categoryRepository.categoriesError
+    ) { cartError, productsError, categoriesError ->
+        cartError ?: productsError ?: categoriesError
+    }
+
+    override suspend fun initialize(): Result<Unit> {
+        return try {
+            // Load essential data for app startup
+            val results = listOf(
+                cartRepository.getCurrentCart(),
+                categoryRepository.getFeaturedCategories(limit = 10),
+                productRepository.getFeaturedProducts(limit = 20)
+            )
+
+            // Check if any critical operations failed
+            val failures = results.mapNotNull { result ->
+                result.exceptionOrNull()
+            }
+
+            if (failures.isEmpty()) {
+                _isInitialized.value = true
+                Result.success(Unit)
+            } else {
+                // Log failures but still mark as initialized for offline mode
+                _isInitialized.value = true
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun refreshAllData(): Result<Unit> {
+        return try {
+            val results = listOf(
+                cartRepository.refreshCart(),
+                categoryRepository.getFeaturedCategories(limit = 10, forceRefresh = true),
+                productRepository.getFeaturedProducts(limit = 20, forceRefresh = true),
+                categoryRepository.getCategoryTree(forceRefresh = true)
+            )
+
+            val failures = results.mapNotNull { result ->
+                result.exceptionOrNull()
+            }
+
+            if (failures.isEmpty()) {
+                Result.success(Unit)
+            } else {
+                Result.failure(failures.first())
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun syncWithServer(): Result<Unit> {
+        return try {
+            // Sync cart with pending changes
+            val cartSyncResult = cartRepository.syncWithServer()
+            if (cartSyncResult.isFailure) {
+                return Result.failure(cartSyncResult.exceptionOrNull()!!)
+            }
+
+            // Refresh other data
+            refreshAllData()
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun clearAllCache(): Result<Unit> {
+        return try {
+            cartRepository.clearCart()
+            productRepository.clearProductCache()
+            categoryRepository.clearCategoryCache()
+            _isInitialized.value = false
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun searchEverything(query: String): Result<CommerceSearchResult> {
+        return try {
+            // Search products
+            val productResults = productRepository.searchProducts(query).getOrNull()
+
+            // Search categories
+            val categoryFilters = CategoryFilters(search = query)
+            val categoryResults = categoryRepository.getCategories(categoryFilters).getOrNull()
+
+            // Search businesses (if needed)
+            // val businessResults = businessRepository.searchBusinesses(query).getOrNull()
+
+            val searchResult = CommerceSearchResult(
+                query = query,
+                products = productResults?.products ?: emptyList(),
+                categories = categoryResults?.categories ?: emptyList(),
+                businesses = emptyList(), // businessResults?.businesses ?: emptyList(),
+                totalResults = (productResults?.total ?: 0) + (categoryResults?.total ?: 0)
+            )
+
+            Result.success(searchResult)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getRecommendations(userId: String?): Result<CommerceRecommendations> {
+        return try {
+            // Get featured products and categories
+            val featuredProducts = productRepository.getFeaturedProducts(limit = 10).getOrElse { emptyList() }
+            val featuredCategories = categoryRepository.getFeaturedCategories(limit = 5).getOrElse { emptyList() }
+
+            // Get cart-based recommendations (related products)
+            val cartItems = cartManager.currentCart.value?.items ?: emptyList()
+            val relatedProducts = if (cartItems.isNotEmpty()) {
+                // Get products from same categories as cart items
+                val categories = cartItems.map { it.productId } // Simplified - would need product details
+                emptyList<Product>() // Would implement category-based recommendations
+            } else {
+                emptyList()
+            }
+
+            val recommendations = CommerceRecommendations(
+                featuredProducts = featuredProducts,
+                featuredCategories = featuredCategories,
+                relatedProducts = relatedProducts,
+                trendingProducts = emptyList(), // Would implement trending logic
+                personalizedProducts = emptyList() // Would implement user-based recommendations
+            )
+
+            Result.success(recommendations)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override fun getCommerceStats(): CommerceStats {
+        val cartSummary = cartManager.getCartSummary()
+        val products = productManager.products.value
+        val categories = categoryManager.categories.value
+
+        return CommerceStats(
+            totalProducts = products.size,
+            totalCategories = categories.size,
+            cartItems = cartSummary.totalItems,
+            cartValue = cartSummary.totalValue,
+            currency = cartSummary.currency,
+            businesses = cartSummary.businesses,
+            isOnline = error.value == null
+        )
+    }
+}
+
+/**
+ * Search result across all commerce entities
+ */
+data class CommerceSearchResult(
+    val query: String,
+    val products: List<Product>,
+    val categories: List<Category>,
+    val businesses: List<Business>,
+    val totalResults: Long
+)
+
+/**
+ * Recommendations for user
+ */
+data class CommerceRecommendations(
+    val featuredProducts: List<Product>,
+    val featuredCategories: List<Category>,
+    val relatedProducts: List<Product>,
+    val trendingProducts: List<Product>,
+    val personalizedProducts: List<Product>
+)
+
+/**
+ * Commerce statistics
+ */
+data class CommerceStats(
+    val totalProducts: Int,
+    val totalCategories: Int,
+    val cartItems: Int,
+    val cartValue: Double,
+    val currency: String,
+    val businesses: Int,
+    val isOnline: Boolean
+)

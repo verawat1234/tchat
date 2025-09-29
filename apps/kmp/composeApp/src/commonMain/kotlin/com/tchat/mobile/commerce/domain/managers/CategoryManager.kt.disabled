@@ -1,0 +1,194 @@
+package com.tchat.mobile.commerce.domain.managers
+
+import com.tchat.mobile.commerce.data.models.*
+import com.tchat.mobile.commerce.domain.repositories.CategoryRepository
+import com.tchat.mobile.commerce.domain.repositories.ProductRepository
+import kotlinx.coroutines.flow.StateFlow
+
+/**
+ * Category manager that coordinates category operations and navigation
+ * Provides high-level category management with hierarchical navigation
+ */
+interface CategoryManager {
+    val categories: StateFlow<List<Category>>
+    val categoryTree: StateFlow<List<CategoryTree>>
+    val featuredCategories: StateFlow<List<Category>>
+    val categoriesLoading: StateFlow<Boolean>
+    val categoriesError: StateFlow<String?>
+
+    suspend fun getCategories(
+        filters: CategoryFilters? = null,
+        page: Int = 1,
+        pageSize: Int = 50,
+        forceRefresh: Boolean = false
+    ): Result<CategoryResponse>
+
+    suspend fun getCategory(categoryId: String, forceRefresh: Boolean = false): Result<Category>
+    suspend fun getCategoryTree(businessId: String? = null, forceRefresh: Boolean = false): Result<List<CategoryTree>>
+    suspend fun getFeaturedCategories(limit: Int = 10, forceRefresh: Boolean = false): Result<List<Category>>
+
+    // Hierarchical navigation
+    suspend fun getSubCategories(parentId: String): Result<List<Category>>
+    suspend fun getParentCategory(categoryId: String): Result<Category?>
+    suspend fun getCategoryBreadcrumbs(categoryId: String): Result<List<Category>>
+    suspend fun getRootCategories(): Result<List<Category>>
+
+    // Category discovery
+    suspend fun getCategoriesByBusiness(businessId: String): Result<List<Category>>
+    suspend fun searchCategories(query: String): Result<List<Category>>
+    suspend fun getPopularCategories(limit: Int = 10): Result<List<Category>>
+    suspend fun getCategoriesWithProducts(): Result<List<Category>>
+
+    // Category analytics
+    suspend fun getCategoryStats(categoryId: String): Result<CategoryStats>
+    suspend fun getCategoryProducts(categoryId: String, page: Int = 1, pageSize: Int = 20): Result<ProductResponse>
+
+    // Navigation helpers
+    fun buildCategoryPath(category: Category): String
+    fun findCategoryInTree(tree: List<CategoryTree>, categoryId: String): CategoryTree?
+    fun flattenCategoryTree(tree: List<CategoryTree>): List<Category>
+}
+
+/**
+ * Implementation of CategoryManager
+ * Provides comprehensive category management and navigation
+ */
+class CategoryManagerImpl(
+    private val categoryRepository: CategoryRepository,
+    private val productRepository: ProductRepository
+) : CategoryManager {
+
+    override val categories: StateFlow<List<Category>> = categoryRepository.categories
+    override val categoryTree: StateFlow<List<CategoryTree>> = categoryRepository.categoryTree
+    override val featuredCategories: StateFlow<List<Category>> = categoryRepository.featuredCategories
+    override val categoriesLoading: StateFlow<Boolean> = categoryRepository.categoriesLoading
+    override val categoriesError: StateFlow<String?> = categoryRepository.categoriesError
+
+    override suspend fun getCategories(
+        filters: CategoryFilters?,
+        page: Int,
+        pageSize: Int,
+        forceRefresh: Boolean
+    ): Result<CategoryResponse> {
+        return categoryRepository.getCategories(filters, page, pageSize, forceRefresh)
+    }
+
+    override suspend fun getCategory(categoryId: String, forceRefresh: Boolean): Result<Category> {
+        return categoryRepository.getCategory(categoryId, forceRefresh)
+    }
+
+    override suspend fun getCategoryTree(businessId: String?, forceRefresh: Boolean): Result<List<CategoryTree>> {
+        return categoryRepository.getCategoryTree(businessId, forceRefresh)
+    }
+
+    override suspend fun getFeaturedCategories(limit: Int, forceRefresh: Boolean): Result<List<Category>> {
+        return categoryRepository.getFeaturedCategories(limit, forceRefresh)
+    }
+
+    override suspend fun getSubCategories(parentId: String): Result<List<Category>> {
+        return categoryRepository.getSubCategories(parentId)
+    }
+
+    override suspend fun getParentCategory(categoryId: String): Result<Category?> {
+        return categoryRepository.getParentCategory(categoryId)
+    }
+
+    override suspend fun getCategoryBreadcrumbs(categoryId: String): Result<List<Category>> {
+        return categoryRepository.getCategoryBreadcrumbs(categoryId)
+    }
+
+    override suspend fun getRootCategories(): Result<List<Category>> {
+        val filters = CategoryFilters(level = 0)
+        return getCategories(filters).map { it.categories }
+    }
+
+    override suspend fun getCategoriesByBusiness(businessId: String): Result<List<Category>> {
+        val filters = CategoryFilters(businessId = businessId)
+        return getCategories(filters, pageSize = 100).map { it.categories }
+    }
+
+    override suspend fun searchCategories(query: String): Result<List<Category>> {
+        val filters = CategoryFilters(search = query)
+        return getCategories(filters, pageSize = 50).map { it.categories }
+    }
+
+    override suspend fun getPopularCategories(limit: Int): Result<List<Category>> {
+        return try {
+            // Get all categories and sort by product count
+            val allCategories = getCategories(pageSize = 100).getOrThrow().categories
+            val popularCategories = allCategories
+                .filter { it.productCount > 0 }
+                .sortedByDescending { it.productCount }
+                .take(limit)
+
+            Result.success(popularCategories)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getCategoriesWithProducts(): Result<List<Category>> {
+        val filters = CategoryFilters(hasProducts = true)
+        return getCategories(filters, pageSize = 100).map { it.categories }
+    }
+
+    override suspend fun getCategoryStats(categoryId: String): Result<CategoryStats> {
+        return try {
+            val category = getCategory(categoryId).getOrThrow()
+
+            // Get category products to calculate stats
+            val products = getCategoryProducts(categoryId, pageSize = 1000).getOrNull()
+
+            val stats = CategoryStats(
+                productCount = category.productCount,
+                activeProductCount = category.activeProductCount,
+                subCategoryCount = category.childrenCount,
+                totalViews = 0, // Would need analytics data
+                averageRating = products?.products?.mapNotNull { it.averageRating }?.average() ?: 0.0,
+                lastUpdated = category.updatedAt
+            )
+
+            Result.success(stats)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getCategoryProducts(categoryId: String, page: Int, pageSize: Int): Result<ProductResponse> {
+        return categoryRepository.getCategoryProducts(categoryId, page, pageSize)
+    }
+
+    override fun buildCategoryPath(category: Category): String {
+        return category.path.ifEmpty { category.name }
+    }
+
+    override fun findCategoryInTree(tree: List<CategoryTree>, categoryId: String): CategoryTree? {
+        for (node in tree) {
+            if (node.category.id == categoryId) {
+                return node
+            }
+            val found = findCategoryInTree(node.children, categoryId)
+            if (found != null) {
+                return found
+            }
+        }
+        return null
+    }
+
+    override fun flattenCategoryTree(tree: List<CategoryTree>): List<Category> {
+        val categories = mutableListOf<Category>()
+
+        fun flattenNode(node: CategoryTree) {
+            categories.add(node.category)
+            node.children.forEach { child ->
+                flattenNode(child)
+            }
+        }
+
+        tree.forEach { rootNode ->
+            flattenNode(rootNode)
+        }
+
+        return categories
+    }
+}

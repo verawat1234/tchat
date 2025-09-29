@@ -1,0 +1,155 @@
+# Docker Compose configuration for integration testing
+version: '3.8'
+
+services:
+  # PostgreSQL for primary database testing
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: tchat-postgres-test
+    environment:
+      POSTGRES_DB: tchat_test
+      POSTGRES_USER: tchat_test
+      POSTGRES_PASSWORD: tchat_test_password
+      POSTGRES_MULTIPLE_DATABASES: "tchat_test_1,tchat_test_2,tchat_test_3"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./scripts/create-multiple-databases.sh:/docker-entrypoint-initdb.d/create-multiple-databases.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tchat_test -d tchat_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # Redis for caching and session testing
+  redis-test:
+    image: redis:7-alpine
+    container_name: tchat-redis-test
+    ports:
+      - "6380:6379"
+    command: redis-server --appendonly yes --requirepass "tchat_test_redis_password"
+    volumes:
+      - redis_test_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "tchat_test_redis_password", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # ScyllaDB for message storage testing (lightweight alternative to Cassandra)
+  scylla-test:
+    image: scylladb/scylla:5.2
+    container_name: tchat-scylla-test
+    ports:
+      - "9043:9042"
+    command: --seeds=scylla-test --smp 1 --memory 512M --overprovisioned 1
+    volumes:
+      - scylla_test_data:/var/lib/scylla
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe cluster' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    networks:
+      - test-network
+
+  # Kafka for message queue testing
+  zookeeper-test:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: tchat-zookeeper-test
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - test-network
+
+  kafka-test:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: tchat-kafka-test
+    depends_on:
+      - zookeeper-test
+    ports:
+      - "9093:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper-test:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - test-network
+
+  # MinIO for S3-compatible object storage testing
+  minio-test:
+    image: minio/minio:latest
+    container_name: tchat-minio-test
+    ports:
+      - "9001:9000"
+      - "9002:9001"
+    environment:
+      MINIO_ROOT_USER: tchat_test_access_key
+      MINIO_ROOT_PASSWORD: tchat_test_secret_key
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_test_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - test-network
+
+  # Test environment setup container
+  test-setup:
+    build:
+      context: .
+      dockerfile: Dockerfile.test-setup
+    container_name: tchat-test-setup
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+      kafka-test:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgres://tchat_test:tchat_test_password@postgres-test:5432/tchat_test?sslmode=disable
+      - REDIS_URL=redis://:tchat_test_redis_password@redis-test:6379/0
+      - KAFKA_BROKERS=kafka-test:9092
+      - SCYLLA_HOSTS=scylla-test:9042
+      - MINIO_ENDPOINT=minio-test:9000
+      - MINIO_ACCESS_KEY=tchat_test_access_key
+      - MINIO_SECRET_KEY=tchat_test_secret_key
+    volumes:
+      - ../../../backend/migrations:/migrations
+      - ../fixtures:/fixtures
+      - ./scripts:/scripts
+    networks:
+      - test-network
+    command: /scripts/setup-test-environment.sh
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  postgres_test_data:
+    driver: local
+  redis_test_data:
+    driver: local
+  scylla_test_data:
+    driver: local
+  minio_test_data:
+    driver: local

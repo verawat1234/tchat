@@ -1,0 +1,520 @@
+# GitLab CI/CD pipeline for Tchat integration testing
+stages:
+  - validate
+  - quick-test
+  - full-test
+  - performance-test
+  - security-test
+  - deploy-test
+  - report
+
+variables:
+  GO_VERSION: "1.22"
+  NODE_VERSION: "20"
+  POSTGRES_VERSION: "15"
+  REDIS_VERSION: "7"
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+
+# Cache configuration
+.go_cache: &go_cache
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-go"
+    paths:
+      - .go/pkg/mod/
+      - .cache/go-build/
+
+.node_cache: &node_cache
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-node"
+    paths:
+      - apps/web/node_modules/
+      - apps/web/.npm/
+
+# Service definitions
+.services_basic: &services_basic
+  services:
+    - name: postgres:15-alpine
+      alias: postgres
+      variables:
+        POSTGRES_DB: tchat_test
+        POSTGRES_USER: tchat_test
+        POSTGRES_PASSWORD: tchat_test_password
+    - name: redis:7-alpine
+      alias: redis
+      command: ["redis-server", "--requirepass", "tchat_test_password"]
+
+.services_full: &services_full
+  services:
+    - name: postgres:15-alpine
+      alias: postgres
+      variables:
+        POSTGRES_DB: tchat_test
+        POSTGRES_USER: tchat_test
+        POSTGRES_PASSWORD: tchat_test_password
+    - name: redis:7-alpine
+      alias: redis
+      command: ["redis-server", "--requirepass", "tchat_test_password"]
+    - name: confluentinc/cp-zookeeper:7.4.0
+      alias: zookeeper
+      variables:
+        ZOOKEEPER_CLIENT_PORT: 2181
+        ZOOKEEPER_TICK_TIME: 2000
+    - name: confluentinc/cp-kafka:7.4.0
+      alias: kafka
+      variables:
+        KAFKA_BROKER_ID: 1
+        KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+        KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+        KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+# Environment setup
+.setup_go: &setup_go
+  - apt-get update -qq && apt-get install -y -qq git
+  - go version
+  - go mod download
+  - export GOPATH="$CI_PROJECT_DIR/.go"
+  - export GOCACHE="$CI_PROJECT_DIR/.cache/go-build"
+
+.setup_node: &setup_node
+  - curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash -
+  - apt-get install -y nodejs
+  - cd apps/web && npm ci
+
+# Validation stage
+code-quality:
+  stage: validate
+  image: golang:${GO_VERSION}
+  <<: *go_cache
+  script:
+    - *setup_go
+    - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+    - golangci-lint run ./...
+    - go install honnef.co/go/tools/cmd/staticcheck@latest
+    - staticcheck ./...
+    - go vet ./...
+  artifacts:
+    reports:
+      junit: lint-report.xml
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+dependency-check:
+  stage: validate
+  image: golang:${GO_VERSION}
+  <<: *go_cache
+  script:
+    - *setup_go
+    - go mod verify
+    - go mod tidy
+    - git diff --exit-code go.mod go.sum
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# Quick testing for MRs
+quick-integration-test:
+  stage: quick-test
+  image: golang:${GO_VERSION}
+  <<: *services_basic
+  <<: *go_cache
+  variables:
+    DATABASE_URL: "postgres://tchat_test:tchat_test_password@postgres:5432/tchat_test?sslmode=disable"
+    REDIS_URL: "redis://:tchat_test_password@redis:6379/0"
+  before_script:
+    - *setup_go
+    - apt-get update -qq && apt-get install -y -qq postgresql-client
+    - until pg_isready -h postgres -p 5432 -U tchat_test; do sleep 1; done
+    - until redis-cli -h redis -p 6379 -a tchat_test_password ping; do sleep 1; done
+  script:
+    - cd tests/integration/setup
+    - go run test_runner.go
+      -suites=backend-integration,frontend-integration
+      -timeout=15m
+      -max-parallel=2
+      -v
+  artifacts:
+    reports:
+      junit: tests/integration/setup/test-results.xml
+      coverage: tests/integration/setup/coverage/coverage.out
+    paths:
+      - tests/integration/setup/coverage/
+    expire_in: 1 week
+  coverage: '/total:\s+\(statements\)\s+(\d+\.?\d*)%/'
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Full test suite
+.full_test_template: &full_test_template
+  stage: full-test
+  image: golang:${GO_VERSION}
+  <<: *services_full
+  <<: *go_cache
+  variables:
+    DATABASE_URL: "postgres://tchat_test:tchat_test_password@postgres:5432/tchat_test?sslmode=disable"
+    REDIS_URL: "redis://:tchat_test_password@redis:6379/0"
+    KAFKA_BROKERS: "kafka:9092"
+  before_script:
+    - *setup_go
+    - apt-get update -qq && apt-get install -y -qq postgresql-client
+    - until pg_isready -h postgres -p 5432 -U tchat_test; do sleep 1; done
+    - until redis-cli -h redis -p 6379 -a tchat_test_password ping; do sleep 1; done
+    - sleep 30  # Wait for Kafka to be ready
+  artifacts:
+    reports:
+      junit: tests/integration/setup/test-results-${TEST_SUITE}.xml
+      coverage: tests/integration/setup/coverage/coverage_${TEST_SUITE}.out
+    paths:
+      - tests/integration/setup/coverage/
+    expire_in: 1 week
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+backend-integration-test:
+  <<: *full_test_template
+  variables:
+    TEST_SUITE: "backend-integration"
+    DATABASE_URL: "postgres://tchat_test:tchat_test_password@postgres:5432/tchat_test?sslmode=disable"
+    REDIS_URL: "redis://:tchat_test_password@redis:6379/0"
+  script:
+    - cd tests/integration/setup
+    - go run test_runner.go
+      -suites=backend-integration
+      -timeout=30m
+      -max-parallel=2
+      -coverage=coverage/coverage_backend
+      -v
+
+frontend-integration-test:
+  <<: *full_test_template
+  variables:
+    TEST_SUITE: "frontend-integration"
+    DATABASE_URL: "postgres://tchat_test:tchat_test_password@postgres:5432/tchat_test?sslmode=disable"
+  before_script:
+    - *setup_go
+    - *setup_node
+    - apt-get update -qq && apt-get install -y -qq postgresql-client
+    - until pg_isready -h postgres -p 5432 -U tchat_test; do sleep 1; done
+  script:
+    - cd tests/integration/setup
+    - go run test_runner.go
+      -suites=frontend-integration
+      -timeout=20m
+      -max-parallel=2
+      -coverage=coverage/coverage_frontend
+      -v
+
+cross-platform-test:
+  <<: *full_test_template
+  variables:
+    TEST_SUITE: "cross-platform"
+    DATABASE_URL: "postgres://tchat_test:tchat_test_password@postgres:5432/tchat_test?sslmode=disable"
+    REDIS_URL: "redis://:tchat_test_password@redis:6379/0"
+    KAFKA_BROKERS: "kafka:9092"
+  script:
+    - cd tests/integration/setup
+    - go run test_runner.go
+      -suites=cross-platform
+      -timeout=30m
+      -max-parallel=2
+      -coverage=coverage/coverage_cross_platform
+      -v
+
+# Performance testing
+performance-test:
+  stage: performance-test
+  image: golang:${GO_VERSION}
+  <<: *services_full
+  <<: *go_cache
+  variables:
+    DATABASE_URL: "postgres://tchat_test:tchat_test_password@postgres:5432/tchat_test?sslmode=disable"
+    REDIS_URL: "redis://:tchat_test_password@redis:6379/0"
+    KAFKA_BROKERS: "kafka:9092"
+    LOAD_TEST_DURATION: "300s"
+    LOAD_TEST_RPS: "1000"
+  before_script:
+    - *setup_go
+    - apt-get update -qq && apt-get install -y -qq postgresql-client
+    - until pg_isready -h postgres -p 5432 -U tchat_test; do sleep 1; done
+    - until redis-cli -h redis -p 6379 -a tchat_test_password ping; do sleep 1; done
+    - sleep 45  # Wait for all services
+  script:
+    - cd tests/integration/setup
+    - go run test_runner.go
+      -suites=performance
+      -timeout=45m
+      -max-parallel=1
+      -v
+  artifacts:
+    reports:
+      performance: tests/integration/performance/performance-report.json
+    paths:
+      - tests/integration/performance/
+    expire_in: 1 month
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+load-test:
+  stage: performance-test
+  image: golang:${GO_VERSION}
+  <<: *services_full
+  <<: *go_cache
+  variables:
+    DATABASE_URL: "postgres://tchat_test:tchat_test_password@postgres:5432/tchat_test?sslmode=disable"
+    REDIS_URL: "redis://:tchat_test_password@redis:6379/0"
+    LOAD_TEST_SCALE: "high"
+  before_script:
+    - *setup_go
+    - apt-get update -qq && apt-get install -y -qq postgresql-client
+    - until pg_isready -h postgres -p 5432 -U tchat_test; do sleep 1; done
+    - sleep 60  # Extended wait for load testing
+  script:
+    - cd tests/integration/performance
+    - go test -v -run TestLoad -timeout=30m ./...
+    - go test -bench=. -benchmem -timeout=15m ./... | tee benchmark-results.txt
+  artifacts:
+    paths:
+      - tests/integration/performance/benchmark-results.txt
+      - tests/integration/performance/load-test-results.json
+    expire_in: 1 month
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+
+# Security testing
+security-test:
+  stage: security-test
+  image: golang:${GO_VERSION}
+  <<: *services_basic
+  <<: *go_cache
+  variables:
+    DATABASE_URL: "postgres://tchat_test:tchat_test_password@postgres:5432/tchat_test?sslmode=disable"
+    SECURITY_TEST_MODE: "true"
+  before_script:
+    - *setup_go
+    - go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+    - apt-get update -qq && apt-get install -y -qq postgresql-client
+    - until pg_isready -h postgres -p 5432 -U tchat_test; do sleep 1; done
+  script:
+    - gosec -fmt json -out security-report.json ./...
+    - cd tests/integration/setup
+    - go run test_runner.go
+      -suites=backend-integration
+      -pattern=TestSecurity*
+      -timeout=15m
+      -v
+  artifacts:
+    reports:
+      sast: security-report.json
+    paths:
+      - security-report.json
+    expire_in: 1 week
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+dependency-scanning:
+  stage: security-test
+  image: golang:${GO_VERSION}
+  <<: *go_cache
+  script:
+    - *setup_go
+    - go install golang.org/x/vuln/cmd/govulncheck@latest
+    - govulncheck ./...
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Deployment testing
+deployment-validation:
+  stage: deploy-test
+  image: golang:${GO_VERSION}
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - *setup_go
+    - apt-get update -qq && apt-get install -y -qq docker.io
+  script:
+    # Build all services
+    - cd backend
+    - for service in gateway auth content commerce messaging payment notification video social; do
+        echo "Building $service..."
+        cd $service && go build -o ../build/$service . && cd ..
+      done
+
+    # Test Docker builds
+    - docker build -t tchat-gateway -f gateway/Dockerfile .
+    - docker build -t tchat-auth -f auth/Dockerfile .
+
+    # Start test environment
+    - cd ../tests/integration/setup
+    - docker-compose -f docker-compose.test.yml up -d
+    - sleep 45
+
+    # Run smoke tests
+    - go run test_runner.go
+      -suites=backend-integration
+      -pattern=TestSmoke*
+      -timeout=10m
+      -v
+  artifacts:
+    paths:
+      - backend/build/
+    expire_in: 1 day
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# Mobile testing (when applicable)
+mobile-android-test:
+  stage: full-test
+  image: cimg/android:2023.12
+  variables:
+    GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+  before_script:
+    - cd apps/mobile/android
+    - chmod +x ./gradlew
+  script:
+    - ./gradlew test
+    - ./gradlew jacocoTestReport
+  artifacts:
+    reports:
+      junit: apps/mobile/android/build/test-results/test/*.xml
+      coverage: apps/mobile/android/build/reports/jacoco/test/jacocoTestReport.xml
+    paths:
+      - apps/mobile/android/build/reports/
+    expire_in: 1 week
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - changes:
+        - apps/mobile/android/**/*
+
+# Test reporting and aggregation
+test-coverage-report:
+  stage: report
+  image: golang:${GO_VERSION}
+  dependencies:
+    - backend-integration-test
+    - frontend-integration-test
+    - cross-platform-test
+  script:
+    - go install github.com/boumenot/gocover-cobertura@latest
+    - echo "mode: set" > coverage-combined.out
+    - tail -n +2 tests/integration/setup/coverage/coverage_*.out >> coverage-combined.out 2>/dev/null || true
+    - go tool cover -func=coverage-combined.out | tail -1
+    - go tool cover -html=coverage-combined.out -o coverage-report.html
+    - gocover-cobertura < coverage-combined.out > coverage.xml
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - coverage-report.html
+      - coverage-combined.out
+    expire_in: 1 month
+  coverage: '/total:\s+\(statements\)\s+(\d+\.?\d*)%/'
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+performance-report:
+  stage: report
+  image: alpine:latest
+  dependencies:
+    - performance-test
+    - load-test
+  before_script:
+    - apk add --no-cache jq curl
+  script:
+    - |
+      if [ -f tests/integration/performance/performance-report.json ]; then
+        echo "## 🚀 Performance Test Results" > performance-summary.md
+        echo "" >> performance-summary.md
+        cat tests/integration/performance/performance-report.json | jq -r '
+          "### Load Test Summary",
+          "- Total Requests: \(.total_requests)",
+          "- Success Rate: \(.success_rate)%",
+          "- Average Response Time: \(.avg_response_time)ms",
+          "- 95th Percentile: \(.p95_response_time)ms",
+          "- Throughput: \(.throughput) RPS",
+          "",
+          "### Performance Thresholds",
+          if .threshold_violations > 0 then
+            "⚠️ **\(.threshold_violations) threshold violations detected**"
+          else
+            "✅ **All performance thresholds passed**"
+          end
+        ' >> performance-summary.md
+
+        cat performance-summary.md
+      else
+        echo "No performance report found"
+      fi
+  artifacts:
+    paths:
+      - performance-summary.md
+    expire_in: 1 month
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+# Notification and status updates
+notification:
+  stage: report
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache curl jq
+  script:
+    - |
+      # Prepare notification message
+      STATUS="✅ Success"
+      if [ "$CI_JOB_STATUS" != "success" ]; then
+        STATUS="❌ Failed"
+      fi
+
+      MESSAGE="🧪 **Tchat Integration Tests $STATUS**
+
+      **Branch:** $CI_COMMIT_REF_NAME
+      **Commit:** $CI_COMMIT_SHORT_SHA
+      **Pipeline:** $CI_PIPELINE_URL
+
+      **Test Results:**
+      - Integration Tests: $STATUS
+      - Performance Tests: $([ -f performance-summary.md ] && echo "✅ Completed" || echo "⏭️ Skipped")
+      - Security Tests: $([ "$CI_JOB_STATUS" == "success" ] && echo "✅ Passed" || echo "❌ Failed")
+
+      **Coverage:** [View Report]($CI_PIPELINE_URL/artifacts)
+      "
+
+      # Send to Slack (if webhook configured)
+      if [ -n "$SLACK_WEBHOOK_URL" ]; then
+        curl -X POST -H 'Content-type: application/json' \
+          --data "{\"text\":\"$MESSAGE\"}" \
+          "$SLACK_WEBHOOK_URL"
+      fi
+
+      # Send to Discord (if webhook configured)
+      if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+        curl -X POST -H 'Content-type: application/json' \
+          --data "{\"content\":\"$MESSAGE\"}" \
+          "$DISCORD_WEBHOOK_URL"
+      fi
+
+      echo "Notification sent: $MESSAGE"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: always
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: always
+  when: always

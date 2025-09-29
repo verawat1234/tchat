@@ -1,0 +1,303 @@
+package com.tchat.mobile.commerce.presentation.viewmodels
+
+import com.tchat.mobile.commerce.data.models.*
+import com.tchat.mobile.commerce.domain.managers.CategoryManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+
+/**
+ * iOS-specific Category ViewModel that bridges KMP commerce logic with SwiftUI
+ * Provides observable state and actions for iOS category navigation and management
+ */
+class CategoryViewModel(
+    private val categoryManager: CategoryManager,
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Main)
+) {
+
+    // Exposed state for SwiftUI
+    val categories: StateFlow<List<Category>> = categoryManager.categories
+    val categoryTree: StateFlow<List<CategoryTree>> = categoryManager.categoryTree
+    val featuredCategories: StateFlow<List<Category>> = categoryManager.featuredCategories
+    val isLoading: StateFlow<Boolean> = categoryManager.categoriesLoading
+    val error: StateFlow<String?> = categoryManager.categoriesError
+
+    // Current category for detail view
+    private var _currentCategory: Category? = null
+    val currentCategory: Category? get() = _currentCategory
+
+    // Navigation state
+    private var _breadcrumbs: List<Category> = emptyList()
+    val breadcrumbs: List<Category> get() = _breadcrumbs
+
+    private var _currentFilters: CategoryFilters? = null
+    val currentFilters: CategoryFilters? get() = _currentFilters
+
+    // Action methods for SwiftUI
+    fun loadCategories(
+        filters: CategoryFilters? = null,
+        page: Int = 1,
+        pageSize: Int = 50,
+        forceRefresh: Boolean = false,
+        onResult: (Result<CategoryResponse>) -> Unit = {}
+    ) {
+        _currentFilters = filters
+        scope.launch {
+            val result = categoryManager.getCategories(filters, page, pageSize, forceRefresh)
+            onResult(result)
+        }
+    }
+
+    fun loadCategory(
+        categoryId: String,
+        forceRefresh: Boolean = false,
+        onResult: (Result<Category>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = categoryManager.getCategory(categoryId, forceRefresh)
+            result.onSuccess { category ->
+                _currentCategory = category
+                loadBreadcrumbs(categoryId)
+            }
+            onResult(result)
+        }
+    }
+
+    fun loadCategoryTree(
+        businessId: String? = null,
+        forceRefresh: Boolean = false,
+        onResult: (Result<List<CategoryTree>>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = categoryManager.getCategoryTree(businessId, forceRefresh)
+            onResult(result)
+        }
+    }
+
+    fun loadFeaturedCategories(
+        limit: Int = 10,
+        forceRefresh: Boolean = false,
+        onResult: (Result<List<Category>>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = categoryManager.getFeaturedCategories(limit, forceRefresh)
+            onResult(result)
+        }
+    }
+
+    fun loadSubCategories(
+        parentId: String,
+        onResult: (Result<List<Category>>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = categoryManager.getSubCategories(parentId)
+            onResult(result)
+        }
+    }
+
+    fun loadRootCategories(onResult: (Result<List<Category>>) -> Unit = {}) {
+        scope.launch {
+            val result = categoryManager.getRootCategories()
+            onResult(result)
+        }
+    }
+
+    fun loadCategoriesByBusiness(
+        businessId: String,
+        onResult: (Result<List<Category>>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = categoryManager.getCategoriesByBusiness(businessId)
+            onResult(result)
+        }
+    }
+
+    fun searchCategories(
+        query: String,
+        onResult: (Result<List<Category>>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = categoryManager.searchCategories(query)
+            onResult(result)
+        }
+    }
+
+    fun loadPopularCategories(
+        limit: Int = 10,
+        onResult: (Result<List<Category>>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = categoryManager.getPopularCategories(limit)
+            onResult(result)
+        }
+    }
+
+    fun loadCategoriesWithProducts(onResult: (Result<List<Category>>) -> Unit = {}) {
+        scope.launch {
+            val result = categoryManager.getCategoriesWithProducts()
+            onResult(result)
+        }
+    }
+
+    fun loadCategoryProducts(
+        categoryId: String,
+        page: Int = 1,
+        pageSize: Int = 20,
+        onResult: (Result<ProductResponse>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = categoryManager.getCategoryProducts(categoryId, page, pageSize)
+            onResult(result)
+        }
+    }
+
+    fun loadCategoryStats(
+        categoryId: String,
+        onResult: (Result<CategoryStats>) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = categoryManager.getCategoryStats(categoryId)
+            onResult(result)
+        }
+    }
+
+    // Navigation helpers
+    private fun loadBreadcrumbs(categoryId: String) {
+        scope.launch {
+            val result = categoryManager.getCategoryBreadcrumbs(categoryId)
+            result.onSuccess { breadcrumbs ->
+                _breadcrumbs = breadcrumbs
+            }
+        }
+    }
+
+    fun navigateToCategory(categoryId: String, onResult: (Result<Category>) -> Unit = {}) {
+        loadCategory(categoryId, onResult = onResult)
+    }
+
+    fun navigateToParent(onResult: (Result<Category?>) -> Unit = {}) {
+        val currentId = _currentCategory?.id ?: return
+        scope.launch {
+            val result = categoryManager.getParentCategory(currentId)
+            result.onSuccess { parent ->
+                if (parent != null) {
+                    _currentCategory = parent
+                    loadBreadcrumbs(parent.id)
+                }
+            }
+            onResult(result)
+        }
+    }
+
+    fun navigateBack(): Boolean {
+        return if (_breadcrumbs.size > 1) {
+            val parent = _breadcrumbs[_breadcrumbs.size - 2]
+            _currentCategory = parent
+            _breadcrumbs = _breadcrumbs.dropLast(1)
+            true
+        } else {
+            false
+        }
+    }
+
+    // Utility methods for SwiftUI
+    fun findCategoryInTree(categoryId: String): CategoryTree? {
+        return categoryManager.findCategoryInTree(categoryTree.value, categoryId)
+    }
+
+    fun flattenCategoryTree(): List<Category> {
+        return categoryManager.flattenCategoryTree(categoryTree.value)
+    }
+
+    fun buildCategoryPath(category: Category): String {
+        return categoryManager.buildCategoryPath(category)
+    }
+
+    fun hasSubCategories(category: Category): Boolean {
+        return category.childrenCount > 0
+    }
+
+    fun hasProducts(category: Category): Boolean {
+        return category.productCount > 0
+    }
+
+    fun getCategoryImageUrl(category: Category): String? {
+        return category.image?.url
+    }
+
+    fun getCategoryIcon(category: Category): String? {
+        return category.icon
+    }
+
+    fun getCategoryColor(category: Category): String? {
+        return category.color
+    }
+
+    fun getSubCategoriesFromTree(parentId: String): List<CategoryTree> {
+        val tree = categoryTree.value
+        val parentNode = categoryManager.findCategoryInTree(tree, parentId)
+        return parentNode?.children ?: emptyList()
+    }
+
+    fun isRootCategory(category: Category): Boolean {
+        return category.parentId == null || category.level == 0
+    }
+
+    fun getFormattedProductCount(category: Category): String {
+        val count = category.productCount
+        return when {
+            count == 0 -> "No products"
+            count == 1 -> "1 product"
+            else -> "$count products"
+        }
+    }
+
+    fun clearCurrentCategory() {
+        _currentCategory = null
+        _breadcrumbs = emptyList()
+    }
+
+    fun clearFilters() {
+        _currentFilters = null
+    }
+}
+
+/**
+ * iOS-specific extension for Category model to make it more SwiftUI-friendly
+ */
+fun Category.toSwiftUIFormat(): Map<String, Any> {
+    return mapOf(
+        "id" to id,
+        "businessId" to (businessId ?: ""),
+        "parentId" to (parentId ?: ""),
+        "name" to name,
+        "description" to description,
+        "level" to level,
+        "path" to path,
+        "sortOrder" to sortOrder,
+        "productCount" to productCount,
+        "activeProductCount" to activeProductCount,
+        "childrenCount" to childrenCount,
+        "isVisible" to isVisible,
+        "isFeatured" to isFeatured,
+        "allowProducts" to allowProducts,
+        "icon" to (icon ?: ""),
+        "imageUrl" to (image?.url ?: ""),
+        "color" to (color ?: ""),
+        "createdAt" to createdAt.toString(),
+        "updatedAt" to updatedAt.toString()
+    )
+}
+
+/**
+ * iOS-specific extension for CategoryTree model
+ */
+fun CategoryTree.toSwiftUIFormat(): Map<String, Any> {
+    return mapOf(
+        "category" to category.toSwiftUIFormat(),
+        "children" to children.map { it.toSwiftUIFormat() },
+        "parent" to (parent?.toSwiftUIFormat() ?: emptyMap<String, Any>()),
+        "breadcrumbs" to breadcrumbs.map { it.toSwiftUIFormat() }
+    )
+}

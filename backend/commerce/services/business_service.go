@@ -48,7 +48,7 @@ func (s *businessService) GetBusinesses(ctx context.Context, filters models.Busi
 }
 
 // GetBusiness retrieves a single business by ID
-func (s *businessService) GetBusiness(ctx context.Context, id uuid.UUID) (*models.Business, error) {
+func (s *businessService) GetBusiness(ctx context.Context, id uuid.UUID) (*sharedModels.Business, error) {
 	business, err := s.businessRepo.FindBusinessByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("business not found")
@@ -57,7 +57,7 @@ func (s *businessService) GetBusiness(ctx context.Context, id uuid.UUID) (*model
 }
 
 // CreateBusiness creates a new business
-func (s *businessService) CreateBusiness(ctx context.Context, ownerID uuid.UUID, req *models.CreateBusinessRequest) (*models.Business, error) {
+func (s *businessService) CreateBusiness(ctx context.Context, ownerID uuid.UUID, req *models.CreateBusinessRequest) (*sharedModels.Business, error) {
 	// Validate required fields
 	if req.Name == "" {
 		return nil, fmt.Errorf("business name is required")
@@ -68,7 +68,7 @@ func (s *businessService) CreateBusiness(ctx context.Context, ownerID uuid.UUID,
 	}
 
 	// Create business entity
-	business := &models.Business{
+	business := &sharedModels.Business{
 		ID:          uuid.New(),
 		OwnerID:     ownerID,
 		Name:        req.Name,
@@ -107,7 +107,7 @@ func (s *businessService) CreateBusiness(ctx context.Context, ownerID uuid.UUID,
 }
 
 // UpdateBusiness updates an existing business
-func (s *businessService) UpdateBusiness(ctx context.Context, id uuid.UUID, req *models.UpdateBusinessRequest) (*models.Business, error) {
+func (s *businessService) UpdateBusiness(ctx context.Context, id uuid.UUID, req *models.UpdateBusinessRequest) (*sharedModels.Business, error) {
 	// Check if business exists
 	_, err := s.businessRepo.FindBusinessByID(ctx, id)
 	if err != nil {

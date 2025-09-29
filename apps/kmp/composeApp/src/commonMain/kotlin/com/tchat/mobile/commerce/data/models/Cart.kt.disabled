@@ -1,0 +1,185 @@
+package com.tchat.mobile.commerce.data.models
+
+import kotlinx.serialization.Serializable
+import kotlinx.datetime.Instant
+
+/**
+ * Cart-related data models for KMP commerce module
+ * These models match the Go backend API structure
+ */
+
+@Serializable
+enum class CartStatus {
+    ACTIVE,
+    ABANDONED,
+    CONVERTED,
+    EXPIRED
+}
+
+@Serializable
+enum class CartItemType {
+    PRODUCT,
+    SERVICE,
+    DIGITAL
+}
+
+@Serializable
+data class CartItem(
+    val id: String,
+    val productId: String,
+    val variantId: String? = null,
+    val businessId: String,
+    val type: CartItemType = CartItemType.PRODUCT,
+
+    // Quantity and pricing
+    val quantity: Int,
+    val unitPrice: Double,
+    val totalPrice: Double,
+    val currency: String,
+
+    // Discounts and taxes
+    val discountAmount: Double = 0.0,
+    val taxAmount: Double = 0.0,
+
+    // Cached product info for performance
+    val productName: String,
+    val productSku: String? = null,
+    val productImage: String? = null,
+    val businessName: String,
+
+    // Variant info
+    val variantName: String? = null,
+    val variantOptions: Map<String, String>? = null,
+
+    // Item settings
+    val isSavedForLater: Boolean = false,
+    val isGift: Boolean = false,
+    val giftMessage: String? = null,
+
+    // Availability
+    val isAvailable: Boolean = true,
+    val stockQuantity: Int = 0,
+    val maxQuantity: Int = 0,
+
+    // Timestamps
+    val addedAt: Instant,
+    val updatedAt: Instant,
+
+    // Metadata
+    val metadata: Map<String, String>? = null
+)
+
+@Serializable
+data class ShippingAddress(
+    val firstName: String,
+    val lastName: String,
+    val company: String? = null,
+    val addressLine1: String,
+    val addressLine2: String? = null,
+    val city: String,
+    val state: String,
+    val postalCode: String,
+    val country: String,
+    val phone: String? = null
+)
+
+@Serializable
+data class Cart(
+    val id: String,
+    val userId: String? = null,  // null for guest carts
+    val sessionId: String,       // for guest carts
+    val status: CartStatus = CartStatus.ACTIVE,
+
+    // Cart items grouped by business
+    val items: List<CartItem> = emptyList(),
+    val itemCount: Int = 0,
+    val businessCount: Int = 0,
+
+    // Totals
+    val subtotalAmount: Double = 0.0,
+    val taxAmount: Double = 0.0,
+    val shippingAmount: Double = 0.0,
+    val discountAmount: Double = 0.0,
+    val totalAmount: Double = 0.0,
+    val currency: String = "USD",
+
+    // Cart behavior
+    val expiresAt: Instant? = null,
+    val lastActivity: Instant,
+    val convertedToOrderId: String? = null,
+
+    // Applied promotions
+    val couponCode: String? = null,
+    val appliedPromotions: List<String> = emptyList(),
+
+    // Shipping information
+    val shippingAddress: ShippingAddress? = null,
+
+    // Guest cart info
+    val guestEmail: String? = null,
+    val guestPhone: String? = null,
+
+    // Regional compliance
+    val dataRegion: String,
+    val shippingCountry: String? = null,
+
+    // Metadata
+    val metadata: Map<String, String>? = null,
+    val tags: List<String> = emptyList(),
+
+    // Timestamps
+    val createdAt: Instant,
+    val updatedAt: Instant
+)
+
+// Request/Response types
+@Serializable
+data class AddToCartRequest(
+    val productId: String,
+    val variantId: String? = null,
+    val quantity: Int,
+    val isGift: Boolean = false,
+    val giftMessage: String? = null
+)
+
+@Serializable
+data class UpdateCartItemRequest(
+    val quantity: Int? = null,
+    val isGift: Boolean? = null,
+    val giftMessage: String? = null
+)
+
+@Serializable
+data class ApplyCouponRequest(
+    val couponCode: String
+)
+
+@Serializable
+data class CartValidationIssue(
+    val type: String,
+    val message: String,
+    val productId: String,
+    val severity: String  // "error", "warning", "info"
+)
+
+@Serializable
+data class CartValidation(
+    val isValid: Boolean,
+    val issues: List<CartValidationIssue>,
+    val totalItems: Int,
+    val totalValue: Double,
+    val currency: String,
+    val estimatedShipping: Double,
+    val estimatedTax: Double,
+    val estimatedTotal: Double,
+    val validatedAt: Instant
+)
+
+@Serializable
+data class CartResponse(
+    val carts: List<Cart>,
+    val total: Long,
+    val page: Int,
+    val pageSize: Int,
+    val totalPages: Long
+)

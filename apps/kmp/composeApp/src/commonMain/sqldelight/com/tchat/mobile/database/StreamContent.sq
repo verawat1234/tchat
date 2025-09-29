@@ -1,0 +1,130 @@
+-- Stream Content Item table for offline caching
+CREATE TABLE StreamContent (
+    id TEXT NOT NULL PRIMARY KEY,
+    categoryId TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    thumbnailUrl TEXT NOT NULL,
+    contentType TEXT NOT NULL, -- BOOK, PODCAST, CARTOON, SHORT_MOVIE, LONG_MOVIE, MUSIC, ART
+    duration INTEGER, -- in seconds, null for books
+    price REAL NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'USD',
+    availabilityStatus TEXT NOT NULL, -- AVAILABLE, COMING_SOON, UNAVAILABLE
+    isFeatured INTEGER NOT NULL DEFAULT 0,
+    featuredOrder INTEGER,
+    metadata TEXT NOT NULL DEFAULT '{}', -- JSON string
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL,
+    syncedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    lastViewedAt TEXT,
+    FOREIGN KEY (categoryId) REFERENCES StreamCategory(id) ON DELETE CASCADE
+);
+
+-- Create indexes for better query performance
+CREATE INDEX idx_content_category ON StreamContent(categoryId);
+CREATE INDEX idx_content_featured ON StreamContent(isFeatured, featuredOrder);
+CREATE INDEX idx_content_type ON StreamContent(contentType);
+CREATE INDEX idx_content_availability ON StreamContent(availabilityStatus);
+CREATE INDEX idx_content_sync ON StreamContent(syncedAt);
+
+-- Insert or replace stream content
+insertOrReplaceContent:
+INSERT OR REPLACE INTO StreamContent(
+    id, categoryId, title, description, thumbnailUrl, contentType,
+    duration, price, currency, availabilityStatus, isFeatured,
+    featuredOrder, metadata, createdAt, updatedAt, syncedAt
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
+
+-- Get content by category
+getContentByCategory:
+SELECT * FROM StreamContent
+WHERE categoryId = ? AND availabilityStatus = 'AVAILABLE'
+ORDER BY
+    CASE WHEN isFeatured = 1 THEN featuredOrder END ASC,
+    createdAt DESC
+LIMIT ? OFFSET ?;
+
+-- Get featured content
+getFeaturedContent:
+SELECT * FROM StreamContent
+WHERE isFeatured = 1 AND availabilityStatus = 'AVAILABLE'
+ORDER BY featuredOrder ASC, createdAt DESC
+LIMIT ?;
+
+-- Get content by type
+getContentByType:
+SELECT * FROM StreamContent
+WHERE contentType = ? AND availabilityStatus = 'AVAILABLE'
+ORDER BY createdAt DESC
+LIMIT ? OFFSET ?;
+
+-- Get content by ID
+getContentById:
+SELECT * FROM StreamContent
+WHERE id = ?;
+
+-- Search content by title
+searchContentByTitle:
+SELECT * FROM StreamContent
+WHERE title LIKE '%' || ? || '%' AND availabilityStatus = 'AVAILABLE'
+ORDER BY
+    CASE WHEN isFeatured = 1 THEN featuredOrder END ASC,
+    createdAt DESC
+LIMIT ? OFFSET ?;
+
+-- Get content that needs sync
+getContentNeedingSync:
+SELECT * FROM StreamContent
+WHERE syncedAt < ?
+LIMIT ?;
+
+-- Update content sync timestamp
+updateContentSyncTime:
+UPDATE StreamContent
+SET syncedAt = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- Update last viewed timestamp
+updateLastViewed:
+UPDATE StreamContent
+SET lastViewedAt = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- Get recently viewed content
+getRecentlyViewed:
+SELECT * FROM StreamContent
+WHERE lastViewedAt IS NOT NULL
+ORDER BY lastViewedAt DESC
+LIMIT ?;
+
+-- Delete content
+deleteContent:
+DELETE FROM StreamContent
+WHERE id = ?;
+
+-- Delete content by category
+deleteContentByCategory:
+DELETE FROM StreamContent
+WHERE categoryId = ?;
+
+-- Get content count by category
+getContentCountByCategory:
+SELECT categoryId, COUNT(*)
+FROM StreamContent
+WHERE availabilityStatus = 'AVAILABLE'
+GROUP BY categoryId;
+
+-- Get content by subtab filters (simplified version)
+getContentBySubtabFilter:
+SELECT * FROM StreamContent
+WHERE categoryId = ?
+AND availabilityStatus = 'AVAILABLE'
+ORDER BY
+    CASE WHEN isFeatured = 1 THEN featuredOrder END ASC,
+    createdAt DESC
+LIMIT ? OFFSET ?;
+
+-- Clear old content (cleanup for storage management)
+clearOldContent:
+DELETE FROM StreamContent
+WHERE syncedAt < ? AND lastViewedAt IS NULL;

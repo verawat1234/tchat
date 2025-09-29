@@ -1,0 +1,267 @@
+{
+  "table": "products",
+  "data": [
+    {
+      "id": 1,
+      "name": "iPhone 15 Pro",
+      "slug": "iphone-15-pro",
+      "description": "Latest Apple iPhone with advanced features and Pro camera system",
+      "short_description": "iPhone 15 Pro with titanium design",
+      "business_id": 1,
+      "category_id": 2,
+      "sku": "APPLE-IP15P-128",
+      "price": 999.99,
+      "compare_price": 1099.99,
+      "cost_price": 800.00,
+      "currency": "USD",
+      "status": "active",
+      "visibility": "public",
+      "stock_quantity": 50,
+      "stock_status": "in_stock",
+      "track_stock": true,
+      "weight": 0.187,
+      "dimensions": {
+        "length": 14.67,
+        "width": 7.09,
+        "height": 0.83
+      },
+      "images": [
+        {
+          "url": "https://example.com/products/iphone15pro-main.jpg",
+          "alt": "iPhone 15 Pro Front View",
+          "is_primary": true,
+          "sort_order": 1
+        },
+        {
+          "url": "https://example.com/products/iphone15pro-back.jpg",
+          "alt": "iPhone 15 Pro Back View",
+          "is_primary": false,
+          "sort_order": 2
+        }
+      ],
+      "variants": [
+        {
+          "id": 1,
+          "sku": "APPLE-IP15P-128-TIT",
+          "name": "iPhone 15 Pro 128GB Titanium",
+          "price": 999.99,
+          "stock_quantity": 25,
+          "options": {
+            "storage": "128GB",
+            "color": "Natural Titanium"
+          }
+        },
+        {
+          "id": 2,
+          "sku": "APPLE-IP15P-256-TIT",
+          "name": "iPhone 15 Pro 256GB Titanium",
+          "price": 1199.99,
+          "stock_quantity": 20,
+          "options": {
+            "storage": "256GB",
+            "color": "Natural Titanium"
+          }
+        }
+      ],
+      "attributes": {
+        "brand": "Apple",
+        "model": "iPhone 15 Pro",
+        "storage_options": ["128GB", "256GB", "512GB", "1TB"],
+        "color_options": ["Natural Titanium", "Blue Titanium", "White Titanium", "Black Titanium"],
+        "display_size": "6.1 inches",
+        "camera": "Pro camera system with 48MP Main camera",
+        "processor": "A17 Pro chip",
+        "battery_life": "Up to 23 hours video playback",
+        "connectivity": ["5G", "Wi-Fi 6E", "Bluetooth 5.3"],
+        "operating_system": "iOS 17"
+      },
+      "seo": {
+        "meta_title": "iPhone 15 Pro - Buy Latest Apple Smartphone | TechCorp",
+        "meta_description": "Get the new iPhone 15 Pro with titanium design, A17 Pro chip, and advanced camera system. Free shipping and warranty included.",
+        "keywords": ["iPhone 15 Pro", "Apple smartphone", "titanium iPhone", "Pro camera"]
+      },
+      "tags": ["smartphone", "apple", "premium", "flagship", "5g"],
+      "is_featured": true,
+      "featured_until": "2024-12-31T23:59:59Z",
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 2,
+      "name": "MacBook Pro 16-inch",
+      "slug": "macbook-pro-16-inch",
+      "description": "Powerful MacBook Pro with M3 Max chip for professional workflows",
+      "short_description": "MacBook Pro 16-inch with M3 Max",
+      "business_id": 1,
+      "category_id": 3,
+      "sku": "APPLE-MBP16-M3MAX",
+      "price": 2499.99,
+      "compare_price": 2699.99,
+      "cost_price": 2000.00,
+      "currency": "USD",
+      "status": "active",
+      "visibility": "public",
+      "stock_quantity": 15,
+      "stock_status": "in_stock",
+      "track_stock": true,
+      "weight": 2.15,
+      "dimensions": {
+        "length": 35.57,
+        "width": 24.81,
+        "height": 1.68
+      },
+      "images": [
+        {
+          "url": "https://example.com/products/macbookpro16-main.jpg",
+          "alt": "MacBook Pro 16-inch Front View",
+          "is_primary": true,
+          "sort_order": 1
+        }
+      ],
+      "variants": [
+        {
+          "id": 3,
+          "sku": "APPLE-MBP16-M3MAX-512",
+          "name": "MacBook Pro 16-inch M3 Max 512GB",
+          "price": 2499.99,
+          "stock_quantity": 10,
+          "options": {
+            "storage": "512GB",
+            "color": "Space Gray"
+          }
+        },
+        {
+          "id": 4,
+          "sku": "APPLE-MBP16-M3MAX-1TB",
+          "name": "MacBook Pro 16-inch M3 Max 1TB",
+          "price": 2799.99,
+          "stock_quantity": 5,
+          "options": {
+            "storage": "1TB",
+            "color": "Space Gray"
+          }
+        }
+      ],
+      "attributes": {
+        "brand": "Apple",
+        "model": "MacBook Pro 16-inch",
+        "processor": "M3 Max chip",
+        "display": "16.2-inch Liquid Retina XDR display",
+        "storage_options": ["512GB", "1TB", "2TB", "4TB", "8TB"],
+        "memory_options": ["18GB", "36GB", "64GB", "128GB"],
+        "color_options": ["Space Gray", "Silver"],
+        "ports": ["3x Thunderbolt 4", "HDMI", "SDXC", "MagSafe 3"],
+        "battery_life": "Up to 22 hours"
+      },
+      "seo": {
+        "meta_title": "MacBook Pro 16-inch M3 Max - Professional Laptop | TechCorp",
+        "meta_description": "MacBook Pro 16-inch with M3 Max chip for professionals. Liquid Retina XDR display, up to 22 hours battery life.",
+        "keywords": ["MacBook Pro", "M3 Max", "professional laptop", "Apple laptop"]
+      },
+      "tags": ["laptop", "apple", "professional", "m3-max", "creative"],
+      "is_featured": true,
+      "featured_until": "2024-12-31T23:59:59Z",
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 3,
+      "name": "Designer T-Shirt",
+      "slug": "designer-t-shirt",
+      "description": "Premium cotton t-shirt with modern design and comfortable fit",
+      "short_description": "Premium designer t-shirt",
+      "business_id": 2,
+      "category_id": 5,
+      "sku": "FF-TSHIRT-001",
+      "price": 49.99,
+      "compare_price": 69.99,
+      "cost_price": 25.00,
+      "currency": "USD",
+      "status": "active",
+      "visibility": "public",
+      "stock_quantity": 100,
+      "stock_status": "in_stock",
+      "track_stock": true,
+      "weight": 0.2,
+      "dimensions": {
+        "length": 30.0,
+        "width": 20.0,
+        "height": 1.0
+      },
+      "images": [
+        {
+          "url": "https://example.com/products/designer-tshirt-main.jpg",
+          "alt": "Designer T-Shirt Front View",
+          "is_primary": true,
+          "sort_order": 1
+        }
+      ],
+      "variants": [
+        {
+          "id": 5,
+          "sku": "FF-TSHIRT-001-S-BLK",
+          "name": "Designer T-Shirt Small Black",
+          "price": 49.99,
+          "stock_quantity": 25,
+          "options": {
+            "size": "S",
+            "color": "Black"
+          }
+        },
+        {
+          "id": 6,
+          "sku": "FF-TSHIRT-001-M-BLK",
+          "name": "Designer T-Shirt Medium Black",
+          "price": 49.99,
+          "stock_quantity": 30,
+          "options": {
+            "size": "M",
+            "color": "Black"
+          }
+        },
+        {
+          "id": 7,
+          "sku": "FF-TSHIRT-001-L-BLK",
+          "name": "Designer T-Shirt Large Black",
+          "price": 49.99,
+          "stock_quantity": 25,
+          "options": {
+            "size": "L",
+            "color": "Black"
+          }
+        },
+        {
+          "id": 8,
+          "sku": "FF-TSHIRT-001-XL-BLK",
+          "name": "Designer T-Shirt XL Black",
+          "price": 49.99,
+          "stock_quantity": 20,
+          "options": {
+            "size": "XL",
+            "color": "Black"
+          }
+        }
+      ],
+      "attributes": {
+        "brand": "Fashion Forward",
+        "material": "100% Premium Cotton",
+        "care_instructions": "Machine wash cold, tumble dry low",
+        "fit": "Regular Fit",
+        "size_options": ["XS", "S", "M", "L", "XL", "XXL"],
+        "color_options": ["Black", "White", "Navy", "Gray", "Olive"],
+        "style": "Casual",
+        "season": "All Season"
+      },
+      "seo": {
+        "meta_title": "Premium Designer T-Shirt - Comfortable Cotton Tee | Fashion Forward",
+        "meta_description": "Premium cotton designer t-shirt with modern design. Available in multiple sizes and colors. Comfortable fit guaranteed.",
+        "keywords": ["designer t-shirt", "premium cotton", "casual wear", "fashion"]
+      },
+      "tags": ["t-shirt", "casual", "cotton", "designer", "mens-clothing"],
+      "is_featured": false,
+      "featured_until": null,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  ]
+}

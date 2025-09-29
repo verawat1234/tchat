@@ -17,6 +17,7 @@ uuid = "0.8.4"
 napier = "2.7.1"
 kamel = "1.0.0"
 guava = "32.1.1"
+webrtc-android = "1.0.32006"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
@@ -69,6 +70,9 @@ kamel = { module = "media.kamel:kamel-image", version.ref = "kamel" }
 
 # Guava Android (fixes VerifyException in resource merging)
 guava-android = { module = "com.google.guava:guava", version = "32.1.1-android" }
+
+# WebRTC for real-time communication
+webrtc-android = { module = "org.webrtc:google-webrtc", version.ref = "webrtc-android" }
 
 # Testing
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
