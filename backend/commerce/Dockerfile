@@ -7,16 +7,20 @@ RUN apk add --no-cache git ca-certificates tzdata
 # Set working directory
 WORKDIR /app
 
-# Copy go mod files
-COPY go.mod go.sum ./
+# Copy module manifests for dependency caching
+COPY shared/go.mod shared/go.sum ./shared/
+COPY commerce/go.mod commerce/go.sum ./commerce/
 
-# Download dependencies
-RUN go mod download
+# Resolve module dependencies
+RUN cd shared && go mod download
+RUN cd commerce && go mod download
 
 # Copy source code
-COPY . .
+COPY shared/ ./shared/
+COPY commerce/ ./commerce/
 
 # Build the binary
+WORKDIR /app/commerce
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o commerce-service ./main.go
 
 # Production stage
@@ -33,7 +37,7 @@ RUN addgroup -g 1001 -S tchat && \
 WORKDIR /app
 
 # Copy binary from builder stage
-COPY --from=builder /app/commerce-service .
+COPY --from=builder /app/commerce/commerce-service .
 
 # Change ownership to non-root user
 RUN chown tchat:tchat /app/commerce-service

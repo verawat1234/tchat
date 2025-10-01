@@ -7,16 +7,20 @@ RUN apk add --no-cache git ca-certificates tzdata
 # Set working directory
 WORKDIR /app
 
-# Copy go mod files
-COPY go.mod go.sum ./
+# Copy module manifests for dependency caching
+COPY shared/go.mod shared/go.sum ./shared/
+COPY payment/go.mod payment/go.sum ./payment/
 
-# Download dependencies
-RUN go mod download
+# Resolve module dependencies
+RUN cd shared && go mod download
+RUN cd payment && go mod download
 
 # Copy source code
-COPY . .
+COPY shared/ ./shared/
+COPY payment/ ./payment/
 
 # Build the binary
+WORKDIR /app/payment
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o payment-service ./main.go
 
 # Production stage
@@ -33,7 +37,7 @@ RUN addgroup -g 1001 -S tchat && \
 WORKDIR /app
 
 # Copy binary from builder stage
-COPY --from=builder /app/payment-service .
+COPY --from=builder /app/payment/payment-service .
 
 # Change ownership to non-root user
 RUN chown tchat:tchat /app/payment-service
