@@ -9,7 +9,7 @@ COPY . .
 
 # Build the application
 RUN go mod tidy
-RUN go build -o video-service .
+RUN go build -o video-service ./main.go
 
 # Expose port
 EXPOSE 8091
