@@ -1,0 +1,35 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "commerce/Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5
+
+[[services]]
+name = "commerce-service"
+source = "."
+
+[services.healthcheck]
+path = "/health"
+timeout = 30
+
+[services.variables]
+APP_ENVIRONMENT = "production"
+ENVIRONMENT = "production"
+LOG_LEVEL = "info"
+SERVICE_NAME = "commerce-service"
+SERVICE_PORT = "8084"
+COMMERCE_SERVICE_PORT = "8084"
+DATABASE_NAME = "commerce_service_db"
+DB_DATABASE = "commerce_service_db"
+DB_NAME = "commerce_service_db"
+DB_SCHEMA = "public"
+REDIS_NAMESPACE = "commerce-service"
+CONTENT_SERVICE_URL = ""
+PAYMENT_SERVICE_URL = ""
+AUTH_SERVICE_URL = ""
+METRICS_ENABLED = "true"
+HEALTHCHECK_PATH = "/health"

@@ -1,0 +1,36 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "messaging/Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5
+
+[[services]]
+name = "messaging-service"
+source = "."
+
+[services.healthcheck]
+path = "/health"
+timeout = 30
+
+[services.variables]
+APP_ENVIRONMENT = "production"
+ENVIRONMENT = "production"
+LOG_LEVEL = "info"
+SERVICE_NAME = "messaging-service"
+SERVICE_PORT = "8082"
+MESSAGING_SERVICE_PORT = "8082"
+DATABASE_NAME = "messaging_service_db"
+DB_DATABASE = "messaging_service_db"
+DB_NAME = "messaging_service_db"
+DB_SCHEMA = "public"
+REDIS_NAMESPACE = "messaging-service"
+WEBSOCKET_ENABLED = "true"
+WEBSOCKET_MAX_CONNECTIONS = "10000"
+AUTH_SERVICE_URL = ""
+NOTIFICATION_SERVICE_URL = ""
+METRICS_ENABLED = "true"
+HEALTHCHECK_PATH = "/health"

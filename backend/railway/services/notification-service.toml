@@ -1,0 +1,35 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "notification/Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5
+
+[[services]]
+name = "notification-service"
+source = "."
+
+[services.healthcheck]
+path = "/health"
+timeout = 30
+
+[services.variables]
+APP_ENVIRONMENT = "production"
+ENVIRONMENT = "production"
+LOG_LEVEL = "info"
+SERVICE_NAME = "notification-service"
+SERVICE_PORT = "8085"
+NOTIFICATION_SERVICE_PORT = "8085"
+DATABASE_NAME = "notification_service_db"
+DB_DATABASE = "notification_service_db"
+DB_NAME = "notification_service_db"
+DB_SCHEMA = "public"
+REDIS_NAMESPACE = "notification-service"
+NOTIFICATION_DEFAULT_PROVIDER = "email"
+NOTIFICATION_QUEUE_SIZE = "10000"
+NOTIFICATION_WORKER_COUNT = "10"
+METRICS_ENABLED = "true"
+HEALTHCHECK_PATH = "/health"

@@ -1,0 +1,32 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "payment/Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5
+
+[[services]]
+name = "payment-service"
+source = "."
+
+[services.healthcheck]
+path = "/health"
+timeout = 30
+
+[services.variables]
+APP_ENVIRONMENT = "production"
+ENVIRONMENT = "production"
+LOG_LEVEL = "info"
+SERVICE_NAME = "payment-service"
+SERVICE_PORT = "8083"
+PAYMENT_SERVICE_PORT = "8083"
+DATABASE_NAME = "payment_service_db"
+DB_DATABASE = "payment_service_db"
+DB_NAME = "payment_service_db"
+DB_SCHEMA = "public"
+REDIS_NAMESPACE = "payment-service"
+METRICS_ENABLED = "true"
+HEALTHCHECK_PATH = "/health"

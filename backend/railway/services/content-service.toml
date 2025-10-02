@@ -1,0 +1,33 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "content/Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5
+
+[[services]]
+name = "content-service"
+source = "."
+
+[services.healthcheck]
+path = "/health"
+timeout = 30
+
+[services.variables]
+APP_ENVIRONMENT = "production"
+ENVIRONMENT = "production"
+LOG_LEVEL = "info"
+SERVICE_NAME = "content-service"
+SERVICE_PORT = "8086"
+CONTENT_SERVICE_PORT = "8086"
+DATABASE_NAME = "content_service_db"
+DB_DATABASE = "content_service_db"
+DB_NAME = "content_service_db"
+DB_SCHEMA = "public"
+REDIS_NAMESPACE = "content-service"
+MEDIA_CDN_BASE_URL = ""
+METRICS_ENABLED = "true"
+HEALTHCHECK_PATH = "/health"

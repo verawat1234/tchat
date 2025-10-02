@@ -1,302 +1,103 @@
-# Railway Deployment Guide for Tchat Microservices
+# Railway Deployment Guide
 
-Comprehensive guide to deploy your 6 microservices to Railway using a cost-optimized 3-project strategy.
+This guide explains how to deploy the eight Tchat backend services into the single Railway project **Tchat** (project ID `0a1f3508-2150-4d0c-8ae9-878f74a607a0`). All manifests live in `railway/services`, and matching environment templates live in `railway/env`.
 
-## Architecture Overview
+## Service Inventory
 
-**Consolidated Projects:**
-- **tchat-core**: Auth Service (8081) + API Gateway
-- **tchat-messaging**: Messaging (8082) + Notification (8084) Services
-- **tchat-commerce**: Payment (8083) + Commerce (8085) + Content (8086) Services
-
-**Cost:** ~$15/month vs $30/month for individual services
+| Service           | Railway Service Name | Port | Manifest Path                              | Default Database |
+|-------------------|----------------------|------|--------------------------------------------|------------------|
+| Auth API          | `auth-service`       | 8081 | `railway/services/auth-service.toml`       | `auth_service_db`|
+| Messaging API     | `messaging-service`  | 8082 | `railway/services/messaging-service.toml`  | `messaging_service_db`|
+| Payment API       | `payment-service`    | 8083 | `railway/services/payment-service.toml`    | `payment_service_db`|
+| Commerce API      | `commerce-service`   | 8084 | `railway/services/commerce-service.toml`   | `commerce_service_db`|
+| Notification API  | `notification-service`| 8085 | `railway/services/notification-service.toml`| `notification_service_db`|
+| Content API       | `content-service`    | 8086 | `railway/services/content-service.toml`    | `content_service_db`|
+| API Gateway       | `gateway-service`    | 8080 | `railway/services/gateway-service.toml`    | —                |
+| Video API         | `video-service`      | 8091 | `railway/services/video-service.toml`      | `video_service_db`|
 
 ## Prerequisites
 
-1. **Railway Account**: [Sign up at railway.app](https://railway.app)
-2. **Railway CLI**: Install globally
-   ```bash
-   npm install -g @railway/cli
-   # OR
-   curl -fsSL https://railway.app/install.sh | sh
-   ```
-3. **Git Repository**: Your code must be in a Git repository (GitHub/GitLab)
+1. Install the Railway CLI v4.5 or newer (`npm install -g @railway/cli`).
+2. Authenticate: `railway login`, confirm with `railway whoami`.
+3. From the repository root run `cd backend`.
+4. Ensure the repository is clean (`git status` succeeds); Railway builds from git snapshots.
 
-## Step 1: Railway CLI Setup
+## Step 1 — Deploy Services
+
+Automated deployment is handled by `deploy-to-railway.sh`:
 
 ```bash
-# Login to Railway
-railway login
-
-# Verify authentication
-railway whoami
-```
-
-## Step 2: Deploy Project 1 - Core Services (Auth)
-
-```bash
-# Navigate to your backend directory
 cd backend
-
-# Create new Railway project
-railway create tchat-core
-
-# Link to your git repository
-railway link
-
-# Add PostgreSQL plugin for user data
-railway add postgresql
-
-# Add Redis plugin for sessions
-railway add redis
-
-# Set environment variables
-railway variables set SERVICE_NAME=auth
-railway variables set SERVICE_PORT=8081
-railway variables set ENVIRONMENT=production
-railway variables set LOG_LEVEL=info
-railway variables set DB_NAME=tchat_auth
-
-# Deploy the service
-railway up --detach
+./deploy-to-railway.sh
 ```
 
-**Environment Variables to Set in Railway Dashboard:**
-```bash
-# Database (auto-populated by PostgreSQL plugin)
-DB_HOST=${{Postgres.PGHOST}}
-DB_PORT=${{Postgres.PGPORT}}
-DB_NAME=tchat_auth
-DB_USER=${{Postgres.PGUSER}}
-DB_PASSWORD=${{Postgres.PGPASSWORD}}
-DB_SSL_MODE=require
+The script will:
 
-# Redis (auto-populated by Redis plugin)
-REDIS_HOST=${{Redis.REDIS_HOST}}
-REDIS_PORT=${{Redis.REDIS_PORT}}
-REDIS_PASSWORD=${{Redis.REDIS_PASSWORD}}
-REDIS_DB=0
+- Link the CLI to the `Tchat` project and `production` environment.
+- Provision shared Postgres/Redis plugins if they do not already exist.
+- Ensure each Railway service (`auth-service`, `messaging-service`, …) exists.
+- Copy the corresponding manifest under `railway/services` to `railway.toml` and trigger `railway up --service <name> --detach` for every backend.
 
-# External services (set manually)
-TWILIO_ACCOUNT_SID=your_twilio_sid
-TWILIO_AUTH_TOKEN=your_twilio_token
-```
-
-## Step 3: Deploy Project 2 - Messaging Services
+If you need to redeploy a single service, copy the relevant manifest manually and run:
 
 ```bash
-# Create second Railway project
-railway create tchat-messaging
-
-# Switch to messaging context
-railway environment
-
-# Add Redis plugin for real-time data
-railway add redis
-
-# Add PostgreSQL plugin (for user references)
-railway add postgresql
-
-# Set environment variables
-railway variables set SERVICE_NAME=messaging
-railway variables set SERVICE_PORT=8082
-railway variables set ENVIRONMENT=production
-railway variables set LOG_LEVEL=info
-railway variables set DB_NAME=tchat_messaging
-
-# Deploy messaging service
-railway up --detach
+cp railway/services/auth-service.toml railway.toml
+railway up --service auth-service --environment production --detach
+rm railway.toml
 ```
 
-**Additional Environment Variables:**
-```bash
-# Auth service connection (use Railway URL from Project 1)
-AUTH_SERVICE_URL=https://tchat-core.up.railway.app
+> **Tip:** use `railway logs --service <name> -d` to follow the latest build and deployment output.
 
-# For real-time messaging (external services)
-KAFKA_BROKERS=your_kafka_cluster:9092
-KAFKA_GROUP_ID=tchat-messaging
-KAFKA_TOPIC_PREFIX=tchat
+## Step 2 — Apply Environment Variables
 
-# ScyllaDB (external or PostgreSQL fallback)
-SCYLLA_HOSTS=your_scylla_cluster:9042
-SCYLLA_KEYSPACE=tchat_messaging
-SCYLLA_REPLICATION_FACTOR=3
-```
-
-## Step 4: Deploy Project 3 - Commerce Services
+Environment templates live in `railway/env/*.env.template`. Sync them after the services finish building:
 
 ```bash
-# Create third Railway project
-railway create tchat-commerce
-
-# Add PostgreSQL plugin for transactional data
-railway add postgresql
-
-# Add Redis plugin for caching
-railway add redis
-
-# Set environment variables
-railway variables set SERVICE_NAME=payment
-railway variables set SERVICE_PORT=8083
-railway variables set ENVIRONMENT=production
-railway variables set LOG_LEVEL=info
-railway variables set DB_NAME=tchat_payment
-
-# Deploy commerce services
-railway up --detach
+./setup-railway-env.sh           # apply all templates
+./setup-railway-env.sh gateway-service  # or target one service
 ```
 
-**Additional Environment Variables:**
-```bash
-# Payment gateway credentials
-STRIPE_SECRET_KEY=your_stripe_key
-OMISE_SECRET_KEY=your_omise_key
-
-# Auth service connection
-AUTH_SERVICE_URL=https://tchat-core.up.railway.app
-
-# Internal service communication
-COMMERCE_SERVICE_URL=internal
-CONTENT_SERVICE_URL=internal
-```
-
-## Step 5: Database Migrations
-
-Each project needs database migrations. Run these after deployment:
+The helper script links to the `Tchat` project, verifies the service exists, and calls
 
 ```bash
-# Project 1 (Auth)
-railway run --service tchat-core -- ./auth-service migrate up
-
-# Project 2 (Messaging)
-railway run --service tchat-messaging -- ./messaging-service migrate up
-
-# Project 3 (Commerce)
-railway run --service tchat-commerce -- ./payment-service migrate up
+railway variables --service <name> --environment production --set KEY=value
 ```
 
-## Step 6: Configure Custom Domains (Optional)
+for every entry in the template. Update the placeholders (JWT secrets, Stripe keys, inter-service URLs, etc.) in Railway once public endpoints are available.
+
+## Step 3 — Database Preparation
+
+All services share the same Postgres plugin. Each template sets a unique `DB_DATABASE`/`DB_NAME` value (for example `auth_service_db`). Create these databases before running migrations:
 
 ```bash
-# Add custom domains for each project
-railway domain add api.tchat.sea --service tchat-core
-railway domain add messaging.tchat.sea --service tchat-messaging
-railway domain add commerce.tchat.sea --service tchat-commerce
+railway run --service Postgres --environment production -- \
+  psql -c "CREATE DATABASE auth_service_db;"
 ```
 
-## Step 7: Configure Service Networking
+Repeat for each database name. Redis namespaces are separated via `REDIS_DATABASE` per template.
 
-Update your service configurations to use Railway URLs for inter-service communication:
+## Step 4 — Post-Deployment Checklist
 
-**In Railway Dashboard Environment Variables:**
-
-**tchat-messaging project:**
-```bash
-AUTH_SERVICE_URL=https://tchat-core.up.railway.app
-```
-
-**tchat-commerce project:**
-```bash
-AUTH_SERVICE_URL=https://tchat-core.up.railway.app
-MESSAGING_SERVICE_URL=https://tchat-messaging.up.railway.app
-```
-
-## Step 8: Health Check Validation
-
-Test your deployed services:
-
-```bash
-# Test auth service
-curl https://tchat-core.up.railway.app/health
-
-# Test messaging service
-curl https://tchat-messaging.up.railway.app/health
-
-# Test commerce service
-curl https://tchat-commerce.up.railway.app/health
-```
-
-## Step 9: Configure External Services
-
-**For ScyllaDB/Kafka (if needed):**
-
-Option 1: **Use Railway External Services**
-- Connect external ScyllaDB/Kafka clusters via environment variables
-
-Option 2: **PostgreSQL Fallback** (Recommended for getting started)
-- Modify your messaging service to use PostgreSQL instead of ScyllaDB
-- Use Railway's built-in Redis for real-time messaging instead of Kafka
-
-## Production Considerations
-
-### Security
-- Enable Railway's **Environment Secrets** for sensitive data
-- Use **Custom Domains** with SSL certificates
-- Configure **CORS** properly for web client access
-
-### Monitoring
-- Enable Railway's **Usage Metrics**
-- Set up **Health Check Alerts**
-- Monitor **Memory and CPU Usage**
-
-### Scaling
-- Use Railway's **Auto-scaling** for high traffic
-- Monitor **Response Times** and scale accordingly
-- Consider **Load Balancer** for multiple replicas
+- [ ] Record service URLs via `railway status --json` (each service exposes a `publicUrl`).
+- [ ] Update downstream `*_SERVICE_URL` variables in the gateway and dependent services.
+- [ ] Run migrations/tests per service, e.g. `railway run --service auth-service -- make migrate`.
+- [ ] Curl `/health` for every backend plus the gateway.
+- [ ] Configure secrets for external integrations (Twilio, Stripe, Kafka, ScyllaDB, etc.).
 
 ## Troubleshooting
 
-### Common Issues
+| Issue | Resolution |
+|-------|------------|
+| `railway up` fails immediately | Re-run with `railway up --service <name>` and inspect build logs via `railway logs --service <name> -b` |
+| Container starts then stops | Check service logs (`railway logs --service <name>`) for runtime errors, verify environment variables |
+| Database authentication errors | Ensure the Postgres plugin is present and templates were applied; recreate databases if needed |
+| Gateway upstream errors | Confirm each downstream service URL/environment variable is correct and health endpoints respond with 200 |
 
-1. **Service Won't Start**
-   ```bash
-   # Check logs
-   railway logs --service tchat-core
+## Maintenance Notes
 
-   # Check environment variables
-   railway variables
-   ```
+- Keep manifests (`railway/services/*.toml`) aligned with Dockerfile locations when new services are added.
+- Extend `deploy-to-railway.sh` and `setup-railway-env.sh` when introducing additional services.
+- Use `railway status --json` to script health checks or capture deployment metadata.
+- Remove unused services (for example prototypes) from the Railway dashboard to avoid drift and unnecessary spend.
 
-2. **Database Connection Failed**
-   ```bash
-   # Verify PostgreSQL plugin is added
-   railway plugins
-
-   # Check database connection string
-   railway shell -- echo $DATABASE_URL
-   ```
-
-3. **Service Communication Issues**
-   ```bash
-   # Verify internal URLs are correct
-   railway variables | grep SERVICE_URL
-
-   # Test connectivity
-   railway run -- curl $AUTH_SERVICE_URL/health
-   ```
-
-## Cost Optimization
-
-**Monthly Estimates:**
-- **3 Projects**: ~$15/month (3 × $5)
-- **Database Plugins**: ~$5/month each (PostgreSQL + Redis per project)
-- **Total**: ~$30/month for full microservice deployment
-
-**Scaling Costs:**
-- Auto-scaling triggers additional charges
-- Monitor usage to avoid unexpected costs
-- Use Railway's **Usage Alerts** to track spending
-
-## Next Steps
-
-1. Deploy projects in order: Core → Messaging → Commerce
-2. Configure environment variables via Railway dashboard
-3. Test each service after deployment
-4. Set up monitoring and alerts
-5. Configure custom domains if needed
-
-Your microservices will be accessible at:
-- **Auth**: `https://tchat-core.up.railway.app`
-- **Messaging**: `https://tchat-messaging.up.railway.app`
-- **Commerce**: `https://tchat-commerce.up.railway.app`
+Following these steps results in a fully deployed backend stack inside the single Railway project with readable service, environment, and database naming.
