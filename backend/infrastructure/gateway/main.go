@@ -754,11 +754,16 @@ func (g *Gateway) stopHealthCheckers() {
 }
 
 func main() {
+	// Debug: Verify main() executes
+	log.Println("Gateway main() starting...")
+
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
+
+	log.Printf("Configuration loaded successfully. Environment: %s, Port: %d", cfg.Environment, cfg.Server.Port)
 
 	// Create gateway
 	gateway := NewGateway(cfg)
