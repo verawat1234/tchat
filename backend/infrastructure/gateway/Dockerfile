@@ -10,7 +10,7 @@ COPY . .
 
 # Build the application
 RUN go mod tidy
-RUN go build -o gateway-service ./main.go
+RUN go build -o gateway-service .
 
 # Expose port
 EXPOSE 8080
