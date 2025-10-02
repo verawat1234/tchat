@@ -250,7 +250,7 @@ func Load() (*Config, error) {
 
 	// Server
 	config.Server = ServerConfig{
-		Host:         getEnv("SERVER_HOST", "localhost"),
+		Host:         getEnv("SERVER_HOST", "0.0.0.0"),
 		Port:         getIntEnv("SERVER_PORT", 8080),
 		ReadTimeout:  getDurationEnv("SERVER_READ_TIMEOUT", 30*time.Second),
 		WriteTimeout: getDurationEnv("SERVER_WRITE_TIMEOUT", 30*time.Second),
