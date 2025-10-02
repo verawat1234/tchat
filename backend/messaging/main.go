@@ -105,13 +105,15 @@ func (a *App) initDatabase() error {
 	}
 
 	// Create ScyllaDB cluster configuration
-	cluster := gocql.NewCluster(scyllaHost + ":" + scyllaPort)
+	cluster := gocql.NewCluster(scyllaHost)
+	cluster.Port = 9042
 	cluster.Authenticator = gocql.PasswordAuthenticator{
 		Username: scyllaUsername,
 		Password: scyllaPassword,
 	}
 	cluster.Consistency = gocql.Quorum
 	cluster.ProtoVersion = 4
+	cluster.DisableInitialHostLookup = true // Disable host discovery for Railway environment
 
 	// Create keyspace if it doesn't exist
 	keyspace := "messaging"
