@@ -150,6 +150,19 @@ func (r *RedisCacheService) Increment(ctx context.Context, key string) (int64, e
 	return val, nil
 }
 
+// SetWithExpiry stores a value in cache with expiration (alias for Set)
+func (r *RedisCacheService) SetWithExpiry(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+	return r.Set(ctx, key, value, expiration)
+}
+
+// Incr increments a counter in cache
+func (r *RedisCacheService) Incr(ctx context.Context, key string) error {
+	if err := r.client.Incr(ctx, key).Err(); err != nil {
+		return fmt.Errorf("failed to increment key %s: %w", key, err)
+	}
+	return nil
+}
+
 // IncrementWithExpiry increments a numeric value and sets expiration
 func (r *RedisCacheService) IncrementWithExpiry(ctx context.Context, key string, expiration time.Duration) (int64, error) {
 	pipe := r.client.Pipeline()
@@ -261,6 +274,28 @@ func (m *InMemoryCacheService) SetMulti(ctx context.Context, items map[string]in
 // FlushAll removes all keys from in-memory cache
 func (m *InMemoryCacheService) FlushAll(ctx context.Context) error {
 	m.data = make(map[string]cacheItem)
+	return nil
+}
+
+// SetWithExpiry stores a value in cache with expiration (alias for Set)
+func (m *InMemoryCacheService) SetWithExpiry(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+	return m.Set(ctx, key, value, expiration)
+}
+
+// Incr increments a counter in cache
+func (m *InMemoryCacheService) Incr(ctx context.Context, key string) error {
+	item, exists := m.data[key]
+	if !exists {
+		m.data[key] = cacheItem{value: int64(1), expiresAt: time.Time{}}
+		return nil
+	}
+
+	if val, ok := item.value.(int64); ok {
+		item.value = val + 1
+		m.data[key] = item
+	} else {
+		m.data[key] = cacheItem{value: int64(1), expiresAt: item.expiresAt}
+	}
 	return nil
 }
 

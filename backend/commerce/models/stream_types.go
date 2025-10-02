@@ -152,6 +152,7 @@ const (
 	StreamContentTypeLongMovie  StreamContentType = "long_movie"
 	StreamContentTypeMusic      StreamContentType = "music"
 	StreamContentTypeArt        StreamContentType = "art"
+	StreamContentTypeVideo      StreamContentType = "video"
 )
 
 // StreamAvailabilityStatus represents the availability status of content
@@ -230,6 +231,7 @@ func (sci *StreamContentItem) validate() error {
 		StreamContentTypeLongMovie,
 		StreamContentTypeMusic,
 		StreamContentTypeArt,
+		StreamContentTypeVideo,
 	}
 
 	isValidType := false

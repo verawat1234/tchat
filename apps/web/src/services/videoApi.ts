@@ -1094,5 +1094,166 @@ export const useVideoList = (initialParams: GetVideosRequest = {}) => {
   };
 };
 
+// =============================================================================
+// Backend Video Service Integration
+// =============================================================================
+
+/**
+ * Upload video to backend video service with progress tracking
+ */
+export async function uploadVideoToBackend(
+  file: File,
+  metadata: {
+    title: string;
+    description: string;
+    tags: string[];
+    content_rating: string;
+    thumbnail?: File;
+    category?: string;
+    is_monetized?: boolean;
+    price?: number;
+  },
+  onProgress?: (progress: number) => void
+): Promise<{ video_id: string; status: string; message: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('title', metadata.title);
+  formData.append('description', metadata.description);
+  formData.append('tags', metadata.tags.join(','));
+  formData.append('content_rating', metadata.content_rating);
+
+  if (metadata.thumbnail) {
+    formData.append('thumbnail', metadata.thumbnail);
+  }
+  if (metadata.category) {
+    formData.append('category', metadata.category);
+  }
+  formData.append('is_monetized', String(metadata.is_monetized || false));
+  if (metadata.price) {
+    formData.append('price', String(metadata.price));
+  }
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable && onProgress) {
+        const progress = Math.round((event.loaded / event.total) * 100);
+        onProgress(progress);
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch (error) {
+          reject(new Error('Invalid response'));
+        }
+      } else {
+        reject(new Error(`Upload failed: ${xhr.status}`));
+      }
+    });
+
+    xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+
+    xhr.open('POST', '/api/v1/videos');
+
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    }
+
+    xhr.send(formData);
+  });
+}
+
+/**
+ * Get streaming URL from backend video service
+ */
+export async function getBackendStreamUrl(
+  videoId: string,
+  quality: string = 'auto',
+  platform: string = 'web'
+): Promise<{
+  video_id: string;
+  stream_url: string;
+  protocol: string;
+  available_qualities: string[];
+  expires_at: string;
+}> {
+  const response = await fetch(`/api/v1/videos/${videoId}/stream?quality=${quality}&platform=${platform}`);
+  if (!response.ok) throw new Error('Failed to get stream URL');
+  return response.json();
+}
+
+/**
+ * Sync playback position with backend
+ */
+export async function syncBackendPlaybackPosition(
+  videoId: string,
+  sessionId: string,
+  position: number,
+  platform: string,
+  playbackState: string = 'playing'
+): Promise<{
+  success: boolean;
+  session_id: string;
+  updated_position: number;
+  synced_platforms: string[];
+}> {
+  const response = await fetch(`/api/v1/videos/${videoId}/sync`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+    },
+    body: JSON.stringify({
+      session_id: sessionId,
+      position,
+      platform,
+      playback_state: playbackState,
+      timestamp: new Date().toISOString(),
+    }),
+  });
+
+  if (!response.ok) throw new Error('Sync failed');
+  return response.json();
+}
+
+/**
+ * Create sync session on backend
+ */
+export async function createBackendSyncSession(
+  videoId: string,
+  userId: string,
+  platform: string,
+  initialPosition: number = 0
+): Promise<{
+  session_id: string;
+  video_id: string;
+  user_id: string;
+  platform: string;
+  initial_position: number;
+  created_at: string;
+}> {
+  const response = await fetch(`/api/v1/videos/${videoId}/sync/session`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+    },
+    body: JSON.stringify({
+      video_id: videoId,
+      user_id: userId,
+      platform,
+      initial_position: initialPosition,
+    }),
+  });
+
+  if (!response.ok) throw new Error('Failed to create sync session');
+  return response.json();
+}
+
 // Export the enhanced API for external use
 export default videoApi;

@@ -204,11 +204,8 @@ func (s *businessService) GetBusinessProducts(ctx context.Context, businessID uu
 		return nil, fmt.Errorf("failed to find products: %w", err)
 	}
 
-	// Convert to shared models
-	sharedProducts := make([]*sharedModels.Product, len(products))
-	for i, product := range products {
-		sharedProducts[i] = product
-	}
+	// Products are already using shared models (via type alias)
+	sharedProducts := products
 
 	return &models.ProductResponse{
 		Products:   sharedProducts,

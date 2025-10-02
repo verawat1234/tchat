@@ -33,14 +33,9 @@ func (s *productService) GetProducts(ctx context.Context, filters models.Product
 		return nil, fmt.Errorf("failed to find products: %w", err)
 	}
 
-	// Convert to shared models
-	sharedProducts := make([]*sharedModels.Product, len(products))
-	for i, product := range products {
-		sharedProducts[i] = product
-	}
-
+	// Products are already using shared models (via type alias)
 	return &models.ProductResponse{
-		Products:   sharedProducts,
+		Products:   products,
 		Total:      total,
 		Page:       pagination.Page,
 		PageSize:   pagination.PageSize,
@@ -81,16 +76,16 @@ func (s *productService) CreateProduct(ctx context.Context, req *models.CreatePr
 	// Set default values
 	status := req.Status
 	if status == "" {
-		status = sharedModels.ProductStatusDraft
+		status = models.ProductStatusDraft
 	}
 
 	productType := req.Type
 	if productType == "" {
-		productType = sharedModels.ProductTypePhysical
+		productType = models.ProductTypePhysical
 	}
 
 	// Convert simple price/currency to ProductPricing array
-	pricing := []sharedModels.ProductPricing{
+	pricing := []models.ProductPricing{
 		{
 			Currency: req.Currency,
 			Price:    req.Price,
@@ -98,9 +93,9 @@ func (s *productService) CreateProduct(ctx context.Context, req *models.CreatePr
 	}
 
 	// Convert string images to ProductImage array
-	var images []sharedModels.ProductImage
+	var images []models.ProductImage
 	for i, imageURL := range req.Images {
-		images = append(images, sharedModels.ProductImage{
+		images = append(images, models.ProductImage{
 			URL:       imageURL,
 			IsPrimary: i == 0, // First image is primary
 			SortOrder: i,
@@ -108,12 +103,12 @@ func (s *productService) CreateProduct(ctx context.Context, req *models.CreatePr
 	}
 
 	// Convert variants map to ProductVariant array (simplified for now)
-	var variants []sharedModels.ProductVariant
+	var variants []models.ProductVariant
 	// Note: This is a simplified conversion - in a real implementation,
 	// you'd properly convert the map structure to ProductVariant objects
 
 	// Create product entity
-	product := &models.Product{
+	product := &sharedModels.Product{
 		ID:          uuid.New(),
 		BusinessID:  req.BusinessID,
 		Name:        req.Name,
@@ -127,14 +122,14 @@ func (s *productService) CreateProduct(ctx context.Context, req *models.CreatePr
 		Images:      images,
 		HasVariants: len(variants) > 0,
 		Variants:    variants,
-		Inventory: sharedModels.ProductInventory{
+		Inventory: models.ProductInventory{
 			Stock:             req.Inventory.Stock,
 			LowStockThreshold: req.Inventory.LowStockThreshold,
 			TrackQuantity:     req.Inventory.TrackQuantity,
 			AllowBackorder:    req.Inventory.AllowBackorder,
 			ManageStock:       req.Inventory.ManageStock,
 		},
-		Shipping: sharedModels.ProductShipping{
+		Shipping: models.ProductShipping{
 			Weight:           req.Shipping.Weight,
 			Length:           req.Shipping.Length,
 			Width:            req.Shipping.Width,
@@ -143,7 +138,7 @@ func (s *productService) CreateProduct(ctx context.Context, req *models.CreatePr
 			ShippingClass:    req.Shipping.ShippingClass,
 			FreeShipping:     req.Shipping.FreeShipping,
 		},
-		SEO: sharedModels.ProductSEO{
+		SEO: models.ProductSEO{
 			MetaTitle:       req.SEO.MetaTitle,
 			MetaDescription: req.SEO.MetaDescription,
 			URLSlug:         req.SEO.URLSlug,

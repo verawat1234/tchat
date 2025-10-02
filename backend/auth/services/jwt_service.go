@@ -102,10 +102,16 @@ func (js *JWTService) GenerateTokenPair(ctx context.Context, user *sharedModels.
 
 // generateAccessToken creates a new access token
 func (js *JWTService) generateAccessToken(user *sharedModels.User, sessionID uuid.UUID, deviceID string, issuedAt, expiresAt time.Time) (string, error) {
+	// Use CountryCode if available, otherwise fall back to Country
+	countryCode := user.CountryCode
+	if countryCode == "" {
+		countryCode = user.Country
+	}
+
 	claims := &UserClaims{
 		UserID:      user.ID,
 		PhoneNumber: getPhoneNumber(user),
-		CountryCode: user.CountryCode,
+		CountryCode: countryCode,
 		KYCStatus:   getKYCStatus(user),
 		KYCLevel:    int(user.KYCTier),
 		SessionID:   sessionID,
@@ -291,13 +297,16 @@ func (js *JWTService) validateClaims(claims *UserClaims) error {
 		return errors.New("invalid audience")
 	}
 
-	// Verify user ID
-	if claims.UserID == uuid.Nil {
+	// Check if this is a service token
+	isServiceToken := js.hasScope(claims.Scopes, "service")
+
+	// Verify user ID (skip for service tokens)
+	if !isServiceToken && claims.UserID == uuid.Nil {
 		return errors.New("missing user ID")
 	}
 
-	// Verify session ID
-	if claims.SessionID == uuid.Nil {
+	// Verify session ID (skip for service tokens)
+	if !isServiceToken && claims.SessionID == uuid.Nil {
 		return errors.New("missing session ID")
 	}
 
@@ -335,14 +344,25 @@ func (js *JWTService) getUserPermissions(user *sharedModels.User) []string {
 	}
 
 	// Add verification-based permissions
-	if user.PhoneVerified || user.EmailVerified {
+	if user.PhoneVerified || user.EmailVerified || user.Verified {
 		permissions = append(permissions, "verified:user")
 	}
 
-	// Add country-specific permissions
-	switch models.Country(user.CountryCode) {
+	// Add country-specific permissions (based on country and verification)
+	countryCode := user.CountryCode
+	if countryCode == "" {
+		countryCode = user.Country
+	}
+
+	isVerified := user.PhoneVerified || user.EmailVerified || user.Verified
+
+	switch models.Country(countryCode) {
 	case models.CountryThailand, models.CountrySingapore:
-		permissions = append(permissions, "region:sea:premium")
+		if isVerified {
+			permissions = append(permissions, "region:sea:premium")
+		} else {
+			permissions = append(permissions, "region:sea:standard")
+		}
 	default:
 		permissions = append(permissions, "region:sea:standard")
 	}
@@ -350,14 +370,26 @@ func (js *JWTService) getUserPermissions(user *sharedModels.User) []string {
 	return permissions
 }
 
-// getPhoneNumber safely extracts phone number from user
+// getPhoneNumber safely extracts phone number from user in E.164 format
 func getPhoneNumber(user *sharedModels.User) string {
-	return user.PhoneNumber
+	// Try PhoneNumber first, then Phone field
+	phone := user.PhoneNumber
+	if phone == "" {
+		phone = user.Phone
+	}
+
+	// If already in E.164 format (starts with +), return as-is
+	if len(phone) > 0 && phone[0] == '+' {
+		return phone
+	}
+
+	// Otherwise, use GetFullPhoneNumber to format it
+	return user.GetFullPhoneNumber()
 }
 
 // getKYCStatus returns KYC verification status
 func getKYCStatus(user *sharedModels.User) string {
-	if user.PhoneVerified || user.EmailVerified {
+	if user.PhoneVerified || user.EmailVerified || user.Verified {
 		return "verified"
 	}
 	return "pending"
@@ -446,7 +478,7 @@ func (js *JWTService) GenerateServiceToken(ctx context.Context, serviceName stri
 			ID:        uuid.New().String(),
 			Subject:   serviceName,
 			Issuer:    js.issuer,
-			Audience:  []string{"tchat-services"},
+			Audience:  []string{js.audience}, // Use configured audience
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			NotBefore: jwt.NewNumericDate(now),
 			IssuedAt:  jwt.NewNumericDate(now),

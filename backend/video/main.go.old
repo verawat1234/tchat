@@ -1,0 +1,32 @@
+package main
+
+import (
+	"log"
+
+	"tchat.dev/shared/app"
+	"tchat.dev/shared/config"
+)
+
+func main() {
+	// Load configuration
+	cfg := config.MustLoad()
+
+	// Override port for video service if not set
+	if cfg.Server.Port == 0 {
+		cfg.Server.Port = 8091 // Video service port
+	}
+
+	// Create service implementation (placeholder for now)
+	// Service initialization will be handled by BaseApp
+
+	// Create base application without service initializer
+	baseApp := app.NewBaseApp(cfg, nil)
+
+	// Initialize application
+	if err := baseApp.Initialize(); err != nil {
+		log.Fatalf("Failed to initialize video service: %v", err)
+	}
+
+	// Run with graceful shutdown
+	baseApp.RunWithGracefulShutdown()
+}

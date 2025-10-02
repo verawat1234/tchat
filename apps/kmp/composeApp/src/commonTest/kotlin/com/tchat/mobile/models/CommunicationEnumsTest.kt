@@ -198,7 +198,7 @@ class CommunicationEnumsTest {
         assertEquals(NotificationStatus.PENDING, NotificationStatus.fromValue("pending"))
         assertEquals(NotificationStatus.SENT, NotificationStatus.fromValue("sent"))
         assertEquals(NotificationStatus.DELIVERED, NotificationStatus.fromValue("delivered"))
-        assertEquals(NotificationStatus.read, NotificationStatus.fromValue("read"))
+        assertEquals(NotificationStatus.READ, NotificationStatus.fromValue("read"))
         assertEquals(NotificationStatus.FAILED, NotificationStatus.fromValue("failed"))
         assertEquals(NotificationStatus.CANCELLED, NotificationStatus.fromValue("cancelled"))
         assertNull(NotificationStatus.fromValue("invalid"))
@@ -209,7 +209,7 @@ class CommunicationEnumsTest {
         assertFalse(NotificationStatus.PENDING.isTerminal())
         assertFalse(NotificationStatus.SENT.isTerminal())
         assertFalse(NotificationStatus.DELIVERED.isTerminal())
-        assertTrue(NotificationStatus.read.isTerminal())
+        assertTrue(NotificationStatus.READ.isTerminal())
         assertTrue(NotificationStatus.FAILED.isTerminal())
         assertTrue(NotificationStatus.CANCELLED.isTerminal())
     }
@@ -245,7 +245,7 @@ class CommunicationEnumsTest {
         assertEquals(DeliveryStatus.PENDING, DeliveryStatus.fromValue("pending"))
         assertEquals(DeliveryStatus.SENT, DeliveryStatus.fromValue("sent"))
         assertEquals(DeliveryStatus.DELIVERED, DeliveryStatus.fromValue("delivered"))
-        assertEquals(DeliveryStatus.read, DeliveryStatus.fromValue("read"))
+        assertEquals(DeliveryStatus.READ, DeliveryStatus.fromValue("read"))
         assertEquals(DeliveryStatus.FAILED, DeliveryStatus.fromValue("failed"))
         assertNull(DeliveryStatus.fromValue("invalid"))
     }
@@ -255,7 +255,31 @@ class CommunicationEnumsTest {
         assertFalse(DeliveryStatus.PENDING.isDelivered())
         assertFalse(DeliveryStatus.SENT.isDelivered())
         assertTrue(DeliveryStatus.DELIVERED.isDelivered())
-        assertTrue(DeliveryStatus.read.isDelivered())
+        assertTrue(DeliveryStatus.READ.isDelivered())
         assertFalse(DeliveryStatus.FAILED.isDelivered())
     }
 }
+
+// Extension functions for MessageType companion object functionality
+object MessageTypeExtensions {
+    fun getMediaTypes(): List<MessageType> = listOf(
+        MessageType.IMAGE,
+        MessageType.VIDEO,
+        MessageType.AUDIO,
+        MessageType.FILE
+    )
+
+    fun getInteractiveTypes(): List<MessageType> = listOf(
+        MessageType.TEXT,
+        MessageType.IMAGE,
+        MessageType.VIDEO,
+        MessageType.AUDIO,
+        MessageType.LOCATION,
+        MessageType.CONTACT,
+        MessageType.POLL
+    )
+}
+
+// Make these available as static-like functions on MessageType
+fun MessageType.Companion.getMediaTypes() = MessageTypeExtensions.getMediaTypes()
+fun MessageType.Companion.getInteractiveTypes() = MessageTypeExtensions.getInteractiveTypes()

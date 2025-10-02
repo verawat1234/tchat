@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"tchat.dev/commerce/models"
 )
@@ -308,18 +309,39 @@ func (r *productRepository) CreateMediaProduct(ctx context.Context, mediaContent
 		return nil, fmt.Errorf("failed to find media content: %w", err)
 	}
 
-	// Create the product
+	// Create pricing information
+	pricing := []models.ProductPricing{
+		{
+			Currency: currency,
+			Price:    decimal.NewFromFloat(price),
+		},
+	}
+
+	// Create images from thumbnail
+	var images []models.ProductImage
+	if mediaContent.ThumbnailURL != "" {
+		images = append(images, models.ProductImage{
+			URL:       mediaContent.ThumbnailURL,
+			IsPrimary: true,
+			SortOrder: 0,
+		})
+	}
+
+	// Create the product using shared model structure
 	product := &models.Product{
-		ID:             uuid.New(),
-		Name:           mediaContent.Title,
-		Description:    mediaContent.Description,
-		Price:          price,
-		Currency:       currency,
-		ProductType:    models.ProductTypeMedia,
-		MediaContentID: &mediaContentID,
-		ThumbnailURL:   mediaContent.ThumbnailURL,
-		IsActive:       true,
-		StockQuantity:  nil, // Media products don't have stock
+		ID:          uuid.New(),
+		BusinessID:  uuid.Nil, // Set appropriate business ID if available
+		Name:        mediaContent.Title,
+		Description: mediaContent.Description,
+		Type:        models.ProductTypeMedia,
+		Status:      models.ProductStatusActive,
+		Category:    "media", // Default category
+		Pricing:     pricing,
+		Images:      images,
+		Inventory: models.ProductInventory{
+			TrackQuantity: false,
+			ManageStock:   false,
+		},
 	}
 
 	if err := r.db.WithContext(ctx).Create(product).Error; err != nil {

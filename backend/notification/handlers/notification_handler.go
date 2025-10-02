@@ -5,7 +5,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,11 +16,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"tchat.dev/notification/config"
 	"tchat.dev/notification/services"
-	"tchat.dev/shared/utils"
-	"tchat.dev/shared/config"
-	"tchat.dev/shared/middleware"
 	"tchat.dev/shared/events"
+	"tchat.dev/shared/middleware"
+	"tchat.dev/shared/utils"
 )
 
 // NotificationHandler handles notification-related HTTP requests
@@ -50,10 +49,10 @@ func NewNotificationHandler(
 // RegisterRoutes registers all notification routes with middleware
 func (h *NotificationHandler) RegisterRoutes(r *gin.Engine) {
 	// Apply CORS middleware
-	r.Use(middleware.CORSMiddleware())
+	r.Use(middleware.SimpleCORSMiddleware())
 
 	// Request logging middleware
-	r.Use(middleware.RequestLogger(h.logger))
+	r.Use(middleware.SimpleRequestLogger(h.logger))
 
 	// Recovery middleware
 	r.Use(gin.Recovery())
@@ -68,11 +67,11 @@ func (h *NotificationHandler) RegisterRoutes(r *gin.Engine) {
 
 	// Protected routes requiring authentication
 	protected := r.Group("/api/v1/notifications")
-	protected.Use(middleware.AuthMiddleware())
+	protected.Use(middleware.SimpleAuthMiddleware())
 	{
 		// Notification operations
-		protected.POST("/send", middleware.RateLimit(100, time.Minute), h.SendNotification)
-		protected.POST("/send/bulk", middleware.RateLimit(10, time.Minute), h.SendBulkNotifications)
+		protected.POST("/send", middleware.SimpleRateLimit(100, time.Minute), h.SendNotification)
+		protected.POST("/send/bulk", middleware.SimpleRateLimit(10, time.Minute), h.SendBulkNotifications)
 		protected.GET("/", h.GetNotifications)
 		protected.GET("/:id", h.GetNotification)
 		protected.PUT("/:id/read", h.MarkAsRead)
@@ -86,10 +85,10 @@ func (h *NotificationHandler) RegisterRoutes(r *gin.Engine) {
 
 		// Template management
 		protected.GET("/templates", h.GetTemplates)
-		protected.POST("/templates", middleware.AdminOnly(), h.CreateTemplate)
+		protected.POST("/templates", middleware.SimpleAdminOnly(), h.CreateTemplate)
 		protected.GET("/templates/:id", h.GetTemplate)
-		protected.PUT("/templates/:id", middleware.AdminOnly(), h.UpdateTemplate)
-		protected.DELETE("/templates/:id", middleware.AdminOnly(), h.DeleteTemplate)
+		protected.PUT("/templates/:id", middleware.SimpleAdminOnly(), h.UpdateTemplate)
+		protected.DELETE("/templates/:id", middleware.SimpleAdminOnly(), h.DeleteTemplate)
 
 		// Preferences
 		protected.GET("/preferences", h.GetPreferences)
@@ -98,11 +97,11 @@ func (h *NotificationHandler) RegisterRoutes(r *gin.Engine) {
 
 	// Admin routes
 	admin := r.Group("/api/v1/admin/notifications")
-	admin.Use(middleware.AuthMiddleware(), middleware.AdminOnly())
+	admin.Use(middleware.SimpleAuthMiddleware(), middleware.SimpleAdminOnly())
 	{
 		admin.GET("/analytics", h.GetAnalytics)
 		admin.GET("/delivery-reports", h.GetDeliveryReports)
-		admin.POST("/broadcast", middleware.RateLimit(1, time.Minute), h.BroadcastNotification)
+		admin.POST("/broadcast", middleware.SimpleRateLimit(1, time.Minute), h.BroadcastNotification)
 		admin.GET("/queues/status", h.GetQueueStatus)
 		admin.POST("/queues/retry/:id", h.RetryFailedNotification)
 	}
@@ -370,35 +369,18 @@ func (h *NotificationHandler) SendNotification(c *gin.Context) {
 	}
 
 	// Emit event
-	h.eventBus.Publish("notification.sent", map[string]interface{}{
-		"notification_id": notification.ID,
-		"recipient_id":    notification.RecipientID,
-		"type":           notification.Type,
-		"channel":        notification.Channel,
-		"timestamp":      time.Now(),
+	h.eventBus.Publish(c.Request.Context(), &events.Event{
+		Type: "notification.sent",
+		Data: map[string]interface{}{
+			"notification_id": notification.GetIDString(),
+			"recipient_id":    notification.GetRecipientID(),
+			"type":            notification.GetTypeString(),
+			"channel":         notification.GetChannelString(),
+		},
+		Timestamp: time.Now(),
 	})
 
-	response := &NotificationResponse{
-		ID:          notification.ID,
-		RecipientID: notification.RecipientID,
-		Type:        notification.Type,
-		Channel:     notification.Channel,
-		Subject:     notification.Subject,
-		Content:     notification.Content,
-		Status:      notification.Status,
-		Priority:    notification.Priority,
-		Read:        notification.Read,
-		ReadAt:      notification.ReadAt,
-		SentAt:      notification.SentAt,
-		DeliveredAt: notification.DeliveredAt,
-		FailedAt:    notification.FailedAt,
-		ScheduledAt: notification.ScheduledAt,
-		ExpiresAt:   notification.ExpiresAt,
-		RetryCount:  notification.RetryCount,
-		Metadata:    notification.Metadata,
-		CreatedAt:   notification.CreatedAt,
-		UpdatedAt:   notification.UpdatedAt,
-	}
+	response := NotificationToResponse(notification)
 
 	c.JSON(http.StatusCreated, gin.H{"notification": response})
 }
@@ -455,38 +437,18 @@ func (h *NotificationHandler) SendBulkNotifications(c *gin.Context) {
 	}
 
 	// Convert to response format
-	responses := make([]*NotificationResponse, len(notifications))
-	for i, notification := range notifications {
-		responses[i] = &NotificationResponse{
-			ID:          notification.ID,
-			RecipientID: notification.RecipientID,
-			Type:        notification.Type,
-			Channel:     notification.Channel,
-			Subject:     notification.Subject,
-			Content:     notification.Content,
-			Status:      notification.Status,
-			Priority:    notification.Priority,
-			Read:        notification.Read,
-			ReadAt:      notification.ReadAt,
-			SentAt:      notification.SentAt,
-			DeliveredAt: notification.DeliveredAt,
-			FailedAt:    notification.FailedAt,
-			ScheduledAt: notification.ScheduledAt,
-			ExpiresAt:   notification.ExpiresAt,
-			RetryCount:  notification.RetryCount,
-			Metadata:    notification.Metadata,
-			CreatedAt:   notification.CreatedAt,
-			UpdatedAt:   notification.UpdatedAt,
-		}
-	}
+	responses := NotificationsToResponses(notifications)
 
 	// Emit bulk event
-	h.eventBus.Publish("notifications.bulk_sent", map[string]interface{}{
-		"sender_id":      userID.(string),
-		"recipient_count": len(req.RecipientIDs),
-		"type":           req.Type,
-		"channel":        req.Channel,
-		"timestamp":      time.Now(),
+	h.eventBus.Publish(c.Request.Context(), &events.Event{
+		Type: "notifications.bulk_sent",
+		Data: map[string]interface{}{
+			"sender_id":       userID.(string),
+			"recipient_count": len(req.RecipientIDs),
+			"type":            req.Type,
+			"channel":         req.Channel,
+		},
+		Timestamp: time.Now(),
 	})
 
 	c.JSON(http.StatusCreated, gin.H{
@@ -538,14 +500,17 @@ func (h *NotificationHandler) BroadcastNotification(c *gin.Context) {
 	}
 
 	// Emit broadcast event
-	h.eventBus.Publish("notification.broadcast", map[string]interface{}{
-		"broadcast_id":    broadcastID,
-		"sender_id":       userID.(string),
-		"user_segment":    req.UserSegment,
-		"recipient_count": count,
-		"type":           req.Type,
-		"channel":        req.Channel,
-		"timestamp":      time.Now(),
+	h.eventBus.Publish(c.Request.Context(), &events.Event{
+		Type: "notification.broadcast",
+		Data: map[string]interface{}{
+			"broadcast_id":    broadcastID,
+			"sender_id":       userID.(string),
+			"user_segment":    req.UserSegment,
+			"recipient_count": count,
+			"type":            req.Type,
+			"channel":         req.Channel,
+		},
+		Timestamp: time.Now(),
 	})
 
 	c.JSON(http.StatusAccepted, gin.H{
@@ -594,30 +559,7 @@ func (h *NotificationHandler) GetNotifications(c *gin.Context) {
 	}
 
 	// Convert to response format
-	responses := make([]*NotificationResponse, len(notifications))
-	for i, notification := range notifications {
-		responses[i] = &NotificationResponse{
-			ID:          notification.ID,
-			RecipientID: notification.RecipientID,
-			Type:        notification.Type,
-			Channel:     notification.Channel,
-			Subject:     notification.Subject,
-			Content:     notification.Content,
-			Status:      notification.Status,
-			Priority:    notification.Priority,
-			Read:        notification.Read,
-			ReadAt:      notification.ReadAt,
-			SentAt:      notification.SentAt,
-			DeliveredAt: notification.DeliveredAt,
-			FailedAt:    notification.FailedAt,
-			ScheduledAt: notification.ScheduledAt,
-			ExpiresAt:   notification.ExpiresAt,
-			RetryCount:  notification.RetryCount,
-			Metadata:    notification.Metadata,
-			CreatedAt:   notification.CreatedAt,
-			UpdatedAt:   notification.UpdatedAt,
-		}
-	}
+	responses := NotificationsToResponses(notifications)
 
 	totalPages := (total + int64(limit) - 1) / int64(limit)
 
@@ -662,27 +604,7 @@ func (h *NotificationHandler) GetNotification(c *gin.Context) {
 		return
 	}
 
-	response := &NotificationResponse{
-		ID:          notification.ID,
-		RecipientID: notification.RecipientID,
-		Type:        notification.Type,
-		Channel:     notification.Channel,
-		Subject:     notification.Subject,
-		Content:     notification.Content,
-		Status:      notification.Status,
-		Priority:    notification.Priority,
-		Read:        notification.Read,
-		ReadAt:      notification.ReadAt,
-		SentAt:      notification.SentAt,
-		DeliveredAt: notification.DeliveredAt,
-		FailedAt:    notification.FailedAt,
-		ScheduledAt: notification.ScheduledAt,
-		ExpiresAt:   notification.ExpiresAt,
-		RetryCount:  notification.RetryCount,
-		Metadata:    notification.Metadata,
-		CreatedAt:   notification.CreatedAt,
-		UpdatedAt:   notification.UpdatedAt,
-	}
+	response := NotificationToResponse(notification)
 
 	c.JSON(http.StatusOK, gin.H{"notification": response})
 }
@@ -716,10 +638,13 @@ func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
 	}
 
 	// Emit read event
-	h.eventBus.Publish("notification.read", map[string]interface{}{
-		"notification_id": notificationID,
-		"user_id":        userID.(string),
-		"timestamp":      time.Now(),
+	h.eventBus.Publish(c.Request.Context(), &events.Event{
+		Type: "notification.read",
+		Data: map[string]interface{}{
+			"notification_id": notificationID,
+			"user_id":         userID.(string),
+		},
+		Timestamp: time.Now(),
 	})
 
 	c.JSON(http.StatusOK, gin.H{"message": "Notification marked as read"})
@@ -778,13 +703,13 @@ func (h *NotificationHandler) GetSubscriptions(c *gin.Context) {
 	responses := make([]*SubscriptionResponse, len(subscriptions))
 	for i, subscription := range subscriptions {
 		responses[i] = &SubscriptionResponse{
-			ID:          subscription.ID,
-			UserID:      subscription.UserID,
-			Channel:     subscription.Channel,
-			Type:        subscription.Type,
-			Endpoint:    subscription.Endpoint,
-			Enabled:     subscription.Enabled,
-			Preferences: subscription.Preferences,
+			ID:          subscription.GetIDString(),
+			UserID:      subscription.GetUserIDString(),
+			Channel:     subscription.GetChannelString(),
+			Type:        subscription.GetType(),
+			Endpoint:    subscription.GetEndpoint(),
+			Enabled:     subscription.GetEnabled(),
+			Preferences: nil, // Model doesn't have Preferences field
 			CreatedAt:   subscription.CreatedAt,
 			UpdatedAt:   subscription.UpdatedAt,
 		}
@@ -807,7 +732,7 @@ func (h *NotificationHandler) CreateSubscription(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email address"})
 		return
 	}
-	if req.Type == "sms" && !utils.IsValidPhoneNumber(req.Endpoint) {
+	if req.Type == "sms" && !utils.IsValidPhoneNumber(req.Endpoint, "") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid phone number"})
 		return
 	}
@@ -841,13 +766,13 @@ func (h *NotificationHandler) CreateSubscription(c *gin.Context) {
 	}
 
 	response := &SubscriptionResponse{
-		ID:          subscription.ID,
-		UserID:      subscription.UserID,
-		Channel:     subscription.Channel,
-		Type:        subscription.Type,
-		Endpoint:    subscription.Endpoint,
-		Enabled:     subscription.Enabled,
-		Preferences: subscription.Preferences,
+		ID:          subscription.GetIDString(),
+		UserID:      subscription.GetUserIDString(),
+		Channel:     subscription.GetChannelString(),
+		Type:        subscription.GetType(),
+		Endpoint:    subscription.GetEndpoint(),
+		Enabled:     subscription.GetEnabled(),
+		Preferences: nil, // Model doesn't have Preferences field
 		CreatedAt:   subscription.CreatedAt,
 		UpdatedAt:   subscription.UpdatedAt,
 	}
@@ -908,13 +833,13 @@ func (h *NotificationHandler) UpdateSubscription(c *gin.Context) {
 	}
 
 	response := &SubscriptionResponse{
-		ID:          subscription.ID,
-		UserID:      subscription.UserID,
-		Channel:     subscription.Channel,
-		Type:        subscription.Type,
-		Endpoint:    subscription.Endpoint,
-		Enabled:     subscription.Enabled,
-		Preferences: subscription.Preferences,
+		ID:          subscription.GetIDString(),
+		UserID:      subscription.GetUserIDString(),
+		Channel:     subscription.GetChannelString(),
+		Type:        subscription.GetType(),
+		Endpoint:    subscription.GetEndpoint(),
+		Enabled:     subscription.GetEnabled(),
+		Preferences: nil, // Model doesn't have Preferences field
 		CreatedAt:   subscription.CreatedAt,
 		UpdatedAt:   subscription.UpdatedAt,
 	}
@@ -986,23 +911,7 @@ func (h *NotificationHandler) GetTemplates(c *gin.Context) {
 	}
 
 	// Convert to response format
-	responses := make([]*TemplateResponse, len(templates))
-	for i, template := range templates {
-		responses[i] = &TemplateResponse{
-			ID:        template.ID,
-			Name:      template.Name,
-			Type:      template.Type,
-			Category:  template.Category,
-			Subject:   template.Subject,
-			Content:   template.Content,
-			Variables: template.Variables,
-			Locales:   template.Locales,
-			Metadata:  template.Metadata,
-			Active:    template.Active,
-			CreatedAt: template.CreatedAt,
-			UpdatedAt: template.UpdatedAt,
-		}
-	}
+	responses := TemplatesToResponses(templates)
 
 	totalPages := (total + int64(limit) - 1) / int64(limit)
 
@@ -1065,20 +974,7 @@ func (h *NotificationHandler) CreateTemplate(c *gin.Context) {
 		return
 	}
 
-	response := &TemplateResponse{
-		ID:        template.ID,
-		Name:      template.Name,
-		Type:      template.Type,
-		Category:  template.Category,
-		Subject:   template.Subject,
-		Content:   template.Content,
-		Variables: template.Variables,
-		Locales:   template.Locales,
-		Metadata:  template.Metadata,
-		Active:    template.Active,
-		CreatedAt: template.CreatedAt,
-		UpdatedAt: template.UpdatedAt,
-	}
+	response := TemplateToResponse(template)
 
 	c.JSON(http.StatusCreated, gin.H{"template": response})
 }
@@ -1104,20 +1000,7 @@ func (h *NotificationHandler) GetTemplate(c *gin.Context) {
 		return
 	}
 
-	response := &TemplateResponse{
-		ID:        template.ID,
-		Name:      template.Name,
-		Type:      template.Type,
-		Category:  template.Category,
-		Subject:   template.Subject,
-		Content:   template.Content,
-		Variables: template.Variables,
-		Locales:   template.Locales,
-		Metadata:  template.Metadata,
-		Active:    template.Active,
-		CreatedAt: template.CreatedAt,
-		UpdatedAt: template.UpdatedAt,
-	}
+	response := TemplateToResponse(template)
 
 	c.JSON(http.StatusOK, gin.H{"template": response})
 }
@@ -1180,20 +1063,7 @@ func (h *NotificationHandler) UpdateTemplate(c *gin.Context) {
 		return
 	}
 
-	response := &TemplateResponse{
-		ID:        template.ID,
-		Name:      template.Name,
-		Type:      template.Type,
-		Category:  template.Category,
-		Subject:   template.Subject,
-		Content:   template.Content,
-		Variables: template.Variables,
-		Locales:   template.Locales,
-		Metadata:  template.Metadata,
-		Active:    template.Active,
-		CreatedAt: template.CreatedAt,
-		UpdatedAt: template.UpdatedAt,
-	}
+	response := TemplateToResponse(template)
 
 	c.JSON(http.StatusOK, gin.H{"template": response})
 }
@@ -1245,14 +1115,14 @@ func (h *NotificationHandler) GetPreferences(c *gin.Context) {
 	}
 
 	response := &PreferencesResponse{
-		UserID:       preferences.UserID,
-		EmailEnabled: preferences.EmailEnabled,
-		SMSEnabled:   preferences.SMSEnabled,
-		PushEnabled:  preferences.PushEnabled,
-		InAppEnabled: preferences.InAppEnabled,
+		UserID:       preferences.GetUserIDString(),
+		EmailEnabled: preferences.GetEmailEnabled(),
+		SMSEnabled:   preferences.GetSMSEnabled(),
+		PushEnabled:  preferences.GetPushEnabled(),
+		InAppEnabled: preferences.GetInAppEnabled(),
 		Categories:   preferences.Categories,
-		QuietHours:   preferences.QuietHours,
-		Languages:    preferences.Languages,
+		QuietHours:   preferences.GetQuietHoursMap(),
+		Languages:    preferences.GetLanguages(),
 		UpdatedAt:    preferences.UpdatedAt,
 	}
 
@@ -1293,14 +1163,14 @@ func (h *NotificationHandler) UpdatePreferences(c *gin.Context) {
 	}
 
 	response := &PreferencesResponse{
-		UserID:       preferences.UserID,
-		EmailEnabled: preferences.EmailEnabled,
-		SMSEnabled:   preferences.SMSEnabled,
-		PushEnabled:  preferences.PushEnabled,
-		InAppEnabled: preferences.InAppEnabled,
+		UserID:       preferences.GetUserIDString(),
+		EmailEnabled: preferences.GetEmailEnabled(),
+		SMSEnabled:   preferences.GetSMSEnabled(),
+		PushEnabled:  preferences.GetPushEnabled(),
+		InAppEnabled: preferences.GetInAppEnabled(),
 		Categories:   preferences.Categories,
-		QuietHours:   preferences.QuietHours,
-		Languages:    preferences.Languages,
+		QuietHours:   preferences.GetQuietHoursMap(),
+		Languages:    preferences.GetLanguages(),
 		UpdatedAt:    preferences.UpdatedAt,
 	}
 
@@ -1329,19 +1199,19 @@ func (h *NotificationHandler) GetAnalytics(c *gin.Context) {
 	}
 
 	response := &AnalyticsResponse{
-		Period:         analytics.Period,
+		Period:         analytics.GetPeriod(period),
 		TotalSent:      analytics.TotalSent,
 		TotalDelivered: analytics.TotalDelivered,
 		TotalFailed:    analytics.TotalFailed,
-		TotalOpened:    analytics.TotalOpened,
-		TotalClicked:   analytics.TotalClicked,
-		DeliveryRate:   analytics.DeliveryRate,
-		OpenRate:       analytics.OpenRate,
-		ClickRate:      analytics.ClickRate,
-		ByType:         analytics.ByType,
-		ByChannel:      analytics.ByChannel,
-		TopCategories:  analytics.TopCategories,
-		RecentActivity: analytics.RecentActivity,
+		TotalOpened:    analytics.GetTotalOpened(),
+		TotalClicked:   analytics.GetTotalClicked(),
+		DeliveryRate:   analytics.GetDeliveryRate(),
+		OpenRate:       analytics.GetOpenRate(),
+		ClickRate:      analytics.GetClickRate(),
+		ByType:         analytics.GetByType(),
+		ByChannel:      analytics.GetByChannelMap(),
+		TopCategories:  analytics.GetTopCategories(),
+		RecentActivity: analytics.GetRecentActivity(),
 	}
 
 	c.JSON(http.StatusOK, gin.H{"analytics": response})
@@ -1407,8 +1277,8 @@ func (h *NotificationHandler) GetQueueStatus(c *gin.Context) {
 		Pending:    status.Pending,
 		Processing: status.Processing,
 		Failed:     status.Failed,
-		Retry:      status.Retry,
-		Scheduled:  status.Scheduled,
+		Retry:      0, // Model doesn't have Retry field
+		Scheduled:  0, // Model doesn't have Scheduled field
 	}
 
 	c.JSON(http.StatusOK, gin.H{"queue_status": response})
@@ -1481,12 +1351,15 @@ func (h *NotificationHandler) HandleEmailWebhook(c *gin.Context) {
 	}
 
 	// Emit webhook event
-	h.eventBus.Publish("webhook.email.received", map[string]interface{}{
-		"event":      payload.Event,
-		"message_id": payload.MessageID,
-		"status":     payload.Status,
-		"recipient":  payload.Recipient,
-		"timestamp":  payload.Timestamp,
+	h.eventBus.Publish(c.Request.Context(), &events.Event{
+		Type: "webhook.email.received",
+		Data: map[string]interface{}{
+			"event":      payload.Event,
+			"message_id": payload.MessageID,
+			"status":     payload.Status,
+			"recipient":  payload.Recipient,
+		},
+		Timestamp: payload.Timestamp,
 	})
 
 	c.JSON(http.StatusOK, gin.H{"status": "processed"})
@@ -1528,12 +1401,15 @@ func (h *NotificationHandler) HandleSMSWebhook(c *gin.Context) {
 	}
 
 	// Emit webhook event
-	h.eventBus.Publish("webhook.sms.received", map[string]interface{}{
-		"event":      payload.Event,
-		"message_id": payload.MessageID,
-		"status":     payload.Status,
-		"recipient":  payload.Recipient,
-		"timestamp":  payload.Timestamp,
+	h.eventBus.Publish(c.Request.Context(), &events.Event{
+		Type: "webhook.sms.received",
+		Data: map[string]interface{}{
+			"event":      payload.Event,
+			"message_id": payload.MessageID,
+			"status":     payload.Status,
+			"recipient":  payload.Recipient,
+		},
+		Timestamp: payload.Timestamp,
 	})
 
 	c.JSON(http.StatusOK, gin.H{"status": "processed"})
@@ -1575,12 +1451,15 @@ func (h *NotificationHandler) HandlePushWebhook(c *gin.Context) {
 	}
 
 	// Emit webhook event
-	h.eventBus.Publish("webhook.push.received", map[string]interface{}{
-		"event":      payload.Event,
-		"message_id": payload.MessageID,
-		"status":     payload.Status,
-		"recipient":  payload.Recipient,
-		"timestamp":  payload.Timestamp,
+	h.eventBus.Publish(c.Request.Context(), &events.Event{
+		Type: "webhook.push.received",
+		Data: map[string]interface{}{
+			"event":      payload.Event,
+			"message_id": payload.MessageID,
+			"status":     payload.Status,
+			"recipient":  payload.Recipient,
+		},
+		Timestamp: payload.Timestamp,
 	})
 
 	c.JSON(http.StatusOK, gin.H{"status": "processed"})

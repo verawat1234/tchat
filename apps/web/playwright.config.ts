@@ -12,7 +12,7 @@ import { defineConfig, devices } from '@playwright/test';
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-  testDir: './e2e',
+  testDir: './tests/e2e',
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -63,19 +63,16 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      testDir: './e2e/web',
     },
 
     {
       name: 'firefox',
       use: { ...devices['Desktop Firefox'] },
-      testDir: './e2e/web',
     },
 
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
-      testDir: './e2e/web',
     },
 
     /* Test against mobile viewports. */
@@ -88,7 +85,6 @@ export default defineConfig({
           permissions: ['geolocation'],
         },
       },
-      testDir: './e2e/web',
     },
     {
       name: 'Mobile Safari',
@@ -99,38 +95,16 @@ export default defineConfig({
           permissions: ['geolocation'],
         },
       },
-      testDir: './e2e/web',
     },
 
     /* Test against branded browsers. */
     {
       name: 'Microsoft Edge',
       use: { ...devices['Desktop Edge'], channel: 'msedge' },
-      testDir: './e2e/web',
     },
     {
       name: 'Google Chrome',
       use: { ...devices['Desktop Chrome'], channel: 'chrome' },
-      testDir: './e2e/web',
-    },
-
-    /* Cross-platform tests */
-    {
-      name: 'cross-platform',
-      use: { ...devices['Desktop Chrome'] },
-      testDir: './e2e/cross-platform',
-    },
-
-    /* Performance tests */
-    {
-      name: 'performance',
-      use: {
-        ...devices['Desktop Chrome'],
-        // Disable video/screenshots for performance tests
-        video: 'off',
-        screenshot: 'off',
-      },
-      testDir: './e2e/performance',
     },
   ],
 

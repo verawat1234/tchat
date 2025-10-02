@@ -289,18 +289,21 @@ func (r *cartRepository) AddMediaItemToCart(ctx context.Context, cartID uuid.UUI
 			return fmt.Errorf("failed to update cart item quantity: %w", err)
 		}
 	} else if err == gorm.ErrRecordNotFound {
+		// Get default price and currency from product
+		price, currency := models.GetDefaultPrice(&product)
+
 		// Create new cart item
 		cartItem := &models.CartItem{
 			ID:        uuid.New(),
 			CartID:    cartID,
 			ProductID: mediaProductID,
 			Quantity:  quantity,
-			Price:     decimal.NewFromFloat(product.Price),
-			Currency:  product.Currency,
+			Price:     decimal.NewFromFloat(price),
+			Currency:  currency,
 		}
 
 		// Set media-specific properties
-		if product.IsMedia() {
+		if models.ProductIsMedia(&product) {
 			license := "personal"
 			cartItem.SetMediaLicense(license)
 
@@ -308,10 +311,11 @@ func (r *cartRepository) AddMediaItemToCart(ctx context.Context, cartID uuid.UUI
 			var mediaContent struct {
 				ContentType string `gorm:"column:content_type"`
 			}
+			mediaContentID := models.GetMediaContentID(&product)
 			if err := r.db.WithContext(ctx).
 				Table("media_content_items").
 				Select("content_type").
-				Where("id = ?", product.MediaContentID).
+				Where("id = ?", mediaContentID).
 				First(&mediaContent).Error; err == nil {
 
 				format := getDefaultDownloadFormat(mediaContent.ContentType)

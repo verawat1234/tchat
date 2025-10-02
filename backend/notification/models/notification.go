@@ -159,6 +159,18 @@ type Notification struct {
 	Targeting   Targeting    `json:"targeting" gorm:"type:json"`
 	TotalUsers  int64        `json:"total_users" gorm:"default:0"`
 
+	// For single-user notifications (backward compatibility)
+	UserID         uuid.UUID           `json:"user_id,omitempty" gorm:"type:varchar(36);index"`
+	RecipientEmail string              `json:"recipient_email,omitempty" gorm:"type:varchar(255)"`
+	RecipientPhone string              `json:"recipient_phone,omitempty" gorm:"type:varchar(50)"`
+	DeviceToken    string              `json:"device_token,omitempty" gorm:"type:varchar(255)"`
+	Platform       string              `json:"platform,omitempty" gorm:"type:varchar(20)"` // iOS, Android, Web
+	Channel        NotificationChannel `json:"channel,omitempty" gorm:"type:varchar(20)"`
+	Read           bool                `json:"read,omitempty" gorm:"default:false"`
+	MediaURL       string              `json:"media_url,omitempty" gorm:"type:varchar(500)"`
+	ActionText     string              `json:"action_text,omitempty" gorm:"type:varchar(100)"`
+	IconURL        string              `json:"icon_url,omitempty" gorm:"type:varchar(500)"`
+
 	// Scheduling
 	ScheduledAt *time.Time   `json:"scheduled_at,omitempty" gorm:"index"`
 	SentAt      *time.Time   `json:"sent_at,omitempty" gorm:"index"`
@@ -214,6 +226,7 @@ type NotificationTemplate struct {
 	Category     NotificationCategory `json:"category" gorm:"type:varchar(30);not null"`
 	Subject       string               `json:"subject" gorm:"type:varchar(255)"`
 	Body          string               `json:"body" gorm:"type:text;not null"`
+	Language      string               `json:"language" gorm:"type:varchar(10);default:'en'"` // Default language
 	TitleTemplate string               `json:"title_template" gorm:"type:text"`
 	BodyTemplate  string               `json:"body_template" gorm:"type:text"`
 	Variables     []string             `json:"variables" gorm:"type:json"`
@@ -601,6 +614,45 @@ func (nm *NotificationManager) GetDefaultConfig() DeliveryConfig {
 	}
 }
 
+// DeliveryStats represents delivery statistics
+type DeliveryStats struct {
+	TotalSent      int64   `json:"total_sent"`
+	TotalDelivered int64   `json:"total_delivered"`
+	TotalRead      int64   `json:"total_read"`
+	TotalFailed    int64   `json:"total_failed"`
+	DeliveryRate   float64 `json:"delivery_rate"`
+	ReadRate       float64 `json:"read_rate"`
+	FailureRate    float64 `json:"failure_rate"`
+	ByChannel      map[NotificationChannel]int64 `json:"by_channel"`
+}
+
+// NotificationSubscription represents a user's notification subscription
+type NotificationSubscription struct {
+	ID          uuid.UUID           `json:"id" gorm:"primaryKey;type:varchar(36)"`
+	UserID      uuid.UUID           `json:"user_id" gorm:"type:varchar(36);not null;index"`
+	Channel     NotificationChannel `json:"channel" gorm:"type:varchar(20);not null;index"`
+	DeviceToken string              `json:"device_token" gorm:"type:varchar(255)"`
+	Platform    string              `json:"platform" gorm:"type:varchar(20)"` // iOS, Android, Web
+	IsActive    bool                `json:"is_active" gorm:"default:true"`
+	CreatedAt   time.Time           `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt   time.Time           `json:"updated_at" gorm:"autoUpdateTime"`
+}
+
+// NotificationPreferences represents a user's notification preferences
+type NotificationPreferences struct {
+	ID        uuid.UUID          `json:"id" gorm:"primaryKey;type:varchar(36)"`
+	UserID    uuid.UUID          `json:"user_id" gorm:"type:varchar(36);not null;uniqueIndex"`
+	Channels  map[string]bool    `json:"channels" gorm:"type:json"` // Channel -> Enabled
+	Categories map[string]bool   `json:"categories" gorm:"type:json"` // Category -> Enabled
+	QuietHours struct {
+		Enabled bool   `json:"enabled"`
+		Start   string `json:"start"` // HH:MM
+		End     string `json:"end"`   // HH:MM
+	} `json:"quiet_hours" gorm:"type:json"`
+	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+}
+
 // IsValid methods for validation
 func (c NotificationChannel) IsValid() bool {
 	switch c {
@@ -618,4 +670,33 @@ func (p NotificationPriority) IsValid() bool {
 	default:
 		return false
 	}
+}
+
+// NotificationAnalytics represents analytics data
+type NotificationAnalytics struct {
+	TotalSent      int64                               `json:"total_sent"`
+	TotalDelivered int64                               `json:"total_delivered"`
+	TotalRead      int64                               `json:"total_read"`
+	TotalFailed    int64                               `json:"total_failed"`
+	ByChannel      map[NotificationChannel]int64       `json:"by_channel"`
+	ByCategory     map[NotificationCategory]int64      `json:"by_category"`
+	ByPriority     map[Priority]int64                  `json:"by_priority"`
+}
+
+// DeliveryReport represents a delivery report
+type DeliveryReport struct {
+	Date           time.Time                           `json:"date"`
+	TotalSent      int64                               `json:"total_sent"`
+	TotalDelivered int64                               `json:"total_delivered"`
+	TotalFailed    int64                               `json:"total_failed"`
+	ByChannel      map[NotificationChannel]int64       `json:"by_channel"`
+}
+
+// QueueStatus represents queue status information
+type QueueStatus struct {
+	Pending    int64     `json:"pending"`
+	Processing int64     `json:"processing"`
+	Completed  int64     `json:"completed"`
+	Failed     int64     `json:"failed"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }

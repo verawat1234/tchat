@@ -16,30 +16,31 @@ class ChatGroupTestSimple {
         // Create a simple group chat session
         val groupChat = ChatSession(
             id = "group_123",
-            title = "Test Group",
+            name = "Test Group",
             type = ChatType.GROUP,
             participants = listOf(
-                Participant(
+                ChatParticipant(
                     id = "user_1",
                     name = "Alice",
-                    role = ParticipantRole.OWNER,
-                    joinedAt = System.currentTimeMillis()
+                    role = ChatRole.OWNER,
+                    joinedAt = "2024-01-01T00:00:00Z"
                 ),
-                Participant(
+                ChatParticipant(
                     id = "user_2",
                     name = "Bob",
-                    role = ParticipantRole.MEMBER,
-                    joinedAt = System.currentTimeMillis()
+                    role = ChatRole.MEMBER,
+                    joinedAt = "2024-01-01T00:00:00Z"
                 )
             ),
             lastMessage = null,
-            createdAt = System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis()
+            metadata = ChatMetadata(),
+            createdAt = "2024-01-01T00:00:00Z",
+            updatedAt = "2024-01-01T00:00:00Z"
         )
 
         // Verify group properties
         assertEquals("group_123", groupChat.id)
-        assertEquals("Test Group", groupChat.title)
+        assertEquals("Test Group", groupChat.name)
         assertEquals(ChatType.GROUP, groupChat.type)
         assertEquals(2, groupChat.participants.size)
         assertTrue(groupChat.isGroup())
@@ -48,40 +49,41 @@ class ChatGroupTestSimple {
     @Test
     fun testGroupParticipantRoles() {
         val participants = listOf(
-            Participant(
+            ChatParticipant(
                 id = "owner_1",
                 name = "Owner",
-                role = ParticipantRole.OWNER,
-                joinedAt = System.currentTimeMillis()
+                role = ChatRole.OWNER,
+                joinedAt = "2024-01-01T00:00:00Z"
             ),
-            Participant(
+            ChatParticipant(
                 id = "admin_1",
                 name = "Admin",
-                role = ParticipantRole.ADMIN,
-                joinedAt = System.currentTimeMillis()
+                role = ChatRole.ADMIN,
+                joinedAt = "2024-01-01T00:00:00Z"
             ),
-            Participant(
+            ChatParticipant(
                 id = "member_1",
                 name = "Member",
-                role = ParticipantRole.MEMBER,
-                joinedAt = System.currentTimeMillis()
+                role = ChatRole.MEMBER,
+                joinedAt = "2024-01-01T00:00:00Z"
             )
         )
 
         val groupChat = ChatSession(
             id = "group_roles",
-            title = "Role Test Group",
+            name = "Role Test Group",
             type = ChatType.GROUP,
             participants = participants,
             lastMessage = null,
-            createdAt = System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis()
+            metadata = ChatMetadata(),
+            createdAt = "2024-01-01T00:00:00Z",
+            updatedAt = "2024-01-01T00:00:00Z"
         )
 
         // Test role identification
-        val owner = groupChat.participants.find { it.role == ParticipantRole.OWNER }
-        val admin = groupChat.participants.find { it.role == ParticipantRole.ADMIN }
-        val member = groupChat.participants.find { it.role == ParticipantRole.MEMBER }
+        val owner = groupChat.participants.find { it.role == ChatRole.OWNER }
+        val admin = groupChat.participants.find { it.role == ChatRole.ADMIN }
+        val member = groupChat.participants.find { it.role == ChatRole.MEMBER }
 
         assertTrue(owner != null)
         assertTrue(admin != null)
@@ -95,75 +97,80 @@ class ChatGroupTestSimple {
     fun testChannelVsGroupIdentification() {
         val group = ChatSession(
             id = "group_1",
-            title = "Group Chat",
+            name = "Group Chat",
             type = ChatType.GROUP,
             participants = emptyList(),
             lastMessage = null,
-            createdAt = System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis()
+            metadata = ChatMetadata(),
+            createdAt = "2024-01-01T00:00:00Z",
+            updatedAt = "2024-01-01T00:00:00Z"
         )
 
         val channel = ChatSession(
             id = "channel_1",
-            title = "Channel Chat",
+            name = "Channel Chat",
             type = ChatType.CHANNEL,
             participants = emptyList(),
             lastMessage = null,
-            createdAt = System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis()
+            metadata = ChatMetadata(),
+            createdAt = "2024-01-01T00:00:00Z",
+            updatedAt = "2024-01-01T00:00:00Z"
         )
 
         val directMessage = ChatSession(
             id = "dm_1",
-            title = "Direct Message",
-            type = ChatType.DIRECT_MESSAGE,
+            name = "Direct Message",
+            type = ChatType.DIRECT,
             participants = emptyList(),
             lastMessage = null,
-            createdAt = System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis()
+            metadata = ChatMetadata(),
+            createdAt = "2024-01-01T00:00:00Z",
+            updatedAt = "2024-01-01T00:00:00Z"
         )
 
         // Test type identification
         assertTrue(group.isGroup())
-        assertFalse(channel.isGroup())
+        assertTrue(channel.isGroup()) // Channels are considered groups
         assertFalse(directMessage.isGroup())
 
-        // Test specific type checks (if these methods exist)
+        // Test specific type checks
         assertEquals(ChatType.GROUP, group.type)
         assertEquals(ChatType.CHANNEL, channel.type)
-        assertEquals(ChatType.DIRECT_MESSAGE, directMessage.type)
+        assertEquals(ChatType.DIRECT, directMessage.type)
     }
 
     @Test
     fun testGroupParticipantCount() {
         val smallGroup = ChatSession(
             id = "small_group",
-            title = "Small Group",
+            name = "Small Group",
             type = ChatType.GROUP,
             participants = listOf(
-                Participant("user_1", "Alice", ParticipantRole.OWNER, System.currentTimeMillis()),
-                Participant("user_2", "Bob", ParticipantRole.MEMBER, System.currentTimeMillis())
+                ChatParticipant(id = "user_1", name = "Alice", role = ChatRole.OWNER, joinedAt = "2024-01-01T00:00:00Z"),
+                ChatParticipant(id = "user_2", name = "Bob", role = ChatRole.MEMBER, joinedAt = "2024-01-01T00:00:00Z")
             ),
             lastMessage = null,
-            createdAt = System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis()
+            metadata = ChatMetadata(),
+            createdAt = "2024-01-01T00:00:00Z",
+            updatedAt = "2024-01-01T00:00:00Z"
         )
 
         val largeGroup = ChatSession(
             id = "large_group",
-            title = "Large Group",
+            name = "Large Group",
             type = ChatType.GROUP,
             participants = (1..10).map { i ->
-                Participant(
-                    "user_$i",
-                    "User $i",
-                    if (i == 1) ParticipantRole.OWNER else ParticipantRole.MEMBER,
-                    System.currentTimeMillis()
+                ChatParticipant(
+                    id = "user_$i",
+                    name = "User $i",
+                    role = if (i == 1) ChatRole.OWNER else ChatRole.MEMBER,
+                    joinedAt = "2024-01-01T00:00:00Z"
                 )
             },
             lastMessage = null,
-            createdAt = System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis()
+            metadata = ChatMetadata(),
+            createdAt = "2024-01-01T00:00:00Z",
+            updatedAt = "2024-01-01T00:00:00Z"
         )
 
         // Test participant counts
@@ -175,14 +182,14 @@ class ChatGroupTestSimple {
 
     @Test
     fun testGroupPermissions() {
-        val owner = Participant("owner", "Owner", ParticipantRole.OWNER, System.currentTimeMillis())
-        val admin = Participant("admin", "Admin", ParticipantRole.ADMIN, System.currentTimeMillis())
-        val member = Participant("member", "Member", ParticipantRole.MEMBER, System.currentTimeMillis())
+        val owner = ChatParticipant(id = "owner", name = "Owner", role = ChatRole.OWNER, joinedAt = "2024-01-01T00:00:00Z")
+        val admin = ChatParticipant(id = "admin", name = "Admin", role = ChatRole.ADMIN, joinedAt = "2024-01-01T00:00:00Z")
+        val member = ChatParticipant(id = "member", name = "Member", role = ChatRole.MEMBER, joinedAt = "2024-01-01T00:00:00Z")
 
         // Test role hierarchy (owner > admin > member)
-        assertTrue(owner.role == ParticipantRole.OWNER)
-        assertTrue(admin.role == ParticipantRole.ADMIN)
-        assertTrue(member.role == ParticipantRole.MEMBER)
+        assertTrue(owner.role == ChatRole.OWNER)
+        assertTrue(admin.role == ChatRole.ADMIN)
+        assertTrue(member.role == ChatRole.MEMBER)
 
         // Verify roles are different
         assertFalse(owner.role == admin.role)

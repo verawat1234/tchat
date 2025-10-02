@@ -1,0 +1,135 @@
+package main
+
+import (
+	"context"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"tchat.dev/calling/config"
+	"tchat.dev/calling/handlers"
+	"tchat.dev/calling/repositories"
+	"tchat.dev/calling/services"
+)
+
+func main() {
+	// Initialize Gin router
+	r := gin.Default()
+
+	// Initialize database
+	dbManager := config.NewDatabaseManager()
+	if err := dbManager.Connect(); err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer dbManager.Close()
+
+	// Initialize Redis
+	redisClient := config.NewRedisClient()
+	if err := redisClient.Connect(); err != nil {
+		log.Fatalf("Failed to connect to Redis: %v", err)
+	}
+	defer redisClient.Close()
+
+	// CORS middleware for WebRTC
+	r.Use(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	})
+
+	// Initialize repositories
+	callSessionRepo := repositories.NewCallSessionRepository(dbManager.GetDB())
+	userPresenceRepo := repositories.NewUserPresenceRepository(dbManager.GetDB())
+	callHistoryRepo := repositories.NewCallHistoryRepository(dbManager.GetDB())
+
+	// Initialize services
+	callService := services.NewCallService(callSessionRepo, userPresenceRepo, callHistoryRepo)
+	presenceService := services.NewPresenceService(userPresenceRepo)
+	signalingService := services.NewSignalingService(callService, presenceService)
+
+	// Initialize handlers
+	healthHandler := handlers.NewHealthHandler(dbManager.GetDB(), redisClient)
+	callHandler := handlers.NewCallHandlers(callService)
+	presenceHandler := handlers.NewPresenceHandlers(presenceService)
+	historyHandler := handlers.NewHistoryHandlers(callHistoryRepo)
+	websocketHandler := handlers.NewWebSocketHandler(signalingService)
+
+	// Health check endpoints
+	r.GET("/health", healthHandler.BasicHealthCheck)
+	r.GET("/health/detailed", healthHandler.DetailedHealthCheck)
+	r.GET("/ready", healthHandler.ReadinessCheck)
+	r.GET("/live", healthHandler.LivenessCheck)
+	r.GET("/metrics", healthHandler.MetricsEndpoint)
+
+	// API v1 group
+	api := r.Group("/api/v1")
+	{
+		// Call management endpoints
+		calls := api.Group("/calls")
+		{
+			calls.POST("/initiate", callHandler.InitiateCall)
+			calls.POST("/:id/answer", callHandler.AnswerCall)
+			calls.POST("/:id/end", callHandler.EndCall)
+			calls.GET("/:id/status", callHandler.GetCallStatus)
+		}
+
+		// Presence endpoints
+		presence := api.Group("/presence")
+		{
+			presence.PUT("/update", presenceHandler.UpdatePresence)
+			presence.GET("/:user_id", presenceHandler.GetPresence)
+			presence.GET("/bulk", presenceHandler.GetBulkPresence)
+		}
+
+		// Call history endpoints
+		history := api.Group("/history")
+		{
+			history.GET("/:user_id", historyHandler.GetUserCallHistory)
+			history.GET("/call/:call_id", historyHandler.GetCallDetails)
+			history.DELETE("/:call_id", historyHandler.DeleteCallHistory)
+		}
+
+		// WebSocket signaling endpoint
+		api.GET("/signaling", websocketHandler.HandleWebSocket)
+	}
+
+	// Start server
+	srv := &http.Server{
+		Addr:    ":8093",
+		Handler: r,
+	}
+
+	// Graceful shutdown
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed: %v", err)
+		}
+	}()
+
+	log.Println("Calling service started on :8093")
+
+	// Wait for interrupt signal
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
+	}
+
+	log.Println("Server exited")
+}

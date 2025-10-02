@@ -250,8 +250,8 @@ class StreamVisualConsistencyTest {
     @Test
     fun testStreamFeaturedResponseStructure() {
         val featuredContent = listOf(
-            createTestStreamContentItem(isFeatured = true, featuredOrder = 1),
-            createTestStreamContentItem(id = "featured2", isFeatured = true, featuredOrder = 2)
+            createTestStreamContentItem(isFeatured = true),
+            createTestStreamContentItem(id = "featured2", isFeatured = true)
         )
 
         val response = StreamFeaturedResponse(

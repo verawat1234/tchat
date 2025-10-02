@@ -1,62 +1,324 @@
-<testsuites id="" name="" tests="2" failures="1" skipped="0" errors="0" time="4.342873">
-<testsuite name="cors-gateway-validation.spec.ts" timestamp="2025-09-28T09:22:25.382Z" hostname="chromium" tests="2" failures="1" skipped="0" time="3.925" errors="0">
-<testcase name="CORS and Gateway Validation › should validate CORS fix and gateway routing for OTP flow" classname="cors-gateway-validation.spec.ts" time="3.654">
-<failure message="cors-gateway-validation.spec.ts:13:7 should validate CORS fix and gateway routing for OTP flow" type="FAILURE">
-<![CDATA[  [chromium] › cors-gateway-validation.spec.ts:13:7 › CORS and Gateway Validation › should validate CORS fix and gateway routing for OTP flow 
-
-    Error: expect(received).toHaveLength(expected)
-
-    Expected length: 0
-    Received length: 5
-    Received array:  ["Access to fetch at 'http://localhost:8081/health' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.", "Access to fetch at 'http://localhost:8082/health' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.", "Access to fetch at 'http://localhost:8080/api/v1/notifications' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: Redirect is not allowed for a preflight request.", "Access to fetch at 'http://localhost:8081/health' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.", "Access to fetch at 'http://localhost:8082/health' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource."]
-
-      92 |
-      93 |     // Verify no CORS errors occurred
-    > 94 |     expect(corsErrors).toHaveLength(0);
-         |                        ^
-      95 |     console.log('✅ No CORS errors detected');
-      96 |
-      97 |     // Verify no critical API network errors
-        at /Users/weerawat/Tchat/apps/web/tests/e2e/cors-gateway-validation.spec.ts:94:24
-
-    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
-    ../../test-results/cors-gateway-validation-CO-3ca4b-ateway-routing-for-OTP-flow-chromium/test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
-    ../../test-results/cors-gateway-validation-CO-3ca4b-ateway-routing-for-OTP-flow-chromium/video.webm
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    Error Context: ../../test-results/cors-gateway-validation-CO-3ca4b-ateway-routing-for-OTP-flow-chromium/error-context.md
-]]>
-</failure>
-<system-out>
-<![CDATA[🧪 Testing CORS fix and gateway routing
-📱 Navigated to auth screen
-✅ Auth screen elements visible
-✅ Phone number entered
-📞 OTP request initiated
-✅ OTP request succeeded through gateway
-✅ OTP request successfully routed through gateway
-✅ Field names are correctly formatted: { phone_number: [32m'+66812345678'[39m, country_code: [32m'TH'[39m }
-
-[[ATTACHMENT|test-results/cors-gateway-validation-CO-3ca4b-ateway-routing-for-OTP-flow-chromium/test-failed-1.png]]
-
-[[ATTACHMENT|test-results/cors-gateway-validation-CO-3ca4b-ateway-routing-for-OTP-flow-chromium/video.webm]]
-
-[[ATTACHMENT|test-results/cors-gateway-validation-CO-3ca4b-ateway-routing-for-OTP-flow-chromium/error-context.md]]
-]]>
-</system-out>
+<testsuites id="" name="" tests="77" failures="0" skipped="77" errors="0" time="0.02065699999999998">
+<testsuite name="streaming/video-creator-flow.spec.ts" timestamp="2025-09-30T10:12:32.532Z" hostname="chromium" tests="11" failures="0" skipped="11" time="0" errors="0">
+<testcase name="Video Creator Stream Workflow › Complete video creator instant stream flow" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
 </testcase>
-<testcase name="CORS and Gateway Validation › should validate gateway health and auth service routing" classname="cors-gateway-validation.spec.ts" time="0.271">
-<system-out>
-<![CDATA[🧪 Testing gateway health and service routing
-✅ Gateway health check passed
-✅ Auth service accessible through gateway
-✅ OTP request with correct field names successful
-🎉 Gateway health and service routing validation completed!
-]]>
-</system-out>
+<testcase name="Video Creator Stream Workflow › Stream status transitions correctly" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Reactions appear within 500ms of sending" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Analytics calculation is accurate" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Recording expires after 30 days" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Quality selector shows all available layers" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › WebRTC connection establishes successfully" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Test data cleanup after stream end" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles stream creation failure gracefully" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles WebRTC connection failure" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles reaction API failure without breaking stream" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+</testsuite>
+<testsuite name="streaming/video-creator-flow.spec.ts" timestamp="2025-09-30T10:12:32.532Z" hostname="firefox" tests="11" failures="0" skipped="11" time="0" errors="0">
+<testcase name="Video Creator Stream Workflow › Complete video creator instant stream flow" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Stream status transitions correctly" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Reactions appear within 500ms of sending" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Analytics calculation is accurate" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Recording expires after 30 days" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Quality selector shows all available layers" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › WebRTC connection establishes successfully" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Test data cleanup after stream end" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles stream creation failure gracefully" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles WebRTC connection failure" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles reaction API failure without breaking stream" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+</testsuite>
+<testsuite name="streaming/video-creator-flow.spec.ts" timestamp="2025-09-30T10:12:32.532Z" hostname="webkit" tests="11" failures="0" skipped="11" time="0" errors="0">
+<testcase name="Video Creator Stream Workflow › Complete video creator instant stream flow" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Stream status transitions correctly" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Reactions appear within 500ms of sending" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Analytics calculation is accurate" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Recording expires after 30 days" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Quality selector shows all available layers" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › WebRTC connection establishes successfully" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Test data cleanup after stream end" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles stream creation failure gracefully" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles WebRTC connection failure" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles reaction API failure without breaking stream" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+</testsuite>
+<testsuite name="streaming/video-creator-flow.spec.ts" timestamp="2025-09-30T10:12:32.532Z" hostname="Mobile Chrome" tests="11" failures="0" skipped="11" time="0" errors="0">
+<testcase name="Video Creator Stream Workflow › Complete video creator instant stream flow" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Stream status transitions correctly" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Reactions appear within 500ms of sending" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Analytics calculation is accurate" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Recording expires after 30 days" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Quality selector shows all available layers" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › WebRTC connection establishes successfully" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Test data cleanup after stream end" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles stream creation failure gracefully" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles WebRTC connection failure" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles reaction API failure without breaking stream" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+</testsuite>
+<testsuite name="streaming/video-creator-flow.spec.ts" timestamp="2025-09-30T10:12:32.532Z" hostname="Mobile Safari" tests="11" failures="0" skipped="11" time="0" errors="0">
+<testcase name="Video Creator Stream Workflow › Complete video creator instant stream flow" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Stream status transitions correctly" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Reactions appear within 500ms of sending" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Analytics calculation is accurate" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Recording expires after 30 days" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Quality selector shows all available layers" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › WebRTC connection establishes successfully" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Test data cleanup after stream end" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles stream creation failure gracefully" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles WebRTC connection failure" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles reaction API failure without breaking stream" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+</testsuite>
+<testsuite name="streaming/video-creator-flow.spec.ts" timestamp="2025-09-30T10:12:32.532Z" hostname="Microsoft Edge" tests="11" failures="0" skipped="11" time="0" errors="0">
+<testcase name="Video Creator Stream Workflow › Complete video creator instant stream flow" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Stream status transitions correctly" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Reactions appear within 500ms of sending" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Analytics calculation is accurate" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Recording expires after 30 days" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Quality selector shows all available layers" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › WebRTC connection establishes successfully" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Test data cleanup after stream end" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles stream creation failure gracefully" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles WebRTC connection failure" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles reaction API failure without breaking stream" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+</testsuite>
+<testsuite name="streaming/video-creator-flow.spec.ts" timestamp="2025-09-30T10:12:32.532Z" hostname="Google Chrome" tests="11" failures="0" skipped="11" time="0" errors="0">
+<testcase name="Video Creator Stream Workflow › Complete video creator instant stream flow" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Stream status transitions correctly" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Reactions appear within 500ms of sending" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Analytics calculation is accurate" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Recording expires after 30 days" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Quality selector shows all available layers" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › WebRTC connection establishes successfully" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Workflow › Test data cleanup after stream end" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles stream creation failure gracefully" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles WebRTC connection failure" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Video Creator Stream Error Handling › Handles reaction API failure without breaking stream" classname="streaming/video-creator-flow.spec.ts" time="0">
+<skipped>
+</skipped>
 </testcase>
 </testsuite>
 </testsuites>

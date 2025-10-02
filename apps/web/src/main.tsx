@@ -21,6 +21,9 @@ if (import.meta.env.DEV) {
 //   });
 // }
 
+// Force light mode by removing dark class
+document.documentElement.classList.remove('dark');
+
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <Provider store={store}>

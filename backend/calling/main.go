@@ -10,28 +10,29 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-
 	"tchat.dev/calling/config"
 	"tchat.dev/calling/handlers"
+	"tchat.dev/calling/repositories"
+	"tchat.dev/calling/services"
 )
 
 func main() {
-	// Set Gin mode
-	gin.SetMode(gin.ReleaseMode)
-	if os.Getenv("ENVIRONMENT") == "development" {
-		gin.SetMode(gin.DebugMode)
-	}
+	// Initialize Gin router
+	r := gin.Default()
 
-	// Initialize database and Redis connections
-	dbManager, redisClient, err := config.Initialize()
+	// Initialize database (already connects in constructor)
+	dbManager, err := config.NewDatabaseManager()
 	if err != nil {
-		log.Fatalf("Failed to initialize connections: %v", err)
+		log.Fatalf("Failed to create database manager: %v", err)
 	}
 	defer dbManager.Close()
-	defer redisClient.Close()
 
-	// Create Gin router
-	r := gin.Default()
+	// Initialize Redis (already connects in constructor)
+	redisClient, err := config.NewRedisClient()
+	if err != nil {
+		log.Fatalf("Failed to create Redis client: %v", err)
+	}
+	defer redisClient.Close()
 
 	// CORS middleware for WebRTC
 	r.Use(func(c *gin.Context) {
@@ -45,8 +46,22 @@ func main() {
 		c.Next()
 	})
 
-	// Initialize health handler
+	// Initialize repositories
+	callSessionRepo := repositories.NewGormCallSessionRepository(dbManager.GetDB())
+	userPresenceRepo := repositories.NewRedisUserPresenceRepository(redisClient.Client, 24*time.Hour)
+	callHistoryRepo := repositories.NewGormCallHistoryRepository(dbManager.GetDB())
+
+	// Initialize services
+	callService := services.NewCallService(callSessionRepo, userPresenceRepo, callHistoryRepo)
+	presenceService := services.NewPresenceService(userPresenceRepo)
+	signalingService := services.NewSignalingService(callService, presenceService)
+
+	// Initialize handlers
 	healthHandler := handlers.NewHealthHandler(dbManager.GetDB(), redisClient)
+	callHandler := handlers.NewCallHandlers(callService)
+	presenceHandler := handlers.NewPresenceHandlers(presenceService)
+	historyHandler := handlers.NewHistoryHandlers(callHistoryRepo)
+	websocketHandler := handlers.NewWebSocketHandler(signalingService)
 
 	// Health check endpoints
 	r.GET("/health", healthHandler.BasicHealthCheck)
@@ -55,81 +70,45 @@ func main() {
 	r.GET("/live", healthHandler.LivenessCheck)
 	r.GET("/metrics", healthHandler.MetricsEndpoint)
 
-	// Initialize handlers with dependencies
-	callHandler := handlers.NewCallHandler(dbManager.GetDB(), redisClient)
-	presenceHandler := handlers.NewPresenceHandler(redisClient)
-	historyHandler := handlers.NewHistoryHandler(dbManager.GetDB())
-	websocketHandler := handlers.NewWebSocketHandler(redisClient)
-
 	// API v1 group
 	api := r.Group("/api/v1")
-	{
-		// Call management endpoints
-		calls := api.Group("/calls")
-		{
-			calls.POST("/initiate", callHandler.InitiateCall)
-			calls.POST("/:id/answer", callHandler.AnswerCall)
-			calls.POST("/:id/end", callHandler.EndCall)
-			calls.GET("/:id/status", callHandler.GetCallStatus)
-		}
 
-		// Presence management endpoints
-		presence := api.Group("/presence")
-		{
-			presence.GET("/status", presenceHandler.GetPresenceStatus)
-			presence.PUT("/status", presenceHandler.UpdatePresenceStatus)
-			presence.GET("/check/:user_id", presenceHandler.CheckUserPresence)
-		}
+	// Register handler routes
+	callHandler.RegisterRoutes(api)
+	presenceHandler.RegisterRoutes(api)
+	historyHandler.RegisterRoutes(api)
 
-		// Call history endpoints
-		api.GET("/history", historyHandler.GetCallHistory)
+	// WebSocket signaling endpoint
+	api.GET("/signaling", websocketHandler.HandleWebSocket)
 
-		// Service status endpoint
-		api.GET("/status", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{
-				"service": "calling",
-				"status":  "operational",
-				"message": "Calling service is ready",
-			})
-		})
-	}
-
-	// WebSocket endpoint for signaling
-	r.GET("/ws/calling", websocketHandler.HandleWebSocket)
-
-	// Get port from environment
-	port := os.Getenv("SERVICE_PORT")
-	if port == "" {
-		port = "8093" // Updated default port for calling service
-	}
-
-	// Create HTTP server
+	// Start server
 	srv := &http.Server{
-		Addr:    ":" + port,
+		Addr:    ":8093",
 		Handler: r,
 	}
 
-	// Start server in a goroutine
+	// Graceful shutdown
 	go func() {
-		log.Printf("Starting calling service on port %s", port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+			log.Fatalf("Server failed: %v", err)
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server
+	log.Println("Calling service started on :8093")
+
+	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("Shutting down calling service...")
 
-	// Give the server 30 seconds to finish handling requests
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	log.Println("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("Server forced to shutdown: %v", err)
+		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
-	log.Println("Calling service exited")
+	log.Println("Server exited")
 }

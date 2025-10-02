@@ -205,7 +205,7 @@ func (a *App) initRepositories() error {
 	a.categoryRepo = repository.NewCategoryRepository(a.db)
 	a.productCategoryRepo = repository.NewProductCategoryRepository(a.db)
 	a.categoryViewRepo = repository.NewCategoryViewRepository(a.db)
-	a.streamRepo = repository.NewStreamRepository(a.db)
+	a.streamRepo = *repository.NewStreamRepository(a.db)
 
 	log.Println("Repositories initialized successfully")
 	return nil
@@ -220,10 +220,10 @@ func (a *App) initServices() error {
 	a.cartService = services.NewCartService(a.cartRepo, a.cartAbandonmentRepo, a.db)
 	a.categoryService = services.NewCategoryService(a.categoryRepo, a.productCategoryRepo, a.categoryViewRepo, a.db)
 	// Initialize stream services
-	a.streamCategoryService = services.NewStreamCategoryService(a.streamRepo)
-	a.streamContentService = services.NewStreamContentService(a.streamRepo)
-	a.streamSessionService = services.NewStreamSessionService(a.streamRepo)
-	a.streamPurchaseService = services.NewStreamPurchaseService(a.streamRepo)
+	a.streamCategoryService = services.NewStreamCategoryService(&a.streamRepo)
+	a.streamContentService = services.NewStreamContentService(&a.streamRepo)
+	a.streamSessionService = services.NewStreamSessionService(&a.streamRepo)
+	a.streamPurchaseService = services.NewStreamPurchaseService(&a.streamRepo)
 
 	log.Println("Services initialized successfully")
 	return nil
@@ -303,9 +303,9 @@ func (a *App) initRouter() error {
 			products.GET("/:id", a.productHandler.GetProduct)
 			products.PUT("/:id", a.productHandler.UpdateProduct)
 			products.DELETE("/:id", a.productHandler.DeleteProduct)
-			products.GET("/:productId/reviews", a.reviewHandler.GetProductReviews)
-			products.POST("/:productId/follow", a.wishlistHandler.FollowProduct)
-			products.DELETE("/:productId/follow", a.wishlistHandler.UnfollowProduct)
+			products.GET("/:id/reviews", a.reviewHandler.GetProductReviews)
+			products.POST("/:id/follow", a.wishlistHandler.FollowProduct)
+			products.DELETE("/:id/follow", a.wishlistHandler.UnfollowProduct)
 		}
 
 		// Review routes
@@ -316,17 +316,17 @@ func (a *App) initRouter() error {
 			reviews.GET("/:id", a.reviewHandler.GetReview)
 			reviews.PUT("/:id", a.reviewHandler.UpdateReview)
 			reviews.DELETE("/:id", a.reviewHandler.DeleteReview)
-			reviews.POST("/:reviewId/helpful", a.reviewHandler.MarkReviewHelpful)
-			reviews.POST("/:reviewId/report", a.reviewHandler.ReportReview)
-			reviews.POST("/:reviewId/moderate", a.reviewHandler.ModerateReview)
+			reviews.POST("/:id/helpful", a.reviewHandler.MarkReviewHelpful)
+			reviews.POST("/:id/report", a.reviewHandler.ReportReview)
+			reviews.POST("/:id/moderate", a.reviewHandler.ModerateReview)
 			reviews.GET("/average-rating", a.reviewHandler.GetAverageRating)
 		}
 
 		// Business review routes
 		businesses := v1.Group("/businesses")
 		{
-			businesses.GET("/:businessId/reviews", a.reviewHandler.GetBusinessReviews)
-			businesses.GET("/:businessId/categories", a.categoryHandler.GetBusinessCategories)
+			businesses.GET("/:id/reviews", a.reviewHandler.GetBusinessReviews)
+			businesses.GET("/:id/categories", a.categoryHandler.GetBusinessCategories)
 		}
 
 		// Wishlist routes
@@ -363,9 +363,9 @@ func (a *App) initRouter() error {
 			carts.GET("/abandoned", a.cartHandler.GetAbandonedCarts)
 			carts.POST("/abandonment", a.cartHandler.CreateAbandonmentTracking)
 			carts.GET("/abandonment/analytics", a.cartHandler.GetAbandonmentAnalytics)
-			carts.POST("/:cartId/coupons", a.cartHandler.ApplyCoupon)
-			carts.DELETE("/:cartId/coupons", a.cartHandler.RemoveCoupon)
-			carts.GET("/:cartId/validate", a.cartHandler.ValidateCart)
+			carts.POST("/:id/coupons", a.cartHandler.ApplyCoupon)
+			carts.DELETE("/:id/coupons", a.cartHandler.RemoveCoupon)
+			carts.GET("/:id/validate", a.cartHandler.ValidateCart)
 		}
 
 		// Category routes
@@ -381,11 +381,11 @@ func (a *App) initRouter() error {
 			categories.PUT("/:id", a.categoryHandler.UpdateCategory)
 			categories.DELETE("/:id", a.categoryHandler.DeleteCategory)
 			categories.GET("/:id/children", a.categoryHandler.GetCategoryChildren)
-			categories.GET("/:categoryId/products", a.categoryHandler.GetCategoryProducts)
-			categories.POST("/:categoryId/products", a.categoryHandler.AddProductToCategory)
-			categories.DELETE("/:categoryId/products/:productId", a.categoryHandler.RemoveProductFromCategory)
-			categories.POST("/:categoryId/views", a.categoryHandler.TrackCategoryView)
-			categories.GET("/:categoryId/analytics", a.categoryHandler.GetCategoryAnalytics)
+			categories.GET("/:id/products", a.categoryHandler.GetCategoryProducts)
+			categories.POST("/:id/products", a.categoryHandler.AddProductToCategory)
+			categories.DELETE("/:id/products/:productId", a.categoryHandler.RemoveProductFromCategory)
+			categories.POST("/:id/views", a.categoryHandler.TrackCategoryView)
+			categories.GET("/:id/analytics", a.categoryHandler.GetCategoryAnalytics)
 		}
 
 		// Stream routes

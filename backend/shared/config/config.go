@@ -541,14 +541,16 @@ func (c *Config) GetRedisURL() string {
 
 // Utility functions for environment variable parsing
 
-func getEnv(key, defaultValue string) string {
+// GetEnv returns environment variable or default value
+func GetEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
 	return defaultValue
 }
 
-func getIntEnv(key string, defaultValue int) int {
+// GetIntEnv returns integer environment variable or default value
+func GetIntEnv(key string, defaultValue int) int {
 	if value := os.Getenv(key); value != "" {
 		if parsed, err := strconv.Atoi(value); err == nil {
 			return parsed
@@ -557,7 +559,8 @@ func getIntEnv(key string, defaultValue int) int {
 	return defaultValue
 }
 
-func getBoolEnv(key string, defaultValue bool) bool {
+// GetBoolEnv returns boolean environment variable or default value
+func GetBoolEnv(key string, defaultValue bool) bool {
 	if value := os.Getenv(key); value != "" {
 		if parsed, err := strconv.ParseBool(value); err == nil {
 			return parsed
@@ -566,13 +569,31 @@ func getBoolEnv(key string, defaultValue bool) bool {
 	return defaultValue
 }
 
-func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
+// GetDurationEnv returns duration environment variable or default value
+func GetDurationEnv(key string, defaultValue time.Duration) time.Duration {
 	if value := os.Getenv(key); value != "" {
 		if parsed, err := time.ParseDuration(value); err == nil {
 			return parsed
 		}
 	}
 	return defaultValue
+}
+
+// Keep lowercase versions for backward compatibility
+func getEnv(key, defaultValue string) string {
+	return GetEnv(key, defaultValue)
+}
+
+func getIntEnv(key string, defaultValue int) int {
+	return GetIntEnv(key, defaultValue)
+}
+
+func getBoolEnv(key string, defaultValue bool) bool {
+	return GetBoolEnv(key, defaultValue)
+}
+
+func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
+	return GetDurationEnv(key, defaultValue)
 }
 
 // LoadFromFile loads configuration from a file (JSON, YAML, etc.)

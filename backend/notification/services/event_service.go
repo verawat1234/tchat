@@ -43,6 +43,11 @@ func (e *EventServiceImpl) Publish(ctx context.Context, event interface{}) error
 	return e.publishSync(event)
 }
 
+// PublishNotification publishes a notification event (alias for Publish)
+func (e *EventServiceImpl) PublishNotification(ctx context.Context, event interface{}) error {
+	return e.Publish(ctx, event)
+}
+
 // PublishNotificationSent publishes a notification sent event
 func (e *EventServiceImpl) PublishNotificationSent(ctx context.Context, notification *models.Notification) error {
 	if !e.enabledChannels["notification.sent"] {
@@ -226,6 +231,11 @@ func (k *KafkaEventService) Publish(ctx context.Context, event interface{}) erro
 
 	log.Printf("Kafka Event (would publish): %s", string(data))
 	return nil
+}
+
+// PublishNotification publishes a notification event (alias for Publish)
+func (k *KafkaEventService) PublishNotification(ctx context.Context, event interface{}) error {
+	return k.Publish(ctx, event)
 }
 
 // PublishNotificationSent publishes notification sent event to Kafka

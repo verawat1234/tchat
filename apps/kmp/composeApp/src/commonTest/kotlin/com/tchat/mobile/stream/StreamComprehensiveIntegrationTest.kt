@@ -128,7 +128,7 @@ class StreamComprehensiveIntegrationTest {
     )
 
     // Mock API client for testing
-    class MockStreamApiClient {
+    inner class MockStreamApiClient {
         suspend fun getCategories(): StreamCategoriesResponse {
             delay(50) // Simulate network delay
             return StreamCategoriesResponse(
@@ -167,7 +167,7 @@ class StreamComprehensiveIntegrationTest {
             val startIndex = (request.page - 1) * request.limit
             val endIndex = minOf(startIndex + request.limit, filteredContent.size)
             val paginatedContent = if (startIndex < filteredContent.size) {
-                filteredContent.subList(startIndex, endIndex)
+                filteredContent.slice(startIndex until endIndex)
             } else {
                 emptyList()
             }

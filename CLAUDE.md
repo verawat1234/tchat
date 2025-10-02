@@ -1,6 +1,6 @@
 # Tchat Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2025-09-29
+Auto-generated from all feature plans. Last updated: 2025-10-01
 
 ## Active Technologies
 - Go 1.21+ (microservices backend architecture) + Go standard library, gRPC, protocol buffers, JWT authentication, message brokers (Kafka/RabbitMQ), WebSocket libraries (004-create-backend-spec)
@@ -53,6 +53,10 @@ Auto-generated from all feature plans. Last updated: 2025-09-29
 - SQLDelight for offline-first architecture, platform-specific secure storage (Keychain/EncryptedSharedPreferences) (Stream Store Tabs implementation)
 - Go 1.24+ (Backend), TypeScript 5.3.0 (Web), Kotlin 2.2.0 (KMP), Swift 5.9+ (iOS native) + GORM ORM, PostgreSQL, Gin HTTP, React 18.3.1, Redux Toolkit 2.0+, Jetpack Compose, SQLDeligh (026-help-me-add)
 - PostgreSQL (primary), ScyllaDB (messages), Redis (cache/sessions), SQLDelight (mobile offline) (026-help-me-add)
+- Go 1.22+ (backend), TypeScript 5.3.0 (web), Kotlin Multiplatform 2.2.0 (mobile) (029-implement-live-on)
+- PostgreSQL (primary data), Redis (sessions/presence), ScyllaDB (chat messages), CDN (stream recordings) (029-implement-live-on)
+- **Railway Platform** (cloud deployment) + Railway MCP for deployment management, PostgreSQL and Redis database services, GitHub integration for CI/CD (railway-deployment)
+- Project ID: 0a1f3508-2150-4d0c-8ae9-878f74a607a0, 10 microservices deployed (gateway-fixed, auth-final, messaging-fixed, video, content, social-fixed, commerce, payment, notification, calling) (railway-deployment)
 
 ### Web Platform
 - TypeScript 5.3.0, React 18.3.1 + Vite 6.3.5, Radix UI components, TailwindCSS v4, Framer Motion 11.0.0
@@ -346,6 +350,53 @@ go test -v -args -festival=cny       # Festival scenario testing
 go test -v -benchmem -bench=.        # Memory benchmarks
 ```
 
+### Railway Deployment (Railway MCP)
+```bash
+# Railway MCP is the standard deployment tool for Railway platform
+# Project ID: 0a1f3508-2150-4d0c-8ae9-878f74a607a0
+
+# Service management
+railway project list                 # List all Railway projects
+railway project info --projectId 0a1f3508-2150-4d0c-8ae9-878f74a607a0  # Project details
+railway service list --projectId 0a1f3508-2150-4d0c-8ae9-878f74a607a0  # List all services
+
+# Environment variable management
+railway variable list --projectId [PROJECT_ID] --environmentId [ENV_ID]  # List variables
+railway variable set --projectId [PROJECT_ID] --environmentId [ENV_ID] --name [NAME] --value [VALUE]  # Set variable
+
+# Service deployment verification
+railway deployment list --projectId [PROJECT_ID] --serviceId [SERVICE_ID] --environmentId [ENV_ID]  # List deployments
+railway deployment status --deploymentId [DEPLOYMENT_ID]  # Check deployment status
+railway deployment logs --deploymentId [DEPLOYMENT_ID]    # View deployment logs
+
+# Database services
+# PostgreSQL: Successfully deployed and operational
+# Redis: Successfully deployed and operational
+
+# Deployed microservices (all connected to GitHub: verawat1234/tchat):
+# - gateway-fixed (API Gateway)
+# - auth-final (Authentication service)
+# - messaging-fixed (Messaging service)
+# - video (Video service)
+# - content (Content management service)
+# - social-fixed (Social service)
+# - commerce (E-commerce service)
+# - payment (Payment processing service)
+# - notification (Push notification service)
+# - calling (Voice/video calling service)
+
+# Standard build configuration for each service:
+# Build Command: go build -o [service-name] .
+# Root Directory: backend/[service-name]
+
+# Required environment variables for services:
+# - DATABASE_URL: PostgreSQL connection string
+# - REDIS_URL: Redis connection string
+# - JWT_SECRET: JWT authentication secret
+# - PORT: Service port (varies by service)
+# - [SERVICE_NAME]_URL: URLs for inter-service communication
+```
+
 ## Code Style
 
 ### Web (TypeScript/React)
@@ -424,6 +475,18 @@ go test -v -benchmem -bench=.        # Memory benchmarks
 - **Service Status**: ✅ Gateway operational with all routes active
 - **Routing Verification**: `curl http://localhost:8080/api/v1/videos/test` returns video service response
 
+### Railway Deployment Architecture (Railway MCP)
+- **Deployment Platform**: Railway cloud platform with Railway MCP as standard deployment tool
+- **Project Configuration**: Project ID 0a1f3508-2150-4d0c-8ae9-878f74a607a0
+- **GitHub Integration**: All 10 microservices connected to verawat1234/tchat repository for automatic deployments
+- **Deployed Services**: gateway-fixed, auth-final, messaging-fixed, video, content, social-fixed, commerce, payment, notification, calling
+- **Database Infrastructure**: PostgreSQL (primary data) and Redis (caching/sessions) successfully deployed and operational
+- **Build Strategy**: Standardized Go build commands (`go build -o [service-name] .`) with root directory pattern (`backend/[service-name]`)
+- **Environment Variables**: Centralized configuration via Railway MCP for DATABASE_URL, REDIS_URL, JWT_SECRET, PORT, and inter-service URLs
+- **Service Management**: Complete deployment lifecycle management through Railway MCP (deploy, monitor, scale, rollback)
+- **Monitoring**: Deployment status tracking, log access, and performance metrics through Railway platform
+- **Production Ready**: All 10 microservices and 2 database services successfully configured and deployed
+
 ### Video System Architecture
 - **Real-time Video API**: Working integration with video service through gateway routing
 - **RTK Query Integration**: Video hooks with proper caching, error handling, and loading states
@@ -485,104 +548,9 @@ go test -v -benchmem -bench=.        # Memory benchmarks
 - **Platform-Specific**: KMP commonTest + androidTest (42 visual consistency tests), Vitest (Web), Playwright (E2E), Go benchmarks (Backend)
 
 ## Recent Changes
-- **Stream Store Tabs KMP Implementation Complete**: Comprehensive Kotlin Multiplatform 2.2.0 implementation with Compose Multiplatform
-  - **Complete KMP Architecture**: 6 content categories (Books, Podcasts, Cartoons, Movies, Music, Art) with cross-platform consistency
-  - **97% Visual Parity**: Cross-platform visual consistency validated with 42 comprehensive test methods
-  - **Performance Excellence**: <200ms load times, 60fps animations, <1s content loading achieved across platforms
-  - **Offline-First Implementation**: SQLDelight 2.0.0 with optimized database schema and automatic synchronization
-  - **Backend Integration Complete**: 13 REST API endpoints with PostgreSQL optimization and performance middleware
-  - **Phase 6 Integration Success**: All 10 tasks completed (T039-T048) including E2E testing and documentation
-  - **Files Implemented**: StreamModels.kt, StreamTabs.kt, StreamContent.kt, comprehensive test suites, database schemas
-  - **API Documentation**: Complete REST API documentation with integration guides and performance benchmarks
-  - **Testing Coverage**: Visual consistency testing, E2E validation, performance benchmarks across platforms
-- 026-help-me-add: Added Go 1.24+ (Backend), TypeScript 5.3.0 (Web), Kotlin 2.2.0 (KMP), Swift 5.9+ (iOS native) + GORM ORM, PostgreSQL, Gin HTTP, React 18.3.1, Redux Toolkit 2.0+, Jetpack Compose, SQLDeligh
-- 026-help-me-add: Added TypeScript 5.3.0 (Web), Swift 5.9+ (iOS), Kotlin 1.9.23 (Android), Go 1.22+ (Backend) + React 18.3.1 + Redux Toolkit (Web), SwiftUI + Combine (iOS), Jetpack Compose + Material3 (Android), Gin + GORM (Backend)
-- 025-voice-and-video: Added Go 1.22+ (backend), TypeScript 5.3.0 (web), Swift 5.9+ (iOS), Kotlin 1.9.23 (Android) + WebRTC APIs, Gorilla WebSocket (Go), WebSocket API (web), native WebRTC frameworks (mobile)
-  - **SQLDelightSocialRepository Completion**: All 7 critical placeholder methods fully implemented with real SQL operations
-    - `getPendingFriendRequests()`: Real friendship request queries with status filtering
-    - `getOnlineFriends()`: Live friend status with last_seen timestamp validation
-    - `getFriendSuggestions()`: Intelligent suggestions based on mutual connections
-    - `getAllEvents()`: Complete event retrieval with pagination and filtering
-    - `getUpcomingEvents()`: Time-based event queries with date range filtering
-    - `getEventsByCategory()`: Category-filtered event discovery with sorting
-    - `getCommentsByTarget()`: Real comment system with target validation and threading
-  - **Messaging Service Real-Time Enhancement**: 25+ critical TODO items replaced with production implementations
-    - Real-time delivery status tracking with WebSocket integration
-    - Message encryption functionality with end-to-end security
-    - Push notification integration with platform-specific handlers
-    - Message validation and sanitization with XSS protection
-    - Regional performance optimization for Southeast Asian markets (TH, SG, MY, ID, PH, VN)
-  - **Authentication Flow Hardening**: Complete removal of placeholder JWT mechanisms
-    - Real JWT token generation and validation with secure key management
-    - Mobile authentication using actual tokens with refresh rotation
-    - Web authentication bypass mechanisms eliminated and secured
-    - Cross-platform authentication state synchronization implemented
-  - **Audit Management System**: Complete placeholder audit infrastructure
-    - PlaceholderItem, CompletionAudit, ServiceCompletion models fully implemented
-    - 5 audit API endpoints operational (GET/POST placeholders, PATCH updates, service completion tracking)
-    - Real-time validation endpoint with comprehensive project scanning
-    - Zero placeholder items remaining in critical user paths
-  - **Performance Validation**: Production-ready performance benchmarks achieved
-    - API response times <1ms (target: <200ms) across all completed endpoints
-    - Mobile frame rates >60fps (target: >55fps) on completed UI components
-    - Cross-platform visual consistency maintained at 97% parity
-    - Memory usage <100MB mobile, <500MB desktop within targets
-  - **Quality Gate Success**: 100% validation across all critical criteria
-    - Zero TODO comments in critical user paths across all platforms
-    - No mock data responses in production APIs eliminated
-    - No stub methods in user-facing features removed
-    - Security audit confirmed no placeholder auth mechanisms remain
-    - All platform builds successful (Web ✅, Android ✅, Backend ✅)
-  - **Regional Content Service**: Southeast Asian market optimization completed
-    - Compilation errors resolved around RegionalContentService.kt:374
-    - Regional configurations active for TH, SG, MY, ID, PH, VN markets
-    - Performance optimization for regional content delivery implemented
-  - **Architectural Change**: Moved from Option A (distributed social across existing services) to Option B (dedicated social service)
-  - **Service Centralization**: All social functionality (posts, interactions, feeds, user relationships) consolidated into single service
-  - **Microservice Addition**: Added social service to existing microservice architecture (auth, content, commerce, messaging, payment, notification, social)
-  - **Contract Testing**: Implementing dedicated Pact contract tests for social service APIs
-  - **Service Isolation**: Social features now independent of other services with clean API boundaries
-  - **Performance Benefits**: Optimized social queries and operations through dedicated service design
-  - **Scalability**: Social service can scale independently based on social interaction patterns
-  - **Gateway Architecture**: Rebuilt gateway binary with latest code including video route registration
-  - **Service Routing**: Gateway (port 8080) now properly routes `/api/v1/videos/*` to video service (port 8091)
-  - **Frontend Configuration**: Updated .env.local to VITE_USE_DIRECT_SERVICES=false for gateway routing
-  - **VideoTab Infinite Loop Fix**: Resolved useEffect dependency issue with useMemo optimization for `filteredShorts`
-  - **API Verification**: Confirmed working API flow: Frontend → Gateway → Video Service → Response
-  - **Infrastructure Status**: ✅ All services operational (Gateway: 8080, Video: 8091, Web: 3000)
-  - **RTK Query Integration**: VideoTab successfully consuming real API data through gateway routing
-  - **Key Files Modified**: VideoTab.tsx, .env.local, serviceConfig.ts, gateway binary rebuild
-  - **Complete 5-Tab Navigation**: AuthScreen, RichChatTab, StoreTab, SocialTab, VideoTab, WorkspaceTab with TabNavigationView
-  - **6 Core Data Models**: ScreenState, UserSession, ChatSession, Product, Post, VideoContent with cross-platform sync
-  - **Advanced Features**: Real-time messaging, e-commerce cart, social interactions, TikTok-style video, workspace productivity
-  - **Enterprise Architecture**: Contract-first TDD, 14 test suites, deep linking, push notifications, >95% visual consistency
-  - **Platform Integration**: SwiftUI + Combine, Alamofire 5.8+, Kingfisher 7.9+, CoreData offline, platform-native patterns
-  - **Build Verification**: ✅ Swift build successful, all screens compile and integrate with TabNavigationView
-  - **Comprehensive Load Testing Suite**: 1,434 lines of sophisticated load testing code covering all major services
-  - **Southeast Asian Regional Focus**: Singapore, Thailand, Indonesia configurations with localized traffic patterns
-  - **Festival Scenario Testing**: Chinese New Year, Songkran, Ramadan peak traffic simulation with 10x baseline multipliers
-  - **Traffic Pattern Validation**: Baseline (1,000 RPS), Peak (10,000 RPS), Spike (50,000 RPS) scenarios successfully tested
-  - **Multi-Format Reporting**: JSON performance metrics, Prometheus monitoring integration, CSV analytics exports
-  - **Zero Performance Violations**: 3.5+ billion simulated requests with zero threshold violations achieved
-  - **Enterprise Integration**: Real-time monitoring, comprehensive fixture testing, regional performance benchmarking
-  - **Complete Backend Testing**: Fixed all compilation errors, model compatibility issues resolved across payment, user, content, messaging, and social services
-  - **Complete RTK Architecture**: 12 comprehensive endpoints (getContentItems, getContentItem, getContentByCategory, getContentCategories, getContentVersions, syncContent, createContentItem, updateContentItem, publishContent, archiveContent, bulkUpdateContent, revertContentVersion)
-  - **Advanced Fallback System**: localStorage-based fallback service with automatic error recovery, offline support, and intelligent caching
-  - **Performance Optimization**: <200ms content load budget achieved, Core Web Vitals monitoring, memory management (<100MB mobile, <500MB desktop)
-  - **Enterprise Reliability**: Tag-based cache invalidation, optimistic updates with rollback, error recovery middleware, automated maintenance tasks
-  - **Comprehensive Testing**: 50+ test suites covering all endpoints, E2E Playwright performance testing (882 lines), Core Web Vitals validation
-  - **Type Safety**: Complete TypeScript interfaces, request/response validation, content type definitions for text, rich_text, config, and image types
-  - **Real-time Features**: Incremental synchronization, conflict resolution, version control, bulk operations support
-  - Redux store with RTK Query middleware and persistence
-  - Complete API service layer with auth, users, messages, chats endpoints
-  - JWT authentication with automatic token refresh middleware
-  - Tag-based cache invalidation with optimistic updates
-  - Error handling middleware with user-friendly notifications
-  - Request retry logic with exponential backoff
-  - Redux Persist for offline support with secure token storage
-  - Prefetching service for performance optimization
-  - Request deduplication and advanced caching strategies
-  - Contract-driven TDD with MSW mocking (50 tests implemented)
+- 029-implement-live-on: Added Go 1.22+ (backend), TypeScript 5.3.0 (web), Kotlin Multiplatform 2.2.0 (mobile)
+- railway-deployment: Completed Railway MCP deployment setup for all 10 microservices and 2 database services (PostgreSQL, Redis). GitHub integration configured for verawat1234/tchat repository with automatic deployments. Project ID: 0a1f3508-2150-4d0c-8ae9-878f74a607a0
+- All services production-ready: gateway-fixed, auth-final, messaging-fixed, video, content, social-fixed, commerce, payment, notification, calling
 
 <!-- MANUAL ADDITIONS START -->
 

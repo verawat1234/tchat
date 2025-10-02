@@ -544,3 +544,191 @@ export {
   VideoCategory,
   VideoQuality,
 };
+
+// =============================================================================
+// Backend Integration Types
+// =============================================================================
+
+/**
+ * Video status for backend integration
+ */
+export type VideoStatus =
+  | 'processing'
+  | 'available'
+  | 'unavailable'
+  | 'archived'
+  | 'deleted';
+
+/**
+ * Platform types for cross-platform sync
+ */
+export type PlatformType =
+  | 'web'
+  | 'ios'
+  | 'android'
+  | 'mobile_web';
+
+/**
+ * Playback state for video player
+ */
+export type PlaybackState =
+  | 'playing'
+  | 'paused'
+  | 'buffering'
+  | 'ended'
+  | 'error';
+
+/**
+ * Content rating system
+ */
+export type ContentRating =
+  | 'g'        // General Audiences
+  | 'pg'       // Parental Guidance
+  | 'pg13'     // Parents Strongly Cautioned
+  | 'r'        // Restricted
+  | 'nc17'     // Adults Only
+  | 'unrated'; // Not Rated
+
+/**
+ * Buffer health information
+ */
+export interface BufferHealth {
+  buffered_seconds: number;
+  buffer_percentage: number;
+  is_healthy: boolean;
+}
+
+/**
+ * Cross-platform sync status
+ */
+export interface SyncStatus {
+  last_sync_time: string;
+  synced_platforms: string[];
+  conflict_detected: boolean;
+}
+
+/**
+ * Video upload request
+ */
+export interface VideoUploadRequest {
+  file: File;
+  title: string;
+  description: string;
+  tags: string[];
+  content_rating: ContentRating;
+  thumbnail?: File;
+  category?: string;
+  is_monetized?: boolean;
+  price?: number;
+}
+
+/**
+ * Video upload response
+ */
+export interface VideoUploadResponse {
+  video_id: string;
+  status: VideoStatus;
+  message: string;
+  upload_progress?: number;
+}
+
+/**
+ * Video stream request
+ */
+export interface VideoStreamRequest {
+  video_id: string;
+  quality?: string;
+  platform?: PlatformType;
+}
+
+/**
+ * Video stream response
+ */
+export interface VideoStreamResponse {
+  video_id: string;
+  stream_url: string;
+  protocol: string;
+  manifest_url?: string;
+  available_qualities: string[];
+  default_quality: string;
+  duration_seconds: number;
+  status: VideoStatus;
+  expires_at: string;
+}
+
+/**
+ * Playback session information
+ */
+export interface PlaybackSession {
+  id: string;
+  video_id: string;
+  user_id: string;
+  platform: PlatformType;
+  current_position: number;
+  quality: string;
+  playback_state: PlaybackState;
+  buffer_health: BufferHealth;
+  started_at: string;
+  last_activity: string;
+}
+
+/**
+ * Redux state for video management
+ */
+export interface VideoState {
+  videos: VideoContent[];
+  currentVideo: VideoContent | null;
+  playbackState: Record<string, {
+    position: number;
+    state: PlaybackState;
+    quality: string;
+    sessionId?: string;
+  }>;
+  uploadProgress: Record<string, number>;
+  syncStatus: Record<string, SyncStatus>;
+  loading: boolean;
+  error: VideoError | null;
+}
+
+/**
+ * Video error information
+ */
+export interface VideoError {
+  code: string;
+  message: string;
+  details?: Record<string, any>;
+}
+
+/**
+ * Playback position update payload
+ */
+export interface PlaybackPositionUpdate {
+  videoId: string;
+  position: number;
+  sessionId: string;
+}
+
+/**
+ * Playback quality update payload
+ */
+export interface PlaybackQualityUpdate {
+  videoId: string;
+  quality: string;
+}
+
+/**
+ * Playback state update payload
+ */
+export interface PlaybackStateUpdate {
+  videoId: string;
+  state: PlaybackState;
+}
+
+/**
+ * Buffer health update payload
+ */
+export interface BufferHealthUpdate {
+  videoId: string;
+  bufferedSeconds: number;
+  bufferPercentage: number;
+}

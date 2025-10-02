@@ -18,6 +18,9 @@ napier = "2.7.1"
 kamel = "1.0.0"
 guava = "32.1.1"
 webrtc-android = "1.0.32006"
+compose-mediaplayer = "1.0.0"
+exoplayer = "2.19.1"
+camerax = "1.4.1"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
@@ -73,6 +76,13 @@ guava-android = { module = "com.google.guava:guava", version = "32.1.1-android" 
 
 # WebRTC for real-time communication
 webrtc-android = { module = "org.webrtc:google-webrtc", version.ref = "webrtc-android" }
+
+# Video libraries for KMP
+compose-mediaplayer = { module = "io.github.alexzhirkevich:compose-videoplayer", version.ref = "compose-mediaplayer" }
+exoplayer = { module = "com.google.android.exoplayer:exoplayer", version.ref = "exoplayer" }
+camerax-core = { module = "androidx.camera:camera-core", version.ref = "camerax" }
+camerax-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
+camerax-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
 
 # Testing
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }

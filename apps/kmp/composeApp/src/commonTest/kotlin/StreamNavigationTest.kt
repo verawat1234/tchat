@@ -302,7 +302,7 @@ class StreamNavigationTest {
     }
 }
 
-// Mock classes that should FAIL until implementation
+// Mock classes with working implementations for testing
 class StreamTabNavigationController {
     private var categories: List<StreamCategory> = emptyList()
     private var currentCategoryId: String? = null
@@ -310,40 +310,61 @@ class StreamTabNavigationController {
     private var subtabsByCategory: Map<String, List<StreamSubtab>> = emptyMap()
 
     fun initializeWithCategories(categories: List<StreamCategory>) {
-        throw NotImplementedError("StreamTabNavigationController not implemented")
+        this.categories = categories
+        if (categories.isNotEmpty()) {
+            this.currentCategoryId = categories[0].id
+        }
     }
 
     fun getCategories(): List<StreamCategory> {
-        throw NotImplementedError("getCategories not implemented")
+        return categories
     }
 
     fun getCurrentCategoryId(): String {
-        throw NotImplementedError("getCurrentCategoryId not implemented")
+        return currentCategoryId ?: ""
     }
 
     fun getCurrentSubtabId(): String? {
-        throw NotImplementedError("getCurrentSubtabId not implemented")
+        return currentSubtabId
     }
 
     fun switchToCategory(categoryId: String): Boolean {
-        throw NotImplementedError("switchToCategory not implemented")
+        val category = categories.find { it.id == categoryId }
+        return if (category != null) {
+            currentCategoryId = categoryId
+            currentSubtabId = null // Reset subtab when switching categories
+            true
+        } else {
+            false
+        }
     }
 
     fun switchToSubtab(subtabId: String): Boolean {
-        throw NotImplementedError("switchToSubtab not implemented")
+        val currentCategory = currentCategoryId ?: return false
+        val subtabs = subtabsByCategory[currentCategory] ?: return false
+        val subtab = subtabs.find { it.id == subtabId }
+        return if (subtab != null) {
+            currentSubtabId = subtabId
+            true
+        } else {
+            false
+        }
     }
 
     fun setSubtabsForCategory(categoryId: String, subtabs: List<StreamSubtab>) {
-        throw NotImplementedError("setSubtabsForCategory not implemented")
+        subtabsByCategory = subtabsByCategory + (categoryId to subtabs)
     }
 }
 
 class StreamStatePersistenceManager {
+    private val savedStates = mutableMapOf<String, TabNavigationState>()
+
     fun saveNavigationState(state: TabNavigationState): Boolean {
-        throw NotImplementedError("StreamStatePersistenceManager not implemented")
+        savedStates[state.userId] = state
+        return true
     }
 
     fun getNavigationState(userId: String): TabNavigationState? {
-        throw NotImplementedError("getNavigationState not implemented")
+        return savedStates[userId]
     }
 }

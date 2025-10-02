@@ -10,9 +10,7 @@
     "grep": {},
     "grepInvert": null,
     "maxFailures": 0,
-    "metadata": {
-      "actualWorkers": 2
-    },
+    "metadata": {},
     "preserveOutput": "always",
     "reporter": [
       [
@@ -46,9 +44,7 @@
         "outputDir": "/Users/weerawat/Tchat/apps/web/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {
-          "actualWorkers": 2
-        },
+        "metadata": {},
         "id": "chromium",
         "name": "chromium",
         "testDir": "/Users/weerawat/Tchat/apps/web/tests/e2e",
@@ -62,9 +58,7 @@
         "outputDir": "/Users/weerawat/Tchat/apps/web/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {
-          "actualWorkers": 2
-        },
+        "metadata": {},
         "id": "firefox",
         "name": "firefox",
         "testDir": "/Users/weerawat/Tchat/apps/web/tests/e2e",
@@ -78,9 +72,7 @@
         "outputDir": "/Users/weerawat/Tchat/apps/web/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {
-          "actualWorkers": 2
-        },
+        "metadata": {},
         "id": "webkit",
         "name": "webkit",
         "testDir": "/Users/weerawat/Tchat/apps/web/tests/e2e",
@@ -94,9 +86,7 @@
         "outputDir": "/Users/weerawat/Tchat/apps/web/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {
-          "actualWorkers": 2
-        },
+        "metadata": {},
         "id": "Mobile Chrome",
         "name": "Mobile Chrome",
         "testDir": "/Users/weerawat/Tchat/apps/web/tests/e2e",
@@ -110,9 +100,7 @@
         "outputDir": "/Users/weerawat/Tchat/apps/web/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {
-          "actualWorkers": 2
-        },
+        "metadata": {},
         "id": "Mobile Safari",
         "name": "Mobile Safari",
         "testDir": "/Users/weerawat/Tchat/apps/web/tests/e2e",
@@ -126,9 +114,7 @@
         "outputDir": "/Users/weerawat/Tchat/apps/web/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {
-          "actualWorkers": 2
-        },
+        "metadata": {},
         "id": "Microsoft Edge",
         "name": "Microsoft Edge",
         "testDir": "/Users/weerawat/Tchat/apps/web/tests/e2e",
@@ -142,9 +128,7 @@
         "outputDir": "/Users/weerawat/Tchat/apps/web/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {
-          "actualWorkers": 2
-        },
+        "metadata": {},
         "id": "Google Chrome",
         "name": "Google Chrome",
         "testDir": "/Users/weerawat/Tchat/apps/web/tests/e2e",
@@ -169,119 +153,20 @@
   },
   "suites": [
     {
-      "title": "cors-gateway-validation.spec.ts",
-      "file": "cors-gateway-validation.spec.ts",
+      "title": "streaming/video-creator-flow.spec.ts",
+      "file": "streaming/video-creator-flow.spec.ts",
       "column": 0,
       "line": 0,
       "specs": [],
       "suites": [
         {
-          "title": "CORS and Gateway Validation",
-          "file": "cors-gateway-validation.spec.ts",
-          "line": 12,
+          "title": "Video Creator Stream Workflow",
+          "file": "streaming/video-creator-flow.spec.ts",
+          "line": 518,
           "column": 6,
           "specs": [
             {
-              "title": "should validate CORS fix and gateway routing for OTP flow",
-              "ok": false,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 3654,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m5\u001b[39m\nReceived array:  \u001b[31m[\"Access to fetch at 'http://localhost:8081/health' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.\", \"Access to fetch at 'http://localhost:8082/health' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.\", \"Access to fetch at 'http://localhost:8080/api/v1/notifications' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: Redirect is not allowed for a preflight request.\", \"Access to fetch at 'http://localhost:8081/health' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.\", \"Access to fetch at 'http://localhost:8082/health' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.\"]\u001b[39m",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m5\u001b[39m\nReceived array:  \u001b[31m[\"Access to fetch at 'http://localhost:8081/health' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.\", \"Access to fetch at 'http://localhost:8082/health' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.\", \"Access to fetch at 'http://localhost:8080/api/v1/notifications' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: Redirect is not allowed for a preflight request.\", \"Access to fetch at 'http://localhost:8081/health' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.\", \"Access to fetch at 'http://localhost:8082/health' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.\"]\u001b[39m\n    at /Users/weerawat/Tchat/apps/web/tests/e2e/cors-gateway-validation.spec.ts:94:24",
-                        "location": {
-                          "file": "/Users/weerawat/Tchat/apps/web/tests/e2e/cors-gateway-validation.spec.ts",
-                          "column": 24,
-                          "line": 94
-                        },
-                        "snippet": "  92 |\n  93 |     // Verify no CORS errors occurred\n> 94 |     expect(corsErrors).toHaveLength(0);\n     |                        ^\n  95 |     console.log('✅ No CORS errors detected');\n  96 |\n  97 |     // Verify no critical API network errors"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/Users/weerawat/Tchat/apps/web/tests/e2e/cors-gateway-validation.spec.ts",
-                            "column": 24,
-                            "line": 94
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m5\u001b[39m\nReceived array:  \u001b[31m[\"Access to fetch at 'http://localhost:8081/health' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.\", \"Access to fetch at 'http://localhost:8082/health' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.\", \"Access to fetch at 'http://localhost:8080/api/v1/notifications' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: Redirect is not allowed for a preflight request.\", \"Access to fetch at 'http://localhost:8081/health' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.\", \"Access to fetch at 'http://localhost:8082/health' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.\"]\u001b[39m\n\n  92 |\n  93 |     // Verify no CORS errors occurred\n> 94 |     expect(corsErrors).toHaveLength(0);\n     |                        ^\n  95 |     console.log('✅ No CORS errors detected');\n  96 |\n  97 |     // Verify no critical API network errors\n    at /Users/weerawat/Tchat/apps/web/tests/e2e/cors-gateway-validation.spec.ts:94:24"
-                        }
-                      ],
-                      "stdout": [
-                        {
-                          "text": "🧪 Testing CORS fix and gateway routing\n"
-                        },
-                        {
-                          "text": "📱 Navigated to auth screen\n"
-                        },
-                        {
-                          "text": "✅ Auth screen elements visible\n"
-                        },
-                        {
-                          "text": "✅ Phone number entered\n"
-                        },
-                        {
-                          "text": "📞 OTP request initiated\n"
-                        },
-                        {
-                          "text": "✅ OTP request succeeded through gateway\n"
-                        },
-                        {
-                          "text": "✅ OTP request successfully routed through gateway\n"
-                        },
-                        {
-                          "text": "✅ Field names are correctly formatted: { phone_number: \u001b[32m'+66812345678'\u001b[39m, country_code: \u001b[32m'TH'\u001b[39m }\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-09-28T09:22:25.673Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/Users/weerawat/Tchat/apps/web/test-results/cors-gateway-validation-CO-3ca4b-ateway-routing-for-OTP-flow-chromium/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/Users/weerawat/Tchat/apps/web/test-results/cors-gateway-validation-CO-3ca4b-ateway-routing-for-OTP-flow-chromium/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/weerawat/Tchat/apps/web/test-results/cors-gateway-validation-CO-3ca4b-ateway-routing-for-OTP-flow-chromium/error-context.md"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/Users/weerawat/Tchat/apps/web/tests/e2e/cors-gateway-validation.spec.ts",
-                        "column": 24,
-                        "line": 94
-                      }
-                    }
-                  ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "6022bc99828744719286-a0d2525fb2f1b74f73d4",
-              "file": "cors-gateway-validation.spec.ts",
-              "line": 13,
-              "column": 7
-            },
-            {
-              "title": "should validate gateway health and auth service routing",
+              "title": "Complete video creator instant stream flow",
               "ok": true,
               "tags": [],
               "tests": [
@@ -291,43 +176,1541 @@
                   "expectedStatus": "passed",
                   "projectId": "chromium",
                   "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 1,
-                      "parallelIndex": 1,
-                      "status": "passed",
-                      "duration": 271,
-                      "errors": [],
-                      "stdout": [
-                        {
-                          "text": "🧪 Testing gateway health and service routing\n"
-                        },
-                        {
-                          "text": "✅ Gateway health check passed\n"
-                        },
-                        {
-                          "text": "✅ Auth service accessible through gateway\n"
-                        },
-                        {
-                          "text": "✅ OTP request with correct field names successful\n"
-                        },
-                        {
-                          "text": "🎉 Gateway health and service routing validation completed!\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-09-28T09:22:25.673Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
+                  "results": [],
+                  "status": "skipped"
                 }
               ],
-              "id": "6022bc99828744719286-b40ad445332d229d43d1",
-              "file": "cors-gateway-validation.spec.ts",
-              "line": 107,
+              "id": "f3846df5242a3c4bed3e-88cc60fc666d530b6102",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 524,
+              "column": 7
+            },
+            {
+              "title": "Stream status transitions correctly",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-4c20e6e7e697f477287b",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 559,
+              "column": 7
+            },
+            {
+              "title": "Reactions appear within 500ms of sending",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-dd009c7f61fccd7aadb5",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 577,
+              "column": 7
+            },
+            {
+              "title": "Analytics calculation is accurate",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-11b13e1798c81b470cf8",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 615,
+              "column": 7
+            },
+            {
+              "title": "Recording expires after 30 days",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-80701a093bfe129a5126",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 668,
+              "column": 7
+            },
+            {
+              "title": "Quality selector shows all available layers",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-a561ace97dcbbff362af",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 702,
+              "column": 7
+            },
+            {
+              "title": "WebRTC connection establishes successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-fa9f6d220edc9c731154",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 720,
+              "column": 7
+            },
+            {
+              "title": "Test data cleanup after stream end",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-42ea5679153d0783ea1e",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 744,
+              "column": 7
+            },
+            {
+              "title": "Complete video creator instant stream flow",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-b8cd33a8b0d521aadf8d",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 524,
+              "column": 7
+            },
+            {
+              "title": "Stream status transitions correctly",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-7eaeef0c360d2c41538f",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 559,
+              "column": 7
+            },
+            {
+              "title": "Reactions appear within 500ms of sending",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-1a31ff0152e8eac0879a",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 577,
+              "column": 7
+            },
+            {
+              "title": "Analytics calculation is accurate",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-c707b7e82599d16adb6f",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 615,
+              "column": 7
+            },
+            {
+              "title": "Recording expires after 30 days",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-2a31abe6d7f0f4fc6834",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 668,
+              "column": 7
+            },
+            {
+              "title": "Quality selector shows all available layers",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-adb9f11eb23045a6d4b7",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 702,
+              "column": 7
+            },
+            {
+              "title": "WebRTC connection establishes successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-82b92934bf57048c21d7",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 720,
+              "column": 7
+            },
+            {
+              "title": "Test data cleanup after stream end",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-4eb6dd7ce00879db795c",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 744,
+              "column": 7
+            },
+            {
+              "title": "Complete video creator instant stream flow",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-4ca439c884cacdcdc813",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 524,
+              "column": 7
+            },
+            {
+              "title": "Stream status transitions correctly",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-7e64bb4e89dee384df0e",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 559,
+              "column": 7
+            },
+            {
+              "title": "Reactions appear within 500ms of sending",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-f2ae366167785d11b7f5",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 577,
+              "column": 7
+            },
+            {
+              "title": "Analytics calculation is accurate",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-def7c5107561252fe58e",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 615,
+              "column": 7
+            },
+            {
+              "title": "Recording expires after 30 days",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-4559096f09b067f26948",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 668,
+              "column": 7
+            },
+            {
+              "title": "Quality selector shows all available layers",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-e006b0cf02402cb0c697",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 702,
+              "column": 7
+            },
+            {
+              "title": "WebRTC connection establishes successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-4964d53679dc4f764e99",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 720,
+              "column": 7
+            },
+            {
+              "title": "Test data cleanup after stream end",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-ace43ea7d7c58b3c76ca",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 744,
+              "column": 7
+            },
+            {
+              "title": "Complete video creator instant stream flow",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-3ff916acd421b4a5131a",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 524,
+              "column": 7
+            },
+            {
+              "title": "Stream status transitions correctly",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-54a72648a6c5455d9122",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 559,
+              "column": 7
+            },
+            {
+              "title": "Reactions appear within 500ms of sending",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-890531a5d321a5e16e55",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 577,
+              "column": 7
+            },
+            {
+              "title": "Analytics calculation is accurate",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-b1557e0fd44d88b1c87e",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 615,
+              "column": 7
+            },
+            {
+              "title": "Recording expires after 30 days",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-d7e56b3c7c7b4eb11d2b",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 668,
+              "column": 7
+            },
+            {
+              "title": "Quality selector shows all available layers",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-eb541ef5a489d5d96d34",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 702,
+              "column": 7
+            },
+            {
+              "title": "WebRTC connection establishes successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-6709d5562a96ca13d185",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 720,
+              "column": 7
+            },
+            {
+              "title": "Test data cleanup after stream end",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-8789117330213837a56c",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 744,
+              "column": 7
+            },
+            {
+              "title": "Complete video creator instant stream flow",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Safari",
+                  "projectName": "Mobile Safari",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-f85101dca56625760b90",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 524,
+              "column": 7
+            },
+            {
+              "title": "Stream status transitions correctly",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Safari",
+                  "projectName": "Mobile Safari",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-eba6b2d110244be4accd",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 559,
+              "column": 7
+            },
+            {
+              "title": "Reactions appear within 500ms of sending",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Safari",
+                  "projectName": "Mobile Safari",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-5dac1f71ef0d223fb6cc",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 577,
+              "column": 7
+            },
+            {
+              "title": "Analytics calculation is accurate",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Safari",
+                  "projectName": "Mobile Safari",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-fbb66601d477de2327e3",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 615,
+              "column": 7
+            },
+            {
+              "title": "Recording expires after 30 days",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Safari",
+                  "projectName": "Mobile Safari",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-a80adf998aa0f92e97de",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 668,
+              "column": 7
+            },
+            {
+              "title": "Quality selector shows all available layers",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Safari",
+                  "projectName": "Mobile Safari",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-0a0637a436a3cbe1a0df",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 702,
+              "column": 7
+            },
+            {
+              "title": "WebRTC connection establishes successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Safari",
+                  "projectName": "Mobile Safari",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-84d312b32cfc97c998ac",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 720,
+              "column": 7
+            },
+            {
+              "title": "Test data cleanup after stream end",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Safari",
+                  "projectName": "Mobile Safari",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-aad88822822b68033af6",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 744,
+              "column": 7
+            },
+            {
+              "title": "Complete video creator instant stream flow",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Microsoft Edge",
+                  "projectName": "Microsoft Edge",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-b101c470148db7b89022",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 524,
+              "column": 7
+            },
+            {
+              "title": "Stream status transitions correctly",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Microsoft Edge",
+                  "projectName": "Microsoft Edge",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-a158f425f40886975614",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 559,
+              "column": 7
+            },
+            {
+              "title": "Reactions appear within 500ms of sending",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Microsoft Edge",
+                  "projectName": "Microsoft Edge",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-02865e3d91970cbf6440",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 577,
+              "column": 7
+            },
+            {
+              "title": "Analytics calculation is accurate",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Microsoft Edge",
+                  "projectName": "Microsoft Edge",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-58e52a62661ef46f11a5",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 615,
+              "column": 7
+            },
+            {
+              "title": "Recording expires after 30 days",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Microsoft Edge",
+                  "projectName": "Microsoft Edge",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-513013a4c789c69cd9e1",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 668,
+              "column": 7
+            },
+            {
+              "title": "Quality selector shows all available layers",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Microsoft Edge",
+                  "projectName": "Microsoft Edge",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-917301b033483a2d5d25",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 702,
+              "column": 7
+            },
+            {
+              "title": "WebRTC connection establishes successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Microsoft Edge",
+                  "projectName": "Microsoft Edge",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-b2743114b41594d68411",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 720,
+              "column": 7
+            },
+            {
+              "title": "Test data cleanup after stream end",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Microsoft Edge",
+                  "projectName": "Microsoft Edge",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-3379ce19ab846e18a3e0",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 744,
+              "column": 7
+            },
+            {
+              "title": "Complete video creator instant stream flow",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Google Chrome",
+                  "projectName": "Google Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-f1fc40e8c3b7f1c76e82",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 524,
+              "column": 7
+            },
+            {
+              "title": "Stream status transitions correctly",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Google Chrome",
+                  "projectName": "Google Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-f8aad891d197ddeb398d",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 559,
+              "column": 7
+            },
+            {
+              "title": "Reactions appear within 500ms of sending",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Google Chrome",
+                  "projectName": "Google Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-ccd21b6a3eb9340c119a",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 577,
+              "column": 7
+            },
+            {
+              "title": "Analytics calculation is accurate",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Google Chrome",
+                  "projectName": "Google Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-fbcaedecbdfbd6a7cd7c",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 615,
+              "column": 7
+            },
+            {
+              "title": "Recording expires after 30 days",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Google Chrome",
+                  "projectName": "Google Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-26532818482576cc46d3",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 668,
+              "column": 7
+            },
+            {
+              "title": "Quality selector shows all available layers",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Google Chrome",
+                  "projectName": "Google Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-b379ebe7bc3163b44f69",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 702,
+              "column": 7
+            },
+            {
+              "title": "WebRTC connection establishes successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Google Chrome",
+                  "projectName": "Google Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-b0fcb5e5d27830c7b5af",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 720,
+              "column": 7
+            },
+            {
+              "title": "Test data cleanup after stream end",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Google Chrome",
+                  "projectName": "Google Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-05c40a1ad3f46ea73a17",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 744,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "Video Creator Stream Error Handling",
+          "file": "streaming/video-creator-flow.spec.ts",
+          "line": 763,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Handles stream creation failure gracefully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-127e81d707a7f3aaedff",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 764,
+              "column": 7
+            },
+            {
+              "title": "Handles WebRTC connection failure",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-7934e3800d0312b1c74a",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 788,
+              "column": 7
+            },
+            {
+              "title": "Handles reaction API failure without breaking stream",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-967bff0a2ad14fd42947",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 810,
+              "column": 7
+            },
+            {
+              "title": "Handles stream creation failure gracefully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-37ebdd6b83e9370e4d0d",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 764,
+              "column": 7
+            },
+            {
+              "title": "Handles WebRTC connection failure",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-4650f88a1f21f6bff7ce",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 788,
+              "column": 7
+            },
+            {
+              "title": "Handles reaction API failure without breaking stream",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-c48fe25a1dfe507f7f20",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 810,
+              "column": 7
+            },
+            {
+              "title": "Handles stream creation failure gracefully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-300df7dcd3a47b54f62b",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 764,
+              "column": 7
+            },
+            {
+              "title": "Handles WebRTC connection failure",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-b86208a5a97ddcb61fe8",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 788,
+              "column": 7
+            },
+            {
+              "title": "Handles reaction API failure without breaking stream",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-fad6d1c7e8416b50cc7a",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 810,
+              "column": 7
+            },
+            {
+              "title": "Handles stream creation failure gracefully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-1db54feb71eb98943449",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 764,
+              "column": 7
+            },
+            {
+              "title": "Handles WebRTC connection failure",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-9b2c60e8edcfe49cf5fb",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 788,
+              "column": 7
+            },
+            {
+              "title": "Handles reaction API failure without breaking stream",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-0dc2ddefbed931e355ef",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 810,
+              "column": 7
+            },
+            {
+              "title": "Handles stream creation failure gracefully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Safari",
+                  "projectName": "Mobile Safari",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-14dfc28d2426de966291",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 764,
+              "column": 7
+            },
+            {
+              "title": "Handles WebRTC connection failure",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Safari",
+                  "projectName": "Mobile Safari",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-943d9f0df179297500ba",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 788,
+              "column": 7
+            },
+            {
+              "title": "Handles reaction API failure without breaking stream",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Safari",
+                  "projectName": "Mobile Safari",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-aff9e2b9266f77f59165",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 810,
+              "column": 7
+            },
+            {
+              "title": "Handles stream creation failure gracefully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Microsoft Edge",
+                  "projectName": "Microsoft Edge",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-761a0918cd0557275ddf",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 764,
+              "column": 7
+            },
+            {
+              "title": "Handles WebRTC connection failure",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Microsoft Edge",
+                  "projectName": "Microsoft Edge",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-e0fce86921347c716b30",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 788,
+              "column": 7
+            },
+            {
+              "title": "Handles reaction API failure without breaking stream",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Microsoft Edge",
+                  "projectName": "Microsoft Edge",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-886b9514653435903bb0",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 810,
+              "column": 7
+            },
+            {
+              "title": "Handles stream creation failure gracefully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Google Chrome",
+                  "projectName": "Google Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-7471b16677224e563933",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 764,
+              "column": 7
+            },
+            {
+              "title": "Handles WebRTC connection failure",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Google Chrome",
+                  "projectName": "Google Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-a5ed58dda9f8c16b8637",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 788,
+              "column": 7
+            },
+            {
+              "title": "Handles reaction API failure without breaking stream",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Google Chrome",
+                  "projectName": "Google Chrome",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f3846df5242a3c4bed3e-4b3d8e1c6dad0f54c40a",
+              "file": "streaming/video-creator-flow.spec.ts",
+              "line": 810,
               "column": 7
             }
           ]
@@ -337,11 +1720,11 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2025-09-28T09:22:25.301Z",
-    "duration": 4342.873,
-    "expected": 1,
-    "skipped": 0,
-    "unexpected": 1,
+    "startTime": "2025-09-30T10:12:32.513Z",
+    "duration": 20.656999999999982,
+    "expected": 0,
+    "skipped": 77,
+    "unexpected": 0,
     "flaky": 0
   }
 }

@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  scylladb:
+    image: scylladb/scylla:5.2
+    container_name: tchat-scylla-performance
+    ports:
+      - "9042:9042"  # CQL port
+      - "9180:9180"  # Prometheus metrics
+    command:
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --overprovisioned
+      - "1"
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "DESCRIBE KEYSPACES"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - tchat-perf-test
+
+networks:
+  tchat-perf-test:
+    driver: bridge

@@ -323,7 +323,7 @@ class ContentContractTest {
 
         // Validate config content
         val configItem = deserializedResponse.items[1]
-        assertEquals("config456", configItem.id)
+        assertEquals("content456", configItem.id)
         assertEquals("config", configItem.type)
 
         val configData = configItem.data as ContentData.ConfigContent

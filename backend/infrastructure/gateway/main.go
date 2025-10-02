@@ -229,6 +229,18 @@ func (g *Gateway) setupRoutes() {
 		{
 			presence.Any("/*path", g.proxyHandler("calling-service"))
 		}
+
+		// Streaming service routes (port 8094)
+		streams := v1.Group("/streams", g.authMiddleware())
+		{
+			streams.Any("/*path", g.proxyHandler("streaming-service"))
+		}
+
+		// Notification preferences routes (part of streaming service)
+		prefsRoutes := v1.Group("/notification-preferences", g.authMiddleware())
+		{
+			prefsRoutes.Any("/*path", g.proxyHandler("streaming-service"))
+		}
 	}
 
 	// WebSocket proxy for real-time messaging
@@ -236,6 +248,9 @@ func (g *Gateway) setupRoutes() {
 
 	// WebSocket proxy for calling signaling
 	g.router.GET("/ws/calling", g.websocketProxyHandler("calling-service"))
+
+	// WebSocket proxy for streaming signaling
+	g.router.GET("/ws/signaling", g.websocketProxyHandler("streaming-service"))
 
 	// Admin endpoints
 	admin := g.router.Group("/admin", g.adminAuthMiddleware())
@@ -329,6 +344,15 @@ func (g *Gateway) registerDefaultServices() {
 			Health:  string(Unknown),
 			Version: "1.0.0",
 			Tags:    []string{"calling", "webrtc", "voice", "video"},
+		},
+		{
+			ID:      uuid.New().String(),
+			Name:    "streaming-service",
+			Host:    "localhost",
+			Port:    8094,
+			Health:  string(Unknown),
+			Version: "1.0.0",
+			Tags:    []string{"streaming", "live", "commerce", "webrtc"},
 		},
 	}
 
@@ -629,12 +653,38 @@ func (g *Gateway) restartServiceHandler(c *gin.Context) {
 
 func corsMiddleware(cfg *config.Config) gin.HandlerFunc {
 	config := cors.DefaultConfig()
-	config.AllowOrigins = cfg.Server.CORS.AllowOrigins
-	config.AllowMethods = cfg.Server.CORS.AllowMethods
-	config.AllowHeaders = cfg.Server.CORS.AllowHeaders
-	config.ExposeHeaders = cfg.Server.CORS.ExposeHeaders
-	config.AllowCredentials = cfg.Server.CORS.AllowCredentials
-	config.MaxAge = time.Duration(cfg.Server.CORS.MaxAge) * time.Second
+
+	// Allow all origins with wildcard
+	config.AllowAllOrigins = true
+
+	// Allow all common HTTP methods
+	config.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"}
+
+	// Allow all common headers
+	config.AllowHeaders = []string{
+		"Origin",
+		"Content-Type",
+		"Content-Length",
+		"Accept",
+		"Accept-Encoding",
+		"Authorization",
+		"X-CSRF-Token",
+		"X-Requested-With",
+		"X-Request-ID",
+	}
+
+	// Expose useful headers to the client
+	config.ExposeHeaders = []string{
+		"Content-Length",
+		"Content-Type",
+		"X-Request-ID",
+	}
+
+	// Allow credentials (cookies, authorization headers)
+	config.AllowCredentials = true
+
+	// Cache preflight requests for 12 hours
+	config.MaxAge = 12 * time.Hour
 
 	return cors.New(config)
 }

@@ -59,6 +59,8 @@ type NotificationService interface {
 type CacheService interface {
 	Get(ctx context.Context, key string) (interface{}, error)
 	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error
+	SetWithExpiry(ctx context.Context, key string, value interface{}, expiration time.Duration) error
+	Incr(ctx context.Context, key string) error
 	Delete(ctx context.Context, key string) error
 	Exists(ctx context.Context, key string) (bool, error)
 	GetMulti(ctx context.Context, keys []string) (map[string]interface{}, error)
@@ -69,6 +71,7 @@ type CacheService interface {
 // EventService defines the interface for event publishing
 type EventService interface {
 	Publish(ctx context.Context, event interface{}) error
+	PublishNotification(ctx context.Context, event interface{}) error
 	PublishNotificationSent(ctx context.Context, notification *models.Notification) error
 	PublishNotificationDelivered(ctx context.Context, notificationID uuid.UUID) error
 	PublishNotificationFailed(ctx context.Context, notificationID uuid.UUID, reason string) error

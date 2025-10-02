@@ -12,21 +12,24 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
 	"tchat.dev/shared/config"
 	"tchat.dev/shared/database"
+	"tchat.dev/shared/events"
 	"tchat.dev/shared/middleware"
 	"tchat.dev/shared/responses"
 	sharedModels "tchat.dev/shared/models"
 
-	"tchat.dev/notification/models"
 	"tchat.dev/notification/handlers"
-	"tchat.dev/notification/services"
-	"tchat.dev/notification/repositories"
+	"tchat.dev/notification/models"
 	"tchat.dev/notification/providers"
+	"tchat.dev/notification/repositories"
+	"tchat.dev/notification/services"
+	notificationConfig "tchat.dev/notification/config"
 )
 
 // App represents the main notification application
@@ -262,22 +265,44 @@ func (a *App) initProviders() error {
 
 // initHandlers initializes HTTP handlers
 func (a *App) initHandlers() error {
-	// Create logger (simplified for this example)
-	// In production, you would use a proper structured logger like zap
-	logger := &SimpleLogger{}
+	// Create proper zap logger
+	logger, err := zap.NewProduction()
+	if err != nil {
+		return fmt.Errorf("failed to initialize logger: %w", err)
+	}
 
-	// Create event bus (simplified for this example)
-	eventBus := &SimpleEventBus{}
+	// Create logger adapter for event bus
+	loggerAdapter := &zapLoggerAdapter{logger: logger}
 
-	// Create notification config (simplified)
-	notificationConfig := &SimpleNotificationConfig{}
+	// Create event bus with proper configuration
+	eventBusConfig := &events.EventBusConfig{
+		MaxConcurrency:  10,
+		BufferSize:      100,
+		MaxRetries:      3,
+		RetryDelay:      time.Second,
+		HandlerTimeout:  30 * time.Second,
+		EnableMetrics:   true,
+	}
+	eventBus := events.NewEventBus(eventBusConfig, loggerAdapter)
+
+	// Create notification config from existing config
+	notifConfig := &notificationConfig.NotificationConfig{
+		Config: a.config,
+	}
+	// Set defaults for notification-specific settings
+	notifConfig.Notification.QueueSize = 1000
+	notifConfig.Notification.WorkerCount = 5
+	notifConfig.Notification.RetryAttempts = 3
+	notifConfig.Notification.RetryDelay = 5
+	notifConfig.Notification.RateLimitPerUser = 10
+	notifConfig.Notification.RateLimitGlobal = 1000
 
 	// Initialize notification handler
 	a.notificationHandler = handlers.NewNotificationHandler(
 		a.notificationService,
 		logger,
 		eventBus,
-		notificationConfig,
+		notifConfig,
 	)
 
 	log.Println("Handlers initialized successfully")
@@ -431,6 +456,27 @@ func (e *SimpleEventBus) Publish(event string, data interface{}) {
 }
 
 type SimpleNotificationConfig struct{}
+
+// zapLoggerAdapter adapts zap.Logger to events.Logger interface
+type zapLoggerAdapter struct {
+	logger *zap.Logger
+}
+
+func (z *zapLoggerAdapter) Info(msg string, fields ...interface{}) {
+	z.logger.Info(msg, zap.Any("fields", fields))
+}
+
+func (z *zapLoggerAdapter) Error(msg string, err error, fields ...interface{}) {
+	z.logger.Error(msg, zap.Error(err), zap.Any("fields", fields))
+}
+
+func (z *zapLoggerAdapter) Debug(msg string, fields ...interface{}) {
+	z.logger.Debug(msg, zap.Any("fields", fields))
+}
+
+func (z *zapLoggerAdapter) Warn(msg string, fields ...interface{}) {
+	z.logger.Warn(msg, zap.Any("fields", fields))
+}
 
 func main() {
 	// Load configuration with notification service specific port (8089)

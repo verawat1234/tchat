@@ -1,0 +1,203 @@
+# GolangCI-Lint Configuration for Enterprise Tchat Backend
+# Optimized for Go 1.22+ microservices architecture with Southeast Asian compliance
+
+run:
+  timeout: 5m
+  go: '1.22'
+  modules-download-mode: readonly
+  tests: true
+  skip-dirs:
+    - vendor
+    - testdata
+    - tmp
+    - apps/web
+    - apps/mobile
+  skip-files:
+    - ".*\\.pb\\.go$"
+    - ".*_mock\\.go$"
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+  uniq-by-line: true
+  sort-results: true
+
+linters:
+  enable:
+    # Core quality linters
+    - errcheck        # Check unchecked errors
+    - gosimple        # Simplify Go code
+    - govet           # Standard Go vet
+    - ineffassign     # Detect ineffectual assignments
+    - staticcheck     # Advanced static analysis
+    - typecheck       # Type checking
+    - unused          # Check for unused code
+    - varcheck        # Check for unused global variables and constants
+    - deadcode        # Find dead code
+    - structcheck     # Find unused struct fields
+
+    # Code quality and style
+    - gofmt           # Enforce standard formatting
+    - goimports       # Manage imports
+    - misspell        # Find commonly misspelled words
+    - unconvert       # Remove unnecessary type conversions
+    - unparam         # Check for unused function parameters
+    - gocritic        # Opinionated linter
+    - gocyclo         # Cyclomatic complexity
+    - gocognit        # Cognitive complexity
+    - nestif          # Deep nesting checker
+
+    # Security linters (important for Southeast Asian compliance)
+    - gosec           # Security checker
+    - exportloopref   # Check for pointers to enclosing loop variables
+
+    # Performance
+    - prealloc        # Find slice declarations with non-zero initial length
+    - maligned        # Detect struct alignment issues
+
+    # Microservices specific
+    - bodyclose       # Check HTTP response body is closed
+    - noctx           # Find sending http request without context.Context
+    - rowserrcheck    # Check whether Err of rows is checked
+    - sqlclosecheck   # Check sql.Rows and sql.Stmt are closed
+
+  disable:
+    - gomnd           # Too strict for business logic constants
+    - wsl             # Too opinionated about whitespace
+    - nlreturn        # Not necessary for our style
+    - exhaustivestruct # Too restrictive for our use cases
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+    exclude-functions:
+      - (*database/sql.DB).Close
+      - (*database/sql.Rows).Close
+      - (*database/sql.Stmt).Close
+      - (*os.File).Close
+
+  govet:
+    enable:
+      - nilness
+      - shadow
+      - unusedwrite
+      - fieldalignment
+
+  staticcheck:
+    checks: ["all"]
+
+  gosec:
+    severity: "low"
+    confidence: "low"
+    excludes:
+      - G104  # Audit errors not checked (covered by errcheck)
+      - G304  # File path provided as taint input (we validate paths)
+    config:
+      G101:  # Look for hardcoded credentials
+        pattern: (?i)(?:password|pwd|secret|token|key)
+        ignore_entropy: false
+        per_char_threshold: "3.0"
+        truncate: "32"
+      G102:  # Bind to all interfaces
+        bind_all_interfaces: "0.0.0.0"
+      G301:  # Poor file permissions used when creating a directory
+        directory_permissions: "0750"
+      G302:  # Poor file permissions used when creation file or using chmod
+        file_permissions: "0600"
+
+  gocyclo:
+    min-complexity: 15  # Reasonable for business logic complexity
+
+  gocognit:
+    min-complexity: 20  # Allow some complexity for Southeast Asian business rules
+
+  nestif:
+    min-complexity: 5
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+      - experimental
+    disabled-checks:
+      - commentedOutCode  # Sometimes useful for examples
+      - whyNoLint        # We know why we disable lints
+      - unnamedResult    # Named returns not always necessary
+
+  misspell:
+    locale: US
+    ignore-words:
+      - "colour"  # British spelling sometimes used in API responses
+      - "centre"  # British spelling in address fields
+
+  unparam:
+    check-exported: false  # Don't check exported functions
+
+  unused:
+    check-exported: false  # Don't check exported but unused items
+
+  goimports:
+    local-prefixes: github.com/tchat  # Adjust to your actual module name
+
+  maligned:
+    suggest-new: true
+
+  prealloc:
+    simple: true
+    range-loops: true
+    for-loops: true
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 3
+  new: false
+  fix: false
+
+  exclude-rules:
+    # Exclude some lints for test files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - gocognit
+        - errcheck
+        - gosec
+        - unparam
+
+    # Exclude security lints for test utilities
+    - path: tests/
+      linters:
+        - gosec
+
+    # Allow complexity in main.go files (service initialization)
+    - path: main\.go
+      linters:
+        - gocyclo
+        - gocognit
+
+    # Allow some patterns in models (generated code patterns)
+    - path: models/
+      linters:
+        - maligned
+        - unused
+
+    # Southeast Asian specific business logic may have higher complexity
+    - path: services/.*service\.go
+      linters:
+        - gocyclo
+      text: "cyclomatic complexity"
+
+    # Migration files may have security exceptions
+    - path: migrations/
+      linters:
+        - gosec
+
+  exclude:
+    # Ignore some common false positives
+    - 'shadow: declaration of "err" shadows declaration'
+    - 'should have comment or be unexported'
+    - 'comment on exported .* should be of the form'
+
+  exclude-use-default: false

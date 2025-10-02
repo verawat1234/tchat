@@ -328,11 +328,13 @@ func (suite *JWTServiceTestSuite) TestValidateRefreshToken_AccessTokenAsRefresh_
 	require.NoError(suite.T(), err)
 
 	// Try to validate access token as refresh token
+	// Access token is signed with accessSecret, but refresh validation uses refreshSecret
+	// So signature validation will fail before scope check
 	claims, err := suite.jwtService.ValidateRefreshToken(suite.ctx, tokenPair.AccessToken)
 
 	assert.Error(suite.T(), err)
 	assert.Nil(suite.T(), claims)
-	assert.Contains(suite.T(), err.Error(), "invalid refresh token scope")
+	assert.Contains(suite.T(), err.Error(), "signature is invalid")
 }
 
 // Test Token Refresh Flow
@@ -655,7 +657,7 @@ func (suite *JWTServiceTestSuite) TestValidateAccessToken_FutureNotBefore_Error(
 
 	assert.Error(suite.T(), err)
 	assert.Nil(suite.T(), validatedClaims)
-	assert.Contains(suite.T(), err.Error(), "token not yet valid")
+	assert.Contains(suite.T(), err.Error(), "token is not valid yet")
 }
 
 // Run test suite

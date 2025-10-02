@@ -72,12 +72,12 @@ func (oi *OrderItem) GetTotalPrice() float64 {
 
 // IsMediaItem returns true if this order item is for a media product
 func (oi *OrderItem) IsMediaItem() bool {
-	return oi.Product.IsMedia()
+	return ProductIsMedia(&oi.Product)
 }
 
 // IsPhysicalItem returns true if this order item is for a physical product
 func (oi *OrderItem) IsPhysicalItem() bool {
-	return oi.Product.IsPhysical()
+	return ProductIsPhysical(&oi.Product)
 }
 
 // HasDownloadURL returns true if a download URL is available

@@ -779,3 +779,25 @@ func IsValidUsername(username string) bool {
 
 	return true
 }
+
+// ValidateHTML validates HTML content for basic safety
+func ValidateHTML(content string) error {
+	// Basic validation - no script tags, no dangerous attributes
+	if strings.Contains(strings.ToLower(content), "<script") {
+		return errors.New("HTML content contains disallowed script tags")
+	}
+	if strings.Contains(strings.ToLower(content), "javascript:") {
+		return errors.New("HTML content contains dangerous javascript protocol")
+	}
+	if strings.Contains(strings.ToLower(content), "on") && (strings.Contains(content, "=") || strings.Contains(content, "()")) {
+		// Check for event handlers like onclick, onload
+		dangerousPatterns := []string{"onclick", "onload", "onerror", "onmouseover"}
+		contentLower := strings.ToLower(content)
+		for _, pattern := range dangerousPatterns {
+			if strings.Contains(contentLower, pattern) {
+				return fmt.Errorf("HTML content contains disallowed event handler: %s", pattern)
+			}
+		}
+	}
+	return nil
+}

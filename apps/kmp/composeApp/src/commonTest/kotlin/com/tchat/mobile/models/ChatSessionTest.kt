@@ -518,7 +518,7 @@ class ChatSessionTest {
     }
 
     @Test
-    fun testChatSessionState() {
+    fun testChatSessionStateManagement() {
         val state = ChatSessionState(
             sessionId = "group123",
             isLoading = false,
@@ -549,4 +549,54 @@ class ChatSessionTest {
         assertEquals(1, state.pendingMessages.size)
         assertEquals(0, state.failedMessages.size)
     }
+}
+
+// Extension functions for test-only functionality
+fun ChatSession.canUserPerformAction(userId: String, action: ChatAction): Boolean {
+    val participant = participants.find { it.id == userId } ?: return false
+
+    return when (action) {
+        ChatAction.SEND_MESSAGE -> {
+            when (type) {
+                ChatType.CHANNEL -> participant.role in listOf(ChatRole.OWNER, ChatRole.ADMIN)
+                else -> true
+            }
+        }
+        ChatAction.ADD_MEMBERS -> {
+            participant.role in listOf(ChatRole.OWNER, ChatRole.ADMIN)
+        }
+        ChatAction.REMOVE_MEMBERS -> {
+            participant.role in listOf(ChatRole.OWNER, ChatRole.ADMIN)
+        }
+        ChatAction.DELETE_MESSAGES -> {
+            participant.role in listOf(ChatRole.OWNER, ChatRole.ADMIN, ChatRole.MODERATOR)
+        }
+        ChatAction.PIN_MESSAGES -> {
+            participant.role in listOf(ChatRole.OWNER, ChatRole.ADMIN, ChatRole.MODERATOR)
+        }
+        ChatAction.CHANGE_SETTINGS -> {
+            participant.role in listOf(ChatRole.OWNER, ChatRole.ADMIN)
+        }
+    }
+}
+
+fun ChatSession.findParticipantById(userId: String): ChatParticipant? {
+    return participants.find { it.id == userId }
+}
+
+fun List<ChatSession>.filterBySearchQuery(query: String): List<ChatSession> {
+    if (query.isBlank()) return this
+    return filter { session ->
+        session.name?.contains(query, ignoreCase = true) == true ||
+        session.participants.any { it.name.contains(query, ignoreCase = true) }
+    }
+}
+
+enum class ChatAction {
+    SEND_MESSAGE,
+    ADD_MEMBERS,
+    REMOVE_MEMBERS,
+    DELETE_MESSAGES,
+    PIN_MESSAGES,
+    CHANGE_SETTINGS
 }
