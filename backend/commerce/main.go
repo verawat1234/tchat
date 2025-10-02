@@ -270,12 +270,12 @@ func (a *App) initRouter() error {
 
 	// Health check endpoints
 	a.router.GET("/health", a.healthCheck)
-    router.GET("/v1/healthcheck", func(c *gin.Context) {
-        c.JSON(http.StatusOK, gin.H{
-            "status":  "ok",
-            "version": "1.0.0",
-        })
-    })
+	a.router.GET("/v1/healthcheck", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "ok",
+			"version": "1.0.0",
+		})
+	})
 	a.router.GET("/ready", a.readinessCheck)
 
 	// Performance monitoring endpoints
