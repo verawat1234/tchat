@@ -36,7 +36,7 @@ func (r *ScyllaPresenceRepository) Create(ctx context.Context, presence *models.
 
 	return r.session.Query(query,
 		presence.UserID,
-		presence.Status.String(),
+		string(presence.Status),
 		presence.LastSeen,
 		locationStr,
 		presence.CreatedAt,
@@ -101,7 +101,7 @@ func (r *ScyllaPresenceRepository) Update(ctx context.Context, presence *models.
 	}
 
 	return r.session.Query(query,
-		presence.Status.String(),
+		string(presence.Status),
 		presence.LastSeen,
 		locationStr,
 		time.Now(),
