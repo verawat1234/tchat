@@ -42,8 +42,8 @@ func (hc *HealthChecker) Start(registry *ServiceRegistry) {
 	ticker := time.NewTicker(hc.interval)
 	defer ticker.Stop()
 
-	// Initial health check
-	hc.checkHealth(registry)
+	// Run initial health check asynchronously to avoid blocking startup
+	go hc.checkHealth(registry)
 
 	for {
 		select {
