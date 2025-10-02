@@ -478,14 +478,56 @@ railway deployment logs --deploymentId [DEPLOYMENT_ID]    # View deployment logs
 ### Railway Deployment Architecture (Railway MCP)
 - **Deployment Platform**: Railway cloud platform with Railway MCP as standard deployment tool
 - **Project Configuration**: Project ID 0a1f3508-2150-4d0c-8ae9-878f74a607a0
-- **GitHub Integration**: All 10 microservices connected to verawat1234/tchat repository for automatic deployments
-- **Deployed Services**: gateway-fixed, auth-final, messaging-fixed, video, content, social-fixed, commerce, payment, notification, calling
+- **GitHub Integration**: All services connected to verawat1234/tchat repository
 - **Database Infrastructure**: PostgreSQL (primary data) and Redis (caching/sessions) successfully deployed and operational
 - **Build Strategy**: Standardized Go build commands (`go build -o [service-name] .`) with root directory pattern (`backend/[service-name]`)
 - **Environment Variables**: Centralized configuration via Railway MCP for DATABASE_URL, REDIS_URL, JWT_SECRET, PORT, and inter-service URLs
 - **Service Management**: Complete deployment lifecycle management through Railway MCP (deploy, monitor, scale, rollback)
 - **Monitoring**: Deployment status tracking, log access, and performance metrics through Railway platform
-- **Production Ready**: All 10 microservices and 2 database services successfully configured and deployed
+
+#### Deployment Status (Current)
+- **Operational Services (4/10)**:
+  - gateway-fixed (ID: 27f78fae-5951-4c4a-b1cd-0c1e83995e38)
+  - auth-final (ID: ee2f44bc-dcc1-4501-a18e-6a1c3ba73ccf)
+  - messaging-fixed (ID: 5495d07b-14d5-443a-9657-137cc70e2cdc)
+  - social-fixed (ID: e290dda8-488e-4185-a141-2f50591160ea)
+
+- **Requires Manual Configuration (6/10)**:
+  - video (ID: 9c744287-6614-4902-ac1e-b79defa81f5e)
+  - content (ID: 84beb180-a9c3-4fe1-bbd8-a8591814080f)
+  - commerce (ID: 89aa3685-f4de-4458-9842-e2e03ae62a9d)
+  - payment (ID: 67609ded-88b2-4f99-9c7d-8ee1c7e5d0ff)
+  - notification (ID: ce88c70c-5760-452e-8bb7-a0b57641ed65)
+  - calling (ID: 9c44a703-56dc-4fb5-a46d-362ee5e3dc9a)
+
+#### Root Cause Analysis
+- **Issue**: "Deployment does not have an associated build" error for 6 services
+- **Diagnosis**: Railway MCP `service_create_from_repo` cannot configure deployment branch
+- **Branch Mismatch**: Services default to `main` branch, but Dockerfiles exist on `029-implement-live-on` branch
+- **Railway MCP Limitation**: No API parameter available for branch configuration
+- **All Dockerfiles Verified**: Simplified single-stage builds matching social-fixed pattern (confirmed working)
+- **Environment Variables Complete**: All services have correct DATABASE_URL, REDIS_URL, JWT_SECRET, PORT configuration
+
+#### Manual Resolution Steps Required
+**Option 1: Configure Branch via Railway UI** (Recommended for development)
+1. Access Railway dashboard for each failing service
+2. Navigate to Settings → Source
+3. Change deployment branch from `main` to `029-implement-live-on`
+4. Redeploy service
+
+**Option 2: Merge to Main Branch** (Recommended for production)
+1. Merge branch `029-implement-live-on` to `main`
+2. Push to GitHub repository
+3. Services will automatically redeploy from `main` branch
+
+**Shared Environment Variables Template** (from auth-final):
+```
+PORT=[service-specific-port]
+DATABASE_URL=postgresql://postgres:BpcMkwzFeULuAINVIRScuCBfNwQaqsyo@postgres.railway.internal:5432/railway
+GIN_MODE=release
+REDIS_URL=redis://default:jOFuvSfgpVbdzhbzzMyThAxjMfEHxsKT@redis.railway.internal:6379
+JWT_SECRET=tchat-railway-jwt-secret-2025
+```
 
 ### Video System Architecture
 - **Real-time Video API**: Working integration with video service through gateway routing
