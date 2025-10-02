@@ -23,6 +23,7 @@ type PresenceRepository interface {
 }
 
 type WebSocketManager interface {
+	RegisterClient(userID uuid.UUID, conn interface{})
 	BroadcastToUser(ctx context.Context, userID uuid.UUID, message interface{}) error
 	BroadcastToUsers(ctx context.Context, userIDs []uuid.UUID, message interface{}) error
 	GetConnectedUsers(ctx context.Context) []uuid.UUID

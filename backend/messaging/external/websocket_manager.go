@@ -78,10 +78,16 @@ func (m *WebSocketManager) run() {
 }
 
 // RegisterClient registers a new WebSocket client
-func (m *WebSocketManager) RegisterClient(userID uuid.UUID, conn *websocket.Conn) {
+func (m *WebSocketManager) RegisterClient(userID uuid.UUID, conn interface{}) {
+	wsConn, ok := conn.(*websocket.Conn)
+	if !ok {
+		log.Printf("Invalid connection type for user %s", userID)
+		return
+	}
+
 	client := &WebSocketConnection{
 		UserID: userID,
-		Conn:   conn,
+		Conn:   wsConn,
 		Send:   make(chan []byte, 256),
 	}
 

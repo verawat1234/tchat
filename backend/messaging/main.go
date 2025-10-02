@@ -37,9 +37,11 @@ type App struct {
 	dialogService     *services.DialogService
 	presenceService   *services.PresenceService
 	messagingService  services.MessagingService
+	wsManager         services.WebSocketManager
 
 	// Handlers
 	messagingHandlers *handlers.MessagingHandler
+	wsHandler         *handlers.WebSocketHandler
 }
 
 // NewApp creates a new messaging application instance
@@ -212,20 +214,20 @@ func (a *App) initServices() error {
 
 	// External service implementations
 	eventPublisher := external.NewEventPublisher()
-	wsManager := external.NewWebSocketManager()
+	a.wsManager = external.NewWebSocketManager()
 	locationService := external.NewLocationService()
 	notificationService := external.NewNotificationService()
 	contentModerator := external.NewContentModerator()
 	mediaProcessor := external.NewMediaProcessor()
 
 	// Message delivery service depends on notification and websocket services
-	deliveryService := external.NewMessageDeliveryService(notificationService, wsManager)
+	deliveryService := external.NewMessageDeliveryService(notificationService, a.wsManager)
 
 	// Initialize core business services with ScyllaDB session
 	// Note: passing nil for db parameter as we're using ScyllaDB repositories
 	a.dialogService = services.NewDialogService(dialogRepo, eventPublisher, notificationService, nil)
 	a.messageService = services.NewMessageService(messageRepo, a.dialogService, deliveryService, contentModerator, mediaProcessor, eventPublisher, nil)
-	a.presenceService = services.NewPresenceService(presenceRepo, wsManager, locationService, eventPublisher, nil)
+	a.presenceService = services.NewPresenceService(presenceRepo, a.wsManager, locationService, eventPublisher, nil)
 
 	// Initialize messaging service
 	a.messagingService = services.NewMessagingService(a.dialogService, a.messageService, nil, nil, nil)
@@ -238,6 +240,7 @@ func (a *App) initServices() error {
 func (a *App) initHandlers() error {
 	// Initialize handlers
 	a.messagingHandlers = handlers.NewMessagingHandler(a.messagingService)
+	a.wsHandler = handlers.NewWebSocketHandler(a.wsManager)
 
 	log.Println("Handlers initialized successfully")
 	return nil
@@ -255,23 +258,32 @@ func (a *App) initRouter() error {
 	router.HandleFunc("/ready", a.readinessCheck).Methods("GET")
 
 	// API routes
-	v1 := router.PathPrefix("/api/v1").Subrouter()
+	v1 := router.PathPrefix("/v1").Subrouter()
+
+	// Gateway-compatible health check endpoint
+	v1.HandleFunc("/healthcheck", a.healthCheck).Methods("GET")
+
+	// API v1 routes
+	apiV1 := router.PathPrefix("/api/v1").Subrouter()
 
 	// Health endpoint for messaging
-	v1.HandleFunc("/messaging/health", func(w http.ResponseWriter, r *http.Request) {
+	apiV1.HandleFunc("/messaging/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status": "messaging service healthy"}`))
 	}).Methods("GET")
 
 	// Register messaging routes
-	a.messagingHandlers.RegisterRoutes(v1)
+	a.messagingHandlers.RegisterRoutes(apiV1)
+
+	// Register WebSocket routes
+	a.wsHandler.RegisterRoutes(apiV1)
 
 	// Start messaging handler
 	a.messagingHandlers.Start()
 
 	a.router = router
-	log.Println("Router initialized successfully with messaging routes")
+	log.Println("Router initialized successfully with messaging and WebSocket routes")
 	return nil
 }
 
@@ -326,7 +338,7 @@ func (a *App) Shutdown(ctx context.Context) error {
 func (a *App) testAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Skip auth for health endpoints
-		if r.URL.Path == "/health" || r.URL.Path == "/ready" {
+		if r.URL.Path == "/health" || r.URL.Path == "/ready" || r.URL.Path == "/v1/healthcheck" {
 			next.ServeHTTP(w, r)
 			return
 		}
