@@ -15,5 +15,5 @@ RUN go build -o gateway-service .
 # Expose port
 EXPOSE 8080
 
-# Start the service
-CMD ["./gateway-service"]
+# Start the service with absolute path
+CMD ["/app/gateway-service"]
