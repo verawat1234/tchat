@@ -1,5 +1,6 @@
 # Fresh Social Service Build
-FROM golang:1.23-alpine
+# Using Go 1.24 as required by go.mod
+FROM golang:1.24-alpine
 
 # Set working directory
 WORKDIR /app

@@ -1,5 +1,6 @@
 # Multi-stage build for Messaging Service
-FROM golang:1.23-alpine AS builder
+# Using Go 1.24 as required by go.mod
+FROM golang:1.24-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
