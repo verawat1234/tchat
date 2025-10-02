@@ -1,0 +1,840 @@
+openapi: 3.0.3
+info:
+  title: Tchat Auth Service API
+  description: Authentication and user management service for Tchat platform
+  version: 1.0.0
+  contact:
+    name: Tchat Development Team
+    email: dev@tchat.com
+servers:
+  - url: http://localhost:8081
+    description: Local development
+  - url: https://api.tchat.com
+    description: Production
+paths:
+  /auth/register:
+    post:
+      summary: Register new user
+      description: Register a new user account with phone number verification
+      operationId: registerUser
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              phone_number: "+66812345678"
+              email: "john@example.com"
+              first_name: "John"
+              last_name: "Doe"
+              country: "TH"
+              language: "en"
+              timezone: "Asia/Bangkok"
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/login:
+    post:
+      summary: User login
+      description: Login user with OTP verification
+      operationId: loginUser
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              phone_number: "+66812345678"
+              code: "123456"
+              device_id: "device_abc123"
+              device_info:
+                platform: "ios"
+                version: "15.0"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/refresh:
+    post:
+      summary: Refresh access token
+      description: Generate new access token using refresh token
+      operationId: refreshToken
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/logout:
+    post:
+      summary: User logout
+      description: Logout user and terminate session
+      operationId: logoutUser
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessMessage'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/profile:
+    get:
+      summary: Get user profile
+      description: Get current authenticated user profile
+      operationId: getUserProfile
+      tags:
+        - Profile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    put:
+      summary: Update user profile
+      description: Update current authenticated user profile
+      operationId: updateUserProfile
+      tags:
+        - Profile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/sessions:
+    get:
+      summary: Get user sessions
+      description: Get all active sessions for current user
+      operationId: getUserSessions
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Sessions retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SessionListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/sessions/{sessionId}:
+    delete:
+      summary: Terminate session
+      description: Terminate a specific session by ID
+      operationId: terminateSession
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Session ID to terminate
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessMessage'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /auth/sessions/terminate-all:
+    post:
+      summary: Terminate all sessions
+      description: Terminate all sessions except current one
+      operationId: terminateAllSessions
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessMessage'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/validate:
+    get:
+      summary: Validate token
+      description: Validate JWT token and return user information
+      operationId: validateToken
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TokenValidationResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /health:
+    get:
+      summary: Service health check
+      description: Check if the service is healthy
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # Request schemas
+    RegisterRequest:
+      type: object
+      required:
+        - phone_number
+        - country
+        - language
+        - timezone
+      properties:
+        phone_number:
+          type: string
+          format: e164
+          example: "+66812345678"
+          description: Phone number in E.164 format
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
+          example: "johndoe"
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: "John"
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: "Doe"
+        country:
+          $ref: '#/components/schemas/Country'
+        language:
+          type: string
+          minLength: 2
+          maxLength: 2
+          example: "en"
+          description: ISO 639-1 language code
+        timezone:
+          type: string
+          example: "Asia/Bangkok"
+          description: IANA timezone identifier
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional user metadata
+
+    LoginRequest:
+      type: object
+      required:
+        - phone_number
+        - code
+        - device_id
+      properties:
+        phone_number:
+          type: string
+          format: e164
+          example: "+66812345678"
+        code:
+          type: string
+          pattern: '^[0-9]{6}$'
+          example: "123456"
+          description: 6-digit OTP code
+        device_id:
+          type: string
+          example: "device_abc123"
+        device_info:
+          type: object
+          additionalProperties: true
+          description: Device information
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        email:
+          type: string
+          format: email
+        language:
+          type: string
+          minLength: 2
+          maxLength: 2
+        timezone:
+          type: string
+        preferences:
+          $ref: '#/components/schemas/UserPreferences'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    # Response schemas
+    RegisterResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: '#/components/schemas/UserResponse'
+                message:
+                  type: string
+                  example: "Registration successful. Please verify your phone number."
+                next_step:
+                  type: string
+                  example: "phone_verification"
+                created_at:
+                  type: string
+                  format: date-time
+
+    LoginResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                access_token:
+                  type: string
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                refresh_token:
+                  type: string
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                token_type:
+                  type: string
+                  example: "Bearer"
+                expires_in:
+                  type: integer
+                  example: 3600
+                  description: Token expiry time in seconds
+                access_expires_at:
+                  type: string
+                  format: date-time
+                refresh_expires_at:
+                  type: string
+                  format: date-time
+                user:
+                  $ref: '#/components/schemas/UserResponse'
+                session:
+                  $ref: '#/components/schemas/SessionInfo'
+
+    TokenResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                access_token:
+                  type: string
+                refresh_token:
+                  type: string
+                token_type:
+                  type: string
+                  example: "Bearer"
+                expires_in:
+                  type: integer
+                access_expires_at:
+                  type: string
+                  format: date-time
+                refresh_expires_at:
+                  type: string
+                  format: date-time
+
+    SessionListResponse:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionDetails'
+        total:
+          type: integer
+
+    TokenValidationResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+          example: true
+        user:
+          $ref: '#/components/schemas/UserResponse'
+        claims:
+          $ref: '#/components/schemas/UserClaims'
+        session:
+          $ref: '#/components/schemas/SessionDetails'
+        validated_at:
+          type: string
+          format: date-time
+
+    # Entity schemas
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "John Doe"
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+        country:
+          $ref: '#/components/schemas/Country'
+        locale:
+          type: string
+          example: "en-TH"
+        kyc_tier:
+          type: integer
+          minimum: 1
+          maximum: 3
+          example: 1
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        is_verified:
+          type: boolean
+          example: false
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    SessionInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        device_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+
+    SessionDetails:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [active, expired, terminated]
+        user_agent:
+          type: string
+        ip_address:
+          type: string
+        device_info:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        last_active_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        is_current:
+          type: boolean
+
+    UserPreferences:
+      type: object
+      properties:
+        theme:
+          type: string
+          enum: [light, dark, auto]
+          example: "auto"
+        language:
+          type: string
+          example: "en"
+        notifications_email:
+          type: boolean
+          example: true
+        notifications_push:
+          type: boolean
+          example: true
+        privacy_level:
+          type: string
+          enum: [public, friends, private]
+          example: "friends"
+
+    UserClaims:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        device_id:
+          type: string
+        kyc_tier:
+          type: integer
+        country:
+          $ref: '#/components/schemas/Country'
+        issued_at:
+          type: integer
+        expires_at:
+          type: integer
+
+    Country:
+      type: string
+      enum: [TH, ID, MY, VN, SG, PH]
+      example: "TH"
+      description: Southeast Asian country codes
+
+    UserStatus:
+      type: string
+      enum: [online, offline, away, busy, active, pending, suspended, inactive]
+      example: "offline"
+
+    # Base response schemas
+    BaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-09-25T10:30:45.123Z"
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          $ref: '#/components/schemas/ErrorInfo'
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorInfo:
+      type: object
+      properties:
+        code:
+          type: string
+          example: "validation_error"
+        message:
+          type: string
+          example: "Validation failed"
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+
+    ValidationError:
+      type: object
+      properties:
+        field:
+          type: string
+          example: "phone_number"
+        tag:
+          type: string
+          example: "required"
+        value:
+          type: string
+          example: ""
+        message:
+          type: string
+          example: "This field is required"
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+        service:
+          type: string
+          example: "auth-service"
+        version:
+          type: string
+          example: "1.0.0"
+        timestamp:
+          type: string
+          format: date-time
+        uptime:
+          type: integer
+          description: Service uptime in seconds
+        dependencies:
+          type: object
+          properties:
+            database:
+              type: string
+              enum: [healthy, unhealthy]
+            redis:
+              type: string
+              enum: [healthy, unhealthy]
+
+  responses:
+    SuccessMessage:
+      description: Operation successful
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/BaseResponse'
+              - type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Operation completed successfully"
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: "validation_error"
+              message: "Validation failed"
+              details:
+                - field: "phone_number"
+                  tag: "required"
+                  message: "This field is required"
+            timestamp: "2024-09-25T10:30:45.123Z"
+
+    UnauthorizedError:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: "unauthorized"
+              message: "Authentication required"
+            timestamp: "2024-09-25T10:30:45.123Z"
+
+    ConflictError:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: "conflict"
+              message: "User already exists"
+            timestamp: "2024-09-25T10:30:45.123Z"
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: "not_found"
+              message: "Resource not found"
+            timestamp: "2024-09-25T10:30:45.123Z"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: "internal_error"
+              message: "Internal server error"
+            timestamp: "2024-09-25T10:30:45.123Z"
+
+  examples:
+    ThaiUser:
+      value:
+        phone_number: "+66812345678"
+        email: "user@example.com"
+        first_name: "สมชาย"
+        last_name: "ใจดี"
+        country: "TH"
+        language: "th"
+        timezone: "Asia/Bangkok"
+
+    IndonesianUser:
+      value:
+        phone_number: "+62812345678"
+        email: "user@example.com"
+        first_name: "Budi"
+        last_name: "Santoso"
+        country: "ID"
+        language: "id"
+        timezone: "Asia/Jakarta"
+
+    SingaporeanUser:
+      value:
+        phone_number: "+6591234567"
+        email: "user@example.com"
+        first_name: "Wei Ming"
+        last_name: "Tan"
+        country: "SG"
+        language: "en"
+        timezone: "Asia/Singapore"
+
+tags:
+  - name: Authentication
+    description: User authentication operations
+  - name: Profile
+    description: User profile management
+  - name: Sessions
+    description: Session management
+  - name: Health
+    description: Service health checks

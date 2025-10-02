@@ -1,0 +1,2125 @@
+openapi: 3.0.3
+info:
+  title: Tchat Platform API Gateway
+  description: |
+    Unified API Gateway for Tchat platform microservices.
+
+    This gateway provides a single entry point for all frontend applications
+    to interact with the distributed Tchat backend services, including:
+
+    - **Authentication Service**: User management and JWT authentication
+    - **Content Service**: Dynamic content management and localization
+    - **Messaging Service**: Real-time chat and communication
+    - **Commerce Service**: E-commerce and shopping functionality
+    - **Payment Service**: Multi-currency payments for Southeast Asia
+    - **Notification Service**: Multi-channel notifications
+
+    ## Southeast Asian Focus
+
+    This API is specifically designed for Southeast Asian markets with support for:
+    - **6 Countries**: Thailand (TH), Indonesia (ID), Malaysia (MY), Vietnam (VN), Singapore (SG), Philippines (PH)
+    - **6 Currencies**: THB, IDR, MYR, VND, SGD, PHP
+    - **6 Languages**: English, Thai, Indonesian, Malay, Vietnamese, Filipino
+    - **Regional Payment Methods**: PromptPay, GoPay, GrabPay, PayNow, etc.
+
+    ## Authentication
+
+    All protected endpoints require JWT authentication via the `Authorization` header:
+    ```
+    Authorization: Bearer <access_token>
+    ```
+
+    Obtain access tokens via the `/api/v1/auth/login` endpoint.
+
+    ## Rate Limiting
+
+    The API implements rate limiting to ensure fair usage:
+    - **Authentication**: 5 login attempts per 15 minutes
+    - **Payments**: 10 transactions per minute
+    - **Messaging**: 100 messages per minute
+    - **General API**: 1000 requests per hour
+
+    ## Error Handling
+
+    All errors follow a consistent format:
+    ```json
+    {
+      "success": false,
+      "error": {
+        "code": "error_code",
+        "message": "Human readable message",
+        "details": {}
+      },
+      "timestamp": "2024-09-25T10:30:45.123Z"
+    }
+    ```
+
+    ## WebSocket
+
+    Real-time features are available via WebSocket connection:
+    ```
+    wss://api.tchat.com/ws
+    ```
+
+    Requires authentication via query parameter or upgrade headers.
+
+  version: 1.0.0
+  contact:
+    name: Tchat Development Team
+    email: dev@tchat.com
+    url: https://docs.tchat.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://api-staging.tchat.com
+    description: Staging environment
+  - url: https://api.tchat.com
+    description: Production environment
+
+# Core Gateway endpoints
+paths:
+  # Gateway Health & Status
+  /health:
+    get:
+      summary: Gateway health check
+      description: Check if the API Gateway and all backend services are healthy
+      operationId: getGatewayHealth
+      tags:
+        - Gateway
+      responses:
+        '200':
+          description: Gateway and services are healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayHealthResponse'
+        '503':
+          description: Some services are unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayHealthResponse'
+
+  /health/detailed:
+    get:
+      summary: Detailed health check
+      description: Get detailed health information for all services
+      operationId: getDetailedHealth
+      tags:
+        - Gateway
+      responses:
+        '200':
+          description: Detailed health information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailedHealthResponse'
+
+  # Service Registry
+  /registry/services:
+    get:
+      summary: List registered services
+      description: Get list of all registered microservices
+      operationId: listServices
+      tags:
+        - Service Registry
+      responses:
+        '200':
+          description: List of registered services
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceListResponse'
+
+  # WebSocket endpoint info
+  /ws:
+    get:
+      summary: WebSocket connection info
+      description: Get WebSocket connection information for real-time features
+      operationId: getWebSocketInfo
+      tags:
+        - WebSocket
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: WebSocket connection details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebSocketInfoResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  # Authentication Service Proxy Routes
+  /api/v1/auth/register:
+    $ref: './auth-service.yaml#/paths/~1auth~1register'
+
+  /api/v1/auth/login:
+    $ref: './auth-service.yaml#/paths/~1auth~1login'
+
+  /api/v1/auth/refresh:
+    $ref: './auth-service.yaml#/paths/~1auth~1refresh'
+
+  /api/v1/auth/logout:
+    $ref: './auth-service.yaml#/paths/~1auth~1logout'
+
+  /api/v1/auth/profile:
+    $ref: './auth-service.yaml#/paths/~1auth~1profile'
+
+  /api/v1/auth/sessions:
+    $ref: './auth-service.yaml#/paths/~1auth~1sessions'
+
+  /api/v1/auth/sessions/{sessionId}:
+    $ref: './auth-service.yaml#/paths/~1auth~1sessions~1{sessionId}'
+
+  /api/v1/auth/sessions/terminate-all:
+    $ref: './auth-service.yaml#/paths/~1auth~1sessions~1terminate-all'
+
+  /api/v1/auth/validate:
+    $ref: './auth-service.yaml#/paths/~1auth~1validate'
+
+  # Content Service Routes
+  /api/v1/content:
+    get:
+      summary: Get content items
+      description: Retrieve content items with filtering and pagination
+      operationId: getContentItems
+      tags:
+        - Content
+      parameters:
+        - $ref: '#/components/parameters/CategoryFilter'
+        - $ref: '#/components/parameters/ContentTypeFilter'
+        - $ref: '#/components/parameters/StatusFilter'
+        - $ref: '#/components/parameters/SearchFilter'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/SortFieldParam'
+        - $ref: '#/components/parameters/SortOrderParam'
+      responses:
+        '200':
+          description: Content items retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentListResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      summary: Create content item
+      description: Create a new content item (admin only)
+      operationId: createContent
+      tags:
+        - Content
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateContentRequest'
+      responses:
+        '201':
+          description: Content created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentItemResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /api/v1/content/{contentId}:
+    get:
+      summary: Get content item
+      description: Retrieve a specific content item by ID or key
+      operationId: getContentItem
+      tags:
+        - Content
+      parameters:
+        - name: contentId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Content ID (UUID) or content key
+          example: "welcome_message"
+      responses:
+        '200':
+          description: Content item retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentItemResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/v1/content/sync:
+    post:
+      summary: Sync content
+      description: Synchronize content based on last sync timestamp
+      operationId: syncContent
+      tags:
+        - Content
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncContentRequest'
+      responses:
+        '200':
+          description: Content synchronized successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncContentResponse'
+
+  # Messaging Service Routes
+  /api/v1/messages/chats:
+    get:
+      summary: Get user chats
+      description: Get all chats for the authenticated user
+      operationId: getUserChats
+      tags:
+        - Messaging
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Chats retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    post:
+      summary: Create chat
+      description: Create a new chat (direct or group)
+      operationId: createChat
+      tags:
+        - Messaging
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChatRequest'
+      responses:
+        '201':
+          description: Chat created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+
+  /api/v1/messages/chats/{chatId}/messages:
+    get:
+      summary: Get chat messages
+      description: Get messages from a specific chat with pagination
+      operationId: getChatMessages
+      tags:
+        - Messaging
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: chatId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: before
+          in: query
+          schema:
+            type: string
+          description: Message ID for pagination (get messages before this ID)
+        - name: after
+          in: query
+          schema:
+            type: string
+          description: Message ID for pagination (get messages after this ID)
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    post:
+      summary: Send message
+      description: Send a message to a chat
+      operationId: sendMessage
+      tags:
+        - Messaging
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: chatId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '201':
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  # Commerce Service Routes
+  /api/v1/commerce/products:
+    get:
+      summary: Get products
+      description: Get products with filtering and pagination
+      operationId: getProducts
+      tags:
+        - Commerce
+      parameters:
+        - $ref: '#/components/parameters/CategoryFilter'
+        - name: shop_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/SearchFilter'
+        - name: min_price
+          in: query
+          schema:
+            type: number
+            minimum: 0
+        - name: max_price
+          in: query
+          schema:
+            type: number
+            minimum: 0
+        - name: currency
+          in: query
+          schema:
+            $ref: '#/components/schemas/Currency'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: Products retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductListResponse'
+
+  /api/v1/commerce/cart:
+    get:
+      summary: Get shopping cart
+      description: Get current user's shopping cart
+      operationId: getShoppingCart
+      tags:
+        - Commerce
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Shopping cart retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+
+  /api/v1/commerce/cart/items:
+    post:
+      summary: Add item to cart
+      description: Add a product to the shopping cart
+      operationId: addCartItem
+      tags:
+        - Commerce
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCartItemRequest'
+      responses:
+        '200':
+          description: Item added to cart successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+
+  /api/v1/commerce/orders:
+    get:
+      summary: Get user orders
+      description: Get orders for the authenticated user
+      operationId: getUserOrders
+      tags:
+        - Commerce
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/OrderStatus'
+        - $ref: '#/components/parameters/PageParam'
+      responses:
+        '200':
+          description: Orders retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderListResponse'
+
+    post:
+      summary: Create order
+      description: Create a new order from cart items
+      operationId: createOrder
+      tags:
+        - Commerce
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Order created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+
+  # Payment Service Routes
+  /api/v1/payments/wallet:
+    get:
+      summary: Get wallet
+      description: Get user's wallet with all currency balances
+      operationId: getWallet
+      tags:
+        - Payments
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Wallet retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalletResponse'
+
+  /api/v1/payments/payment-methods:
+    get:
+      summary: Get payment methods
+      description: Get user's saved payment methods
+      operationId: getPaymentMethods
+      tags:
+        - Payments
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Payment methods retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethodListResponse'
+
+    post:
+      summary: Add payment method
+      description: Add a new payment method for the user
+      operationId: addPaymentMethod
+      tags:
+        - Payments
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddPaymentMethodRequest'
+      responses:
+        '201':
+          description: Payment method added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethodResponse'
+
+  /api/v1/payments/transactions:
+    get:
+      summary: Get transactions
+      description: Get user's transaction history
+      operationId: getTransactions
+      tags:
+        - Payments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/TransactionType'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/TransactionStatus'
+        - name: currency
+          in: query
+          schema:
+            $ref: '#/components/schemas/Currency'
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - $ref: '#/components/parameters/PageParam'
+      responses:
+        '200':
+          description: Transactions retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionListResponse'
+
+    post:
+      summary: Create transaction
+      description: Create a new transaction (payment, transfer, etc.)
+      operationId: createTransaction
+      tags:
+        - Payments
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionRequest'
+      responses:
+        '201':
+          description: Transaction created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+
+  # Notification Service Routes
+  /api/v1/notifications:
+    get:
+      summary: Get notifications
+      description: Get user's notifications with filtering
+      operationId: getNotifications
+      tags:
+        - Notifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [read, unread]
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/NotificationType'
+        - $ref: '#/components/parameters/PageParam'
+      responses:
+        '200':
+          description: Notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+
+  /api/v1/notifications/mark-read:
+    post:
+      summary: Mark notifications as read
+      description: Mark one or more notifications as read
+      operationId: markNotificationsRead
+      tags:
+        - Notifications
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkReadRequest'
+      responses:
+        '200':
+          description: Notifications marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarkReadResponse'
+
+  /api/v1/notifications/settings:
+    get:
+      summary: Get notification settings
+      description: Get user's notification preferences
+      operationId: getNotificationSettings
+      tags:
+        - Notifications
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Notification settings retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationSettingsResponse'
+
+    put:
+      summary: Update notification settings
+      description: Update user's notification preferences
+      operationId: updateNotificationSettings
+      tags:
+        - Notifications
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateNotificationSettingsRequest'
+      responses:
+        '200':
+          description: Settings updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationSettingsResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token obtained from `/api/v1/auth/login` endpoint.
+
+        Include the token in the Authorization header:
+        ```
+        Authorization: Bearer <your_jwt_token>
+        ```
+
+  parameters:
+    CategoryFilter:
+      name: category
+      in: query
+      schema:
+        type: string
+      description: Filter by category
+      example: "ui_strings"
+
+    ContentTypeFilter:
+      name: type
+      in: query
+      schema:
+        type: string
+        enum: [text, rich_text, config, image]
+      description: Filter by content type
+
+    StatusFilter:
+      name: status
+      in: query
+      schema:
+        type: string
+        enum: [draft, published, archived]
+      description: Filter by status
+
+    SearchFilter:
+      name: search
+      in: query
+      schema:
+        type: string
+      description: Search term for filtering
+      example: "welcome"
+
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      description: Page number (0-based)
+
+    PageSizeParam:
+      name: page_size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Items per page
+
+    SortFieldParam:
+      name: sort_field
+      in: query
+      schema:
+        type: string
+        default: "created_at"
+      description: Field to sort by
+
+    SortOrderParam:
+      name: sort_order
+      in: query
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: "desc"
+      description: Sort order
+
+  schemas:
+    # Gateway specific schemas
+    GatewayHealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        gateway:
+          type: object
+          properties:
+            uptime:
+              type: integer
+              description: Gateway uptime in seconds
+            version:
+              type: string
+              example: "1.0.0"
+            requests_per_minute:
+              type: number
+        services:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+                enum: [healthy, unhealthy, unknown]
+              last_check:
+                type: string
+                format: date-time
+              response_time_ms:
+                type: number
+        timestamp:
+          type: string
+          format: date-time
+
+    DetailedHealthResponse:
+      type: object
+      properties:
+        gateway:
+          $ref: '#/components/schemas/GatewayHealthResponse'
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceHealthDetail'
+
+    ServiceHealthDetail:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "auth-service"
+        host:
+          type: string
+          example: "localhost"
+        port:
+          type: integer
+          example: 8081
+        status:
+          type: string
+          enum: [healthy, unhealthy, unknown]
+        uptime:
+          type: integer
+        version:
+          type: string
+        dependencies:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [healthy, unhealthy]
+        metrics:
+          type: object
+          properties:
+            cpu_usage:
+              type: number
+            memory_usage:
+              type: number
+            active_connections:
+              type: integer
+
+    ServiceListResponse:
+      type: object
+      properties:
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceInstance'
+        count:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+
+    ServiceInstance:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "auth-service"
+        host:
+          type: string
+          example: "localhost"
+        port:
+          type: integer
+          example: 8081
+        health:
+          type: string
+          enum: [healthy, unhealthy, unknown]
+        version:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        last_seen:
+          type: string
+          format: date-time
+
+    WebSocketInfoResponse:
+      type: object
+      properties:
+        websocket_url:
+          type: string
+          format: uri
+          example: "wss://api.tchat.com/ws"
+        protocols:
+          type: array
+          items:
+            type: string
+          example: ["tchat-v1"]
+        authentication:
+          type: object
+          properties:
+            method:
+              type: string
+              example: "jwt_token"
+            parameter:
+              type: string
+              example: "token"
+        heartbeat_interval:
+          type: integer
+          description: Heartbeat interval in seconds
+          example: 30
+
+    # Content schemas
+    ContentListResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ContentItem'
+                pagination:
+                  $ref: '#/components/schemas/PaginationMeta'
+                total:
+                  type: integer
+
+    ContentItemResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ContentItem'
+
+    ContentItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+          example: "welcome_message"
+        type:
+          type: string
+          enum: [text, rich_text, config, image]
+        value:
+          oneOf:
+            - type: string
+            - type: object
+            - type: array
+        category:
+          type: string
+          example: "ui_strings"
+        description:
+          type: string
+        status:
+          type: string
+          enum: [draft, published, archived]
+        version:
+          type: integer
+        metadata:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    CreateContentRequest:
+      type: object
+      required:
+        - key
+        - type
+        - value
+        - category
+      properties:
+        key:
+          type: string
+          example: "welcome_message_th"
+        type:
+          type: string
+          enum: [text, rich_text, config, image]
+        value:
+          oneOf:
+            - type: string
+            - type: object
+            - type: array
+        category:
+          type: string
+        description:
+          type: string
+        metadata:
+          type: object
+
+    SyncContentRequest:
+      type: object
+      properties:
+        last_sync:
+          type: string
+          format: date-time
+          description: Last sync timestamp
+        categories:
+          type: array
+          items:
+            type: string
+          description: Specific categories to sync
+
+    SyncContentResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                updated:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ContentItem'
+                deleted:
+                  type: array
+                  items:
+                    type: string
+                sync_timestamp:
+                  type: string
+                  format: date-time
+
+    # Messaging schemas
+    ChatListResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Chat'
+
+    ChatResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Chat'
+
+    Chat:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [direct, group]
+        name:
+          type: string
+          nullable: true
+          description: Chat name (for groups)
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/Participant'
+        last_message:
+          $ref: '#/components/schemas/Message'
+          nullable: true
+        unread_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Participant:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [member, admin, owner]
+        joined_at:
+          type: string
+          format: date-time
+        last_read_message_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    CreateChatRequest:
+      type: object
+      required:
+        - type
+        - participants
+      properties:
+        type:
+          type: string
+          enum: [direct, group]
+        name:
+          type: string
+          description: Required for group chats
+        participants:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: User IDs of participants
+
+    MessageListResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                messages:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Message'
+                pagination:
+                  $ref: '#/components/schemas/PaginationMeta'
+
+    MessageResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Message'
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        chat_id:
+          type: string
+          format: uuid
+        sender_id:
+          type: string
+          format: uuid
+        content:
+          type: string
+        type:
+          type: string
+          enum: [text, image, file, location]
+        reply_to:
+          type: string
+          format: uuid
+          nullable: true
+        metadata:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        is_edited:
+          type: boolean
+        is_deleted:
+          type: boolean
+
+    SendMessageRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+        type:
+          type: string
+          enum: [text, image, file, location]
+          default: text
+        reply_to:
+          type: string
+          format: uuid
+        metadata:
+          type: object
+
+    # Commerce schemas
+    ProductListResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                products:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Product'
+                pagination:
+                  $ref: '#/components/schemas/PaginationMeta'
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          multipleOf: 0.01
+        currency:
+          $ref: '#/components/schemas/Currency'
+        images:
+          type: array
+          items:
+            type: string
+            format: uri
+        category:
+          type: string
+        shop_id:
+          type: string
+          format: uuid
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductVariant'
+        is_available:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    ProductVariant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        price_adjustment:
+          type: number
+        attributes:
+          type: object
+        is_available:
+          type: boolean
+
+    CartResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Cart'
+
+    Cart:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartItem'
+        total_amount:
+          type: number
+        currency:
+          $ref: '#/components/schemas/Currency'
+        updated_at:
+          type: string
+          format: date-time
+
+    CartItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        product_id:
+          type: string
+          format: uuid
+        variant_id:
+          type: string
+          format: uuid
+          nullable: true
+        quantity:
+          type: integer
+          minimum: 1
+        unit_price:
+          type: number
+        total_price:
+          type: number
+        product:
+          $ref: '#/components/schemas/Product'
+
+    AddCartItemRequest:
+      type: object
+      required:
+        - product_id
+        - quantity
+      properties:
+        product_id:
+          type: string
+          format: uuid
+        variant_id:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+
+    OrderListResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                orders:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Order'
+                pagination:
+                  $ref: '#/components/schemas/PaginationMeta'
+
+    OrderResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Order'
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        total_amount:
+          type: number
+        currency:
+          $ref: '#/components/schemas/Currency'
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        shipping_address:
+          $ref: '#/components/schemas/Address'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        product_id:
+          type: string
+          format: uuid
+        variant_id:
+          type: string
+          format: uuid
+          nullable: true
+        quantity:
+          type: integer
+        unit_price:
+          type: number
+        total_price:
+          type: number
+
+    CreateOrderRequest:
+      type: object
+      required:
+        - items
+        - shipping_address
+        - payment_method_id
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              product_id:
+                type: string
+                format: uuid
+              variant_id:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+        shipping_address:
+          $ref: '#/components/schemas/Address'
+        payment_method_id:
+          type: string
+          format: uuid
+
+    OrderStatus:
+      type: string
+      enum: [pending, confirmed, processing, shipped, delivered, cancelled]
+
+    Address:
+      type: object
+      required:
+        - street
+        - city
+        - country
+        - postal_code
+      properties:
+        street:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        country:
+          $ref: '#/components/schemas/Country'
+        postal_code:
+          type: string
+        phone:
+          type: string
+
+    # Payment schemas
+    WalletResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Wallet'
+
+    Wallet:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        balances:
+          type: array
+          items:
+            $ref: '#/components/schemas/WalletBalance'
+        total_value_usd:
+          type: number
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    WalletBalance:
+      type: object
+      properties:
+        currency:
+          $ref: '#/components/schemas/Currency'
+        amount:
+          type: number
+          description: Total balance
+        locked_amount:
+          type: number
+          description: Locked/pending amount
+        available_amount:
+          type: number
+          description: Available for spending
+
+    PaymentMethodListResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/PaymentMethod'
+
+    PaymentMethodResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PaymentMethod'
+
+    PaymentMethod:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [card, bank_transfer, ewallet, crypto]
+        name:
+          type: string
+          example: "GrabPay"
+        details:
+          type: object
+          description: Payment method specific details
+        is_default:
+          type: boolean
+        is_verified:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    AddPaymentMethodRequest:
+      type: object
+      required:
+        - type
+        - details
+      properties:
+        type:
+          type: string
+          enum: [card, bank_transfer, ewallet, crypto]
+        name:
+          type: string
+        details:
+          type: object
+        is_default:
+          type: boolean
+          default: false
+
+    TransactionListResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                transactions:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Transaction'
+                pagination:
+                  $ref: '#/components/schemas/PaginationMeta'
+
+    TransactionResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Transaction'
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        type:
+          $ref: '#/components/schemas/TransactionType'
+        amount:
+          type: number
+        currency:
+          $ref: '#/components/schemas/Currency'
+        status:
+          $ref: '#/components/schemas/TransactionStatus'
+        description:
+          type: string
+        metadata:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateTransactionRequest:
+      type: object
+      required:
+        - type
+        - amount
+        - currency
+      properties:
+        type:
+          $ref: '#/components/schemas/TransactionType'
+        amount:
+          type: number
+          minimum: 0.01
+        currency:
+          $ref: '#/components/schemas/Currency'
+        recipient_id:
+          type: string
+          format: uuid
+          description: Required for transfers
+        description:
+          type: string
+
+    TransactionType:
+      type: string
+      enum: [payment, transfer, deposit, withdrawal]
+
+    TransactionStatus:
+      type: string
+      enum: [pending, processing, completed, failed, cancelled]
+
+    # Notification schemas
+    NotificationListResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                notifications:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Notification'
+                pagination:
+                  $ref: '#/components/schemas/PaginationMeta'
+                unread_count:
+                  type: integer
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        type:
+          $ref: '#/components/schemas/NotificationType'
+        title:
+          type: string
+        body:
+          type: string
+        data:
+          type: object
+        channels:
+          type: array
+          items:
+            type: string
+            enum: [email, push, sms]
+        status:
+          type: string
+          enum: [pending, sent, delivered, failed]
+        is_read:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    NotificationType:
+      type: string
+      enum: [message, payment, order, security, system]
+
+    MarkReadRequest:
+      type: object
+      properties:
+        notification_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: If not provided, all notifications will be marked as read
+
+    MarkReadResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                marked_count:
+                  type: integer
+
+    NotificationSettingsResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/NotificationSettings'
+
+    NotificationSettings:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        email_enabled:
+          type: boolean
+        push_enabled:
+          type: boolean
+        sms_enabled:
+          type: boolean
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationCategorySettings'
+        quiet_hours:
+          $ref: '#/components/schemas/QuietHours'
+
+    NotificationCategorySettings:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/NotificationType'
+        enabled:
+          type: boolean
+        channels:
+          type: array
+          items:
+            type: string
+            enum: [email, push, sms]
+
+    QuietHours:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        start_time:
+          type: string
+          pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+          example: "22:00"
+        end_time:
+          type: string
+          pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+          example: "08:00"
+        timezone:
+          type: string
+
+    UpdateNotificationSettingsRequest:
+      type: object
+      properties:
+        email_enabled:
+          type: boolean
+        push_enabled:
+          type: boolean
+        sms_enabled:
+          type: boolean
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationCategorySettings'
+        quiet_hours:
+          $ref: '#/components/schemas/QuietHours'
+
+    # Shared schemas
+    BaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-09-25T10:30:45.123Z"
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          $ref: '#/components/schemas/ErrorInfo'
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorInfo:
+      type: object
+      properties:
+        code:
+          type: string
+          example: "validation_error"
+        message:
+          type: string
+          example: "Validation failed"
+        details:
+          oneOf:
+            - type: string
+            - type: object
+            - type: array
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Current page (0-based)
+        page_size:
+          type: integer
+          description: Items per page
+        total_pages:
+          type: integer
+          description: Total number of pages
+        total_items:
+          type: integer
+          description: Total number of items
+        has_next:
+          type: boolean
+          description: Whether there is a next page
+        has_previous:
+          type: boolean
+          description: Whether there is a previous page
+
+    Country:
+      type: string
+      enum: [TH, ID, MY, VN, SG, PH]
+      description: |
+        Southeast Asian country codes:
+        - TH: Thailand
+        - ID: Indonesia
+        - MY: Malaysia
+        - VN: Vietnam
+        - SG: Singapore
+        - PH: Philippines
+
+    Currency:
+      type: string
+      enum: [THB, IDR, MYR, VND, SGD, PHP, USD]
+      description: |
+        Supported currencies:
+        - THB: Thai Baht
+        - IDR: Indonesian Rupiah
+        - MYR: Malaysian Ringgit
+        - VND: Vietnamese Dong
+        - SGD: Singapore Dollar
+        - PHP: Philippine Peso
+        - USD: US Dollar (for reference/exchange)
+
+  responses:
+    SuccessMessage:
+      description: Operation successful
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/BaseResponse'
+              - type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Operation completed successfully"
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            validation_error:
+              summary: Validation failed
+              value:
+                success: false
+                error:
+                  code: "validation_error"
+                  message: "Validation failed"
+                  details:
+                    - field: "phone_number"
+                      tag: "required"
+                      message: "This field is required"
+                timestamp: "2024-09-25T10:30:45.123Z"
+
+    UnauthorizedError:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            unauthorized:
+              summary: Authentication required
+              value:
+                success: false
+                error:
+                  code: "unauthorized"
+                  message: "Authentication required"
+                timestamp: "2024-09-25T10:30:45.123Z"
+
+            invalid_token:
+              summary: Invalid token
+              value:
+                success: false
+                error:
+                  code: "unauthorized"
+                  message: "Invalid or expired token"
+                timestamp: "2024-09-25T10:30:45.123Z"
+
+    ForbiddenError:
+      description: Access forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            forbidden:
+              summary: Access forbidden
+              value:
+                success: false
+                error:
+                  code: "forbidden"
+                  message: "Access forbidden"
+                timestamp: "2024-09-25T10:30:45.123Z"
+
+            kyc_required:
+              summary: KYC verification required
+              value:
+                success: false
+                error:
+                  code: "kyc_required"
+                  message: "KYC verification required for this operation"
+                timestamp: "2024-09-25T10:30:45.123Z"
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            not_found:
+              summary: Resource not found
+              value:
+                success: false
+                error:
+                  code: "not_found"
+                  message: "Resource not found"
+                timestamp: "2024-09-25T10:30:45.123Z"
+
+    ConflictError:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            conflict:
+              summary: Resource already exists
+              value:
+                success: false
+                error:
+                  code: "conflict"
+                  message: "User already exists"
+                timestamp: "2024-09-25T10:30:45.123Z"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            internal_error:
+              summary: Internal server error
+              value:
+                success: false
+                error:
+                  code: "internal_error"
+                  message: "Internal server error"
+                timestamp: "2024-09-25T10:30:45.123Z"
+
+            service_unavailable:
+              summary: Service unavailable
+              value:
+                success: false
+                error:
+                  code: "service_unavailable"
+                  message: "Payment service is temporarily unavailable"
+                timestamp: "2024-09-25T10:30:45.123Z"
+
+  examples:
+    # Regional examples
+    ThailandUser:
+      summary: Thailand user example
+      value:
+        phone_number: "+66812345678"
+        email: "user@example.com"
+        first_name: "สมชาย"
+        last_name: "ใจดี"
+        country: "TH"
+        language: "th"
+        timezone: "Asia/Bangkok"
+
+    IndonesiaUser:
+      summary: Indonesia user example
+      value:
+        phone_number: "+62812345678"
+        email: "user@example.com"
+        first_name: "Budi"
+        last_name: "Santoso"
+        country: "ID"
+        language: "id"
+        timezone: "Asia/Jakarta"
+
+    ThaiPayment:
+      summary: Thai Baht payment
+      value:
+        amount: 1500
+        currency: "THB"
+        type: "payment"
+        description: "Coffee purchase"
+
+    IndonesianPayment:
+      summary: Indonesian Rupiah payment
+      value:
+        amount: 150000
+        currency: "IDR"
+        type: "payment"
+        description: "Nasi goreng order"
+
+tags:
+  - name: Gateway
+    description: API Gateway operations and health checks
+  - name: Service Registry
+    description: Service discovery and registry management
+  - name: WebSocket
+    description: Real-time WebSocket connection information
+  - name: Content
+    description: Dynamic content management and localization
+  - name: Messaging
+    description: Real-time chat and messaging
+  - name: Commerce
+    description: E-commerce and shopping functionality
+  - name: Payments
+    description: Multi-currency payments and wallet management
+  - name: Notifications
+    description: Multi-channel notifications and settings
+
+externalDocs:
+  description: Find more info about Tchat API
+  url: https://docs.tchat.com
