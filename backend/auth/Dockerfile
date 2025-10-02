@@ -1,14 +1,17 @@
-# Simple build for Auth Service (matching social-fixed pattern)
+# Build for Auth Service - requires shared module
 # Using Go 1.24 as required by go.mod
+# Railway root directory should be: backend (not backend/auth)
 FROM golang:1.24-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Copy all files from auth directory (Railway builds from backend/auth)
-COPY . .
+# Copy shared module and auth service
+COPY shared/ ./shared/
+COPY auth/ ./auth/
 
-# Build the application
+# Build from auth directory
+WORKDIR /app/auth
 RUN go mod tidy
 RUN go build -o auth-service ./main.go
 
