@@ -1,26 +1,15 @@
-# Build stage
-FROM golang:1.24-bookworm AS builder
+# Simple build for Gateway Service (matching auth-final pattern)
+FROM golang:1.23-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Copy all files (including shared module copied into gateway directory)
+# Copy all files from gateway directory (Railway builds from backend/infrastructure/gateway)
 COPY . .
 
-# Build the application with all .go files
-RUN GOWORK=off go mod download
-RUN GOWORK=off CGO_ENABLED=1 GOOS=linux go build -o gateway-service .
-
-# Runtime stage - using Debian slim for glibc compatibility
-FROM debian:bookworm-slim
-
-# Install CA certificates and other runtime dependencies
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Copy binary from builder
-COPY --from=builder /app/gateway-service .
+# Build the application
+RUN go mod tidy
+RUN go build -o gateway-service .
 
 # Expose port
 EXPOSE 8080
