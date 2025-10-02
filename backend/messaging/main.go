@@ -11,10 +11,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gocql/gocql"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	"gorm.io/gorm/schema"
 
 	"tchat.dev/messaging/external"
 	"tchat.dev/messaging/handlers"
@@ -28,7 +31,7 @@ import (
 // App represents the main messaging application
 type App struct {
 	config    *config.Config
-	session   *gocql.Session
+	db        *gorm.DB
 	router    *mux.Router
 	server    *http.Server
 	validator *validator.Validate
@@ -80,136 +83,63 @@ func (a *App) Initialize() error {
 	return nil
 }
 
-// initDatabase initializes the ScyllaDB connection and creates keyspace/tables
+// initDatabase initializes the database connection and runs migrations
 func (a *App) initDatabase() error {
-	// Get ScyllaDB connection details from environment
-	scyllaHost := os.Getenv("SCYLLA_HOST")
-	if scyllaHost == "" {
-		scyllaHost = "scylladb.railway.internal"
+	// Create database connection
+	dsn := a.config.GetDatabaseURL()
+
+	var gormLogger logger.Interface
+	if a.config.Debug {
+		gormLogger = logger.Default.LogMode(logger.Info)
+	} else {
+		gormLogger = logger.Default.LogMode(logger.Silent)
 	}
 
-	scyllaPort := os.Getenv("SCYLLA_PORT")
-	if scyllaPort == "" {
-		scyllaPort = "9042"
-	}
-
-	scyllaUsername := os.Getenv("SCYLLA_USERNAME")
-	if scyllaUsername == "" {
-		scyllaUsername = "cassandra"
-	}
-
-	scyllaPassword := os.Getenv("SCYLLA_PASSWORD")
-	if scyllaPassword == "" {
-		scyllaPassword = "cassandra"
-	}
-
-	// Create ScyllaDB cluster configuration
-	cluster := gocql.NewCluster(scyllaHost + ":" + scyllaPort)
-	cluster.Authenticator = gocql.PasswordAuthenticator{
-		Username: scyllaUsername,
-		Password: scyllaPassword,
-	}
-	cluster.Consistency = gocql.Quorum
-	cluster.ProtoVersion = 4
-
-	// Create keyspace if it doesn't exist
-	keyspace := "messaging"
-	cluster.Keyspace = "system"
-
-	systemSession, err := cluster.CreateSession()
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		Logger:         gormLogger,
+		NamingStrategy: schema.NamingStrategy{SingularTable: false},
+	})
 	if err != nil {
-		return fmt.Errorf("failed to connect to ScyllaDB: %w", err)
+		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Create keyspace with SimpleStrategy and replication factor 1
-	if err := systemSession.Query(fmt.Sprintf(`
-		CREATE KEYSPACE IF NOT EXISTS %s
-		WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}
-	`, keyspace)).Exec(); err != nil {
-		systemSession.Close()
-		return fmt.Errorf("failed to create keyspace: %w", err)
-	}
-	systemSession.Close()
-
-	// Connect to the messaging keyspace
-	cluster.Keyspace = keyspace
-	session, err := cluster.CreateSession()
+	// Configure connection pool
+	sqlDB, err := db.DB()
 	if err != nil {
-		return fmt.Errorf("failed to connect to messaging keyspace: %w", err)
+		return fmt.Errorf("failed to get database instance: %w", err)
 	}
 
-	// Create tables
-	if err := a.createTables(session); err != nil {
-		session.Close()
-		return fmt.Errorf("failed to create tables: %w", err)
+	sqlDB.SetMaxOpenConns(a.config.Database.MaxOpenConns)
+	sqlDB.SetMaxIdleConns(a.config.Database.MaxIdleConns)
+	sqlDB.SetConnMaxLifetime(a.config.Database.ConnMaxLifetime)
+	sqlDB.SetConnMaxIdleTime(a.config.Database.ConnMaxIdleTime)
+
+	// Run auto-migrations
+	if err := a.runMigrations(db); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	a.session = session
-	log.Println("ScyllaDB connection established and tables created")
+	a.db = db
+	log.Println("Database connection established and migrations completed")
 	return nil
 }
 
-// createTables creates ScyllaDB tables for messaging service
-func (a *App) createTables(session *gocql.Session) error {
-	// Create dialogs table
-	if err := session.Query(`
-		CREATE TABLE IF NOT EXISTS dialogs (
-			id UUID PRIMARY KEY,
-			type TEXT,
-			participant_ids SET<UUID>,
-			created_at TIMESTAMP,
-			updated_at TIMESTAMP,
-			last_message_id UUID,
-			last_message_text TEXT,
-			last_message_at TIMESTAMP
-		)
-	`).Exec(); err != nil {
-		return fmt.Errorf("failed to create dialogs table: %w", err)
-	}
-
-	// Create messages table with time-series optimized structure
-	if err := session.Query(`
-		CREATE TABLE IF NOT EXISTS messages (
-			dialog_id UUID,
-			id UUID,
-			sender_id UUID,
-			text TEXT,
-			media_url TEXT,
-			message_type TEXT,
-			status TEXT,
-			created_at TIMESTAMP,
-			updated_at TIMESTAMP,
-			deleted_at TIMESTAMP,
-			PRIMARY KEY (dialog_id, created_at, id)
-		) WITH CLUSTERING ORDER BY (created_at DESC, id DESC)
-	`).Exec(); err != nil {
-		return fmt.Errorf("failed to create messages table: %w", err)
-	}
-
-	// Create presence table
-	if err := session.Query(`
-		CREATE TABLE IF NOT EXISTS presence (
-			user_id UUID PRIMARY KEY,
-			status TEXT,
-			last_seen TIMESTAMP,
-			location TEXT,
-			created_at TIMESTAMP,
-			updated_at TIMESTAMP
-		)
-	`).Exec(); err != nil {
-		return fmt.Errorf("failed to create presence table: %w", err)
-	}
-
-	log.Println("ScyllaDB tables created successfully")
-	return nil
+// runMigrations runs database migrations for messaging service models
+func (a *App) runMigrations(db *gorm.DB) error {
+	return db.AutoMigrate(
+		&models.Dialog{},
+		&models.Message{},
+		&models.Presence{},
+		&sharedModels.Event{},
+	)
 }
 
 // initServices initializes all business logic services using real implementations
 func (a *App) initServices() error {
-	// Real repository implementations with ScyllaDB session
-	messageRepo := repositories.NewMessageRepository(a.session)
-	dialogRepo := repositories.NewDialogRepository(a.session)
-	presenceRepo := repositories.NewPresenceRepository(a.session)
+	// Real repository implementations
+	messageRepo := repositories.NewMessageRepository(a.db)
+	dialogRepo := repositories.NewDialogRepository(a.db)
+	presenceRepo := repositories.NewPresenceRepository(a.db)
 
 	// External service implementations
 	eventPublisher := external.NewEventPublisher()
@@ -222,10 +152,10 @@ func (a *App) initServices() error {
 	// Message delivery service depends on notification and websocket services
 	deliveryService := external.NewMessageDeliveryService(notificationService, wsManager)
 
-	// Initialize core business services with ScyllaDB session
-	a.dialogService = services.NewDialogService(dialogRepo, eventPublisher, notificationService, a.session)
-	a.messageService = services.NewMessageService(messageRepo, a.dialogService, deliveryService, contentModerator, mediaProcessor, eventPublisher, a.session)
-	a.presenceService = services.NewPresenceService(presenceRepo, wsManager, locationService, eventPublisher, a.session)
+	// Initialize core business services
+	a.dialogService = services.NewDialogService(dialogRepo, eventPublisher, notificationService, a.db)
+	a.messageService = services.NewMessageService(messageRepo, a.dialogService, deliveryService, contentModerator, mediaProcessor, eventPublisher, a.db)
+	a.presenceService = services.NewPresenceService(presenceRepo, wsManager, locationService, eventPublisher, a.db)
 
 	// Initialize messaging service
 	a.messagingService = services.NewMessagingService(a.dialogService, a.messageService, nil, nil, nil)
@@ -312,10 +242,12 @@ func (a *App) Shutdown(ctx context.Context) error {
 		return fmt.Errorf("failed to shutdown server: %w", err)
 	}
 
-	// Close ScyllaDB session
-	if a.session != nil {
-		a.session.Close()
-		log.Println("ScyllaDB session closed")
+	// Close database connection
+	if a.db != nil {
+		sqlDB, err := a.db.DB()
+		if err == nil {
+			sqlDB.Close()
+		}
 	}
 
 	log.Println("Messaging service shutdown completed")
@@ -366,13 +298,14 @@ func (a *App) healthCheck(w http.ResponseWriter, r *http.Request) {
 func (a *App) readinessCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	// Check ScyllaDB connection
-	if a.session != nil {
-		if err := a.session.Query("SELECT now() FROM system.local").Exec(); err != nil {
+	// Check database connection
+	if a.db != nil {
+		sqlDB, err := a.db.DB()
+		if err != nil || sqlDB.Ping() != nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			response := map[string]interface{}{
 				"status":  "error",
-				"message": "ScyllaDB not ready",
+				"message": "Database not ready",
 			}
 			json.NewEncoder(w).Encode(response)
 			return
@@ -383,7 +316,7 @@ func (a *App) readinessCheck(w http.ResponseWriter, r *http.Request) {
 	response := map[string]interface{}{
 		"status":   "ready",
 		"service":  "messaging-service",
-		"database": "scylladb-connected",
+		"database": "connected",
 	}
 	json.NewEncoder(w).Encode(response)
 }

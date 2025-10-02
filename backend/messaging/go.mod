@@ -6,11 +6,12 @@ toolchain go1.24.3
 
 require (
 	github.com/go-playground/validator/v10 v10.27.0
-	github.com/gocql/gocql v1.7.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.5.3
 	github.com/stretchr/testify v1.11.1
+	gorm.io/driver/postgres v1.6.0
+	gorm.io/gorm v1.31.0
 	tchat.dev/shared v0.0.0-00010101000000-000000000000
 )
 
