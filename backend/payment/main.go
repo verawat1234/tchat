@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -49,17 +50,17 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(middleware.CORS())
 
-	// Health check endpoint
+	// Health check endpoints
 	router.GET("/health", func(c *gin.Context) {
-    router.GET("/v1/healthcheck", func(c *gin.Context) {
-        c.JSON(http.StatusOK, gin.H{
-            "status":  "ok",
-            "version": "1.0.0",
-        })
-    })
-		c.JSON(200, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"status":  "healthy",
 			"service": "payment-service",
+			"version": "1.0.0",
+		})
+	})
+	router.GET("/v1/healthcheck", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "ok",
 			"version": "1.0.0",
 		})
 	})
