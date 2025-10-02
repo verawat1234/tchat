@@ -1,15 +1,19 @@
-# Build stage
+# Build for Commerce Service - requires shared module
+# Using Go 1.24 as required by go.mod
+# Railway root directory should be: backend
 FROM golang:1.24-alpine AS builder
 
 # Set working directory
 WORKDIR /app
 
-# Copy all files (including shared module copied into commerce directory)
-COPY . .
+# Copy shared module and commerce service
+COPY shared/ ./shared/
+COPY commerce/ ./commerce/
 
-# Build the application
-RUN GOWORK=off go mod download
-RUN GOWORK=off go build -o commerce-service ./main.go
+# Build from commerce directory
+WORKDIR /app/commerce
+RUN go mod tidy
+RUN go build -o commerce-service ./main.go
 
 # Runtime stage
 FROM alpine:latest
@@ -17,7 +21,7 @@ FROM alpine:latest
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /app/commerce-service .
+COPY --from=builder /app/commerce/commerce-service .
 
 # Expose port
 EXPOSE 8084
