@@ -6,7 +6,6 @@ use (
 	./calling
 	./commerce
 	./content
-	./infrastructure/gateway
 	./messaging
 	./notification
 	./payment
