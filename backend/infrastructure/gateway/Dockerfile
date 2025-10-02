@@ -1,25 +1,15 @@
-# Gateway Service Dockerfile
-# Build context: backend/ (Railway root directory)
+# Simple build for Gateway Service (matching auth-final and social-fixed pattern)
 FROM golang:1.23-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Copy go.work and go.work.sum from backend root
-COPY go.work* ./
-
-# Copy shared module
-COPY shared/ ./shared/
-
-# Copy gateway service files
-COPY infrastructure/gateway/ ./infrastructure/gateway/
-
-# Set working directory to gateway
-WORKDIR /app/infrastructure/gateway
+# Copy all files from gateway directory (Railway builds from backend/infrastructure/gateway)
+COPY . .
 
 # Build the application
 RUN go mod tidy
-RUN go build -o gateway-service .
+RUN go build -o gateway-service ./main.go
 
 # Expose port
 EXPOSE 8080
