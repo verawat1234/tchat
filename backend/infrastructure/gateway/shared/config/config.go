@@ -251,7 +251,7 @@ func Load() (*Config, error) {
 	// Server
 	config.Server = ServerConfig{
 		Host:         getEnv("SERVER_HOST", "localhost"),
-		Port:         getIntEnv("SERVER_PORT", 8080),
+		Port:         getIntEnv("PORT", 8080), // Railway uses PORT env var
 		ReadTimeout:  getDurationEnv("SERVER_READ_TIMEOUT", 30*time.Second),
 		WriteTimeout: getDurationEnv("SERVER_WRITE_TIMEOUT", 30*time.Second),
 		IdleTimeout:  getDurationEnv("SERVER_IDLE_TIMEOUT", 120*time.Second),
