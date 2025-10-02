@@ -185,6 +185,7 @@ func (a *App) initRouter() error {
 	// Health check endpoints
 	router.GET("/health", a.healthCheck)
 	router.GET("/ready", a.readinessCheck)
+	router.GET("/v1/healthcheck", a.railwayHealthCheck)
 
 	// API routes
 	v1 := router.Group("/api/v1")
@@ -315,14 +316,23 @@ func (a *App) contentHealth(c *gin.Context) {
 	})
 }
 
+// railwayHealthCheck provides Railway-compatible healthcheck
+func (a *App) railwayHealthCheck(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "ok",
+		"version": "1.0.0",
+	})
+}
+
 func main() {
 	// Load configuration
 	cfg := utils.LoadConfig()
 
-	// Override port for content service if not set
+	// Override port and host for Railway deployment
 	if cfg.Server.Port == 0 {
 		cfg.Server.Port = 8086 // Content service port (matches Docker configuration)
 	}
+	cfg.Server.Host = "0.0.0.0" // Bind to all interfaces for Railway
 
 	// Create and initialize application
 	app := NewApp(cfg)

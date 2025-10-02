@@ -1,15 +1,23 @@
-# Simple build for Commerce Service (matching social-fixed pattern)
-FROM golang:1.24-alpine
+# Build stage
+FROM golang:1.24-alpine AS builder
 
 # Set working directory
 WORKDIR /app
 
-# Copy all files from commerce directory (Railway builds from backend/commerce)
+# Copy all files (including shared module copied into commerce directory)
 COPY . .
 
 # Build the application
-RUN go mod tidy
-RUN go build -o commerce-service ./main.go
+RUN GOWORK=off go mod download
+RUN GOWORK=off go build -o commerce-service ./main.go
+
+# Runtime stage
+FROM alpine:latest
+
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /app/commerce-service .
 
 # Expose port
 EXPOSE 8084

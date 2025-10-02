@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -151,6 +153,7 @@ func (g *Gateway) setupRoutes() {
 	// Health check endpoint
 	g.router.GET("/health", g.healthHandler)
 	g.router.GET("/ready", g.readinessHandler)
+	g.router.GET("/v1/healthcheck", g.healthHandler)
 
 	// Service registry endpoints
 	registry := g.router.Group("/registry")
@@ -261,13 +264,26 @@ func (g *Gateway) setupRoutes() {
 	}
 }
 
+// extractHost extracts hostname from service URL (e.g., "http://service.railway.internal:8081" -> "service.railway.internal")
+func extractHost(serviceURL string) string {
+	if serviceURL == "" {
+		return "localhost"
+	}
+	// Remove http:// or https://
+	serviceURL = strings.TrimPrefix(serviceURL, "http://")
+	serviceURL = strings.TrimPrefix(serviceURL, "https://")
+	// Split by : to remove port
+	parts := strings.Split(serviceURL, ":")
+	return parts[0]
+}
+
 // registerDefaultServices registers the core microservices
 func (g *Gateway) registerDefaultServices() {
 	services := []ServiceInstance{
 		{
 			ID:      uuid.New().String(),
 			Name:    "auth-service",
-			Host:    "localhost",
+			Host:    extractHost(os.Getenv("AUTH_SERVICE_URL")),
 			Port:    8081,
 			Health:  string(Unknown),
 			Version: "1.0.0",
@@ -276,7 +292,7 @@ func (g *Gateway) registerDefaultServices() {
 		{
 			ID:      uuid.New().String(),
 			Name:    "messaging-service",
-			Host:    "localhost",
+			Host:    extractHost(os.Getenv("MESSAGING_SERVICE_URL")),
 			Port:    8082,
 			Health:  string(Unknown),
 			Version: "1.0.0",
@@ -285,7 +301,7 @@ func (g *Gateway) registerDefaultServices() {
 		{
 			ID:      uuid.New().String(),
 			Name:    "commerce-service",
-			Host:    "localhost",
+			Host:    extractHost(os.Getenv("COMMERCE_SERVICE_URL")),
 			Port:    8083,
 			Health:  string(Unknown),
 			Version: "1.0.0",
@@ -294,7 +310,7 @@ func (g *Gateway) registerDefaultServices() {
 		{
 			ID:      uuid.New().String(),
 			Name:    "payment-service",
-			Host:    "localhost",
+			Host:    extractHost(os.Getenv("PAYMENT_SERVICE_URL")),
 			Port:    8084,
 			Health:  string(Unknown),
 			Version: "1.0.0",
@@ -303,7 +319,7 @@ func (g *Gateway) registerDefaultServices() {
 		{
 			ID:      uuid.New().String(),
 			Name:    "notification-service",
-			Host:    "localhost",
+			Host:    extractHost(os.Getenv("NOTIFICATION_SERVICE_URL")),
 			Port:    8085,
 			Health:  string(Unknown),
 			Version: "1.0.0",
@@ -312,7 +328,7 @@ func (g *Gateway) registerDefaultServices() {
 		{
 			ID:      uuid.New().String(),
 			Name:    "content-service",
-			Host:    "localhost",
+			Host:    extractHost(os.Getenv("CONTENT_SERVICE_URL")),
 			Port:    8086,
 			Health:  string(Unknown),
 			Version: "1.0.0",
@@ -321,7 +337,7 @@ func (g *Gateway) registerDefaultServices() {
 		{
 			ID:      uuid.New().String(),
 			Name:    "video-service",
-			Host:    "localhost",
+			Host:    extractHost(os.Getenv("VIDEO_SERVICE_URL")),
 			Port:    8091,
 			Health:  string(Unknown),
 			Version: "1.0.0",
@@ -330,7 +346,7 @@ func (g *Gateway) registerDefaultServices() {
 		{
 			ID:      uuid.New().String(),
 			Name:    "social-service",
-			Host:    "localhost",
+			Host:    extractHost(os.Getenv("SOCIAL_SERVICE_URL")),
 			Port:    8092,
 			Health:  string(Unknown),
 			Version: "1.0.0",
@@ -339,7 +355,7 @@ func (g *Gateway) registerDefaultServices() {
 		{
 			ID:      uuid.New().String(),
 			Name:    "calling-service",
-			Host:    "localhost",
+			Host:    extractHost(os.Getenv("CALLING_SERVICE_URL")),
 			Port:    8093,
 			Health:  string(Unknown),
 			Version: "1.0.0",
@@ -348,7 +364,7 @@ func (g *Gateway) registerDefaultServices() {
 		{
 			ID:      uuid.New().String(),
 			Name:    "streaming-service",
-			Host:    "localhost",
+			Host:    extractHost(os.Getenv("STREAMING_SERVICE_URL")),
 			Port:    8094,
 			Health:  string(Unknown),
 			Version: "1.0.0",

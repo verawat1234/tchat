@@ -1,0 +1,11 @@
+*.exe
+*.dll
+*.so
+*.dylib
+commerce
+payment
+content
+notification
+calling
+video
+*-service

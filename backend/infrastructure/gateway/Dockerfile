@@ -1,56 +1,29 @@
-# Multi-stage build for Gateway Service
-FROM golang:1.23-alpine AS builder
-
-# Install build dependencies
-RUN apk add --no-cache git ca-certificates tzdata
+# Build stage
+FROM golang:1.24-bookworm AS builder
 
 # Set working directory
 WORKDIR /app
 
-# Copy module manifests for dependency caching
-COPY shared/go.mod shared/go.sum ./shared/
-COPY infrastructure/gateway/go.mod infrastructure/gateway/go.sum ./infrastructure/gateway/
+# Copy all files (including shared module copied into gateway directory)
+COPY . .
 
-# Resolve module dependencies
-RUN cd shared && go mod download
-RUN cd infrastructure/gateway && go mod download
+# Build the application with all .go files
+RUN GOWORK=off go mod download
+RUN GOWORK=off CGO_ENABLED=1 GOOS=linux go build -o gateway-service .
 
-# Copy source code
-COPY shared/ ./shared/
-COPY infrastructure/gateway/ ./infrastructure/gateway/
+# Runtime stage - using Debian slim for glibc compatibility
+FROM debian:bookworm-slim
 
-# Build the binary
-WORKDIR /app/infrastructure/gateway
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o gateway-service ./main.go
+# Install CA certificates and other runtime dependencies
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 
-# Production stage
-FROM alpine:3.18
-
-# Install ca-certificates for HTTPS requests
-RUN apk --no-cache add ca-certificates tzdata
-
-# Create non-root user
-RUN addgroup -g 1001 -S tchat && \
-    adduser -S tchat -u 1001
-
-# Set working directory
 WORKDIR /app
 
-# Copy binary from builder stage
-COPY --from=builder /app/infrastructure/gateway/gateway-service .
-
-# Change ownership to non-root user
-RUN chown tchat:tchat /app/gateway-service
-
-# Switch to non-root user
-USER tchat
+# Copy binary from builder
+COPY --from=builder /app/gateway-service .
 
 # Expose port
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
-
-# Run the service
+# Start the service
 CMD ["./gateway-service"]

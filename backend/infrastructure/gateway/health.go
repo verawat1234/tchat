@@ -62,7 +62,7 @@ func (hc *HealthChecker) Stop() {
 
 // checkHealth performs a health check on the service
 func (hc *HealthChecker) checkHealth(registry *ServiceRegistry) {
-	healthURL := fmt.Sprintf("http://%s:%d/health", hc.service.Host, hc.service.Port)
+	healthURL := fmt.Sprintf("http://%s:%d/v1/healthcheck", hc.service.Host, hc.service.Port)
 
 	ctx, cancel := context.WithTimeout(context.Background(), hc.timeout)
 	defer cancel()

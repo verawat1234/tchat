@@ -1,15 +1,23 @@
-# Simple build for Calling Service (matching social-fixed pattern)
-FROM golang:1.24-alpine
+# Build stage
+FROM golang:1.24-alpine AS builder
 
 # Set working directory
 WORKDIR /app
 
-# Copy all files from calling directory (Railway builds from backend/calling)
+# Copy all files (including shared module copied into calling directory)
 COPY . .
 
 # Build the application
-RUN go mod tidy
-RUN go build -o calling-service ./main.go
+RUN GOWORK=off go mod download
+RUN GOWORK=off go build -o calling-service ./main.go
+
+# Runtime stage
+FROM alpine:latest
+
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /app/calling-service .
 
 # Expose port
 EXPOSE 8093

@@ -406,6 +406,7 @@ func (a *App) initRouter() error {
 	// Health check endpoint
 	router.GET("/health", a.healthCheck)
 	router.GET("/ready", a.readinessCheck)
+	router.GET("/v1/healthcheck", a.railwayHealthCheck)
 
 	// API routes
 	v1 := router.Group("/api/v1")
@@ -518,6 +519,14 @@ func (a *App) authHealth(c *gin.Context) {
 		"service":   "auth-service",
 		"api":       "available",
 		"timestamp": time.Now().UTC(),
+	})
+}
+
+// railwayHealthCheck provides Railway-specific healthcheck endpoint
+func (a *App) railwayHealthCheck(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "ok",
+		"version": "1.0.0",
 	})
 }
 
@@ -718,6 +727,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
+
+	// Railway compatibility - bind to all interfaces
+	cfg.Server.Host = "0.0.0.0"
 
 	// Create and initialize application
 	app := NewApp(cfg)

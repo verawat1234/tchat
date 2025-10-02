@@ -51,6 +51,12 @@ func main() {
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
+    router.GET("/v1/healthcheck", func(c *gin.Context) {
+        c.JSON(http.StatusOK, gin.H{
+            "status":  "ok",
+            "version": "1.0.0",
+        })
+    })
 		c.JSON(200, gin.H{
 			"status":  "healthy",
 			"service": "payment-service",

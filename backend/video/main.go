@@ -43,10 +43,26 @@ func (a *SimpleVideoApp) Initialize() error {
 		})
 	})
 
+	// Railway healthcheck endpoint
+	router.GET("/v1/healthcheck", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "ok",
+			"version": "0.0.1",
+		})
+	})
+
 	// API health endpoint
 	router.GET("/api/v1/videos/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "video service healthy",
+		})
+	})
+
+	// API videos endpoint for testing
+	router.GET("/api/v1/videos/test", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "video service test endpoint",
+			"service": "video-service",
 		})
 	})
 
@@ -88,8 +104,9 @@ func main() {
 	// Load configuration
 	cfg := config.MustLoad()
 
-	// Force video service port
+	// Force video service port and bind to all interfaces for Railway
 	cfg.Server.Port = 8091
+	cfg.Server.Host = "0.0.0.0"
 
 	// Create and initialize simple app
 	app := NewSimpleVideoApp(cfg)
