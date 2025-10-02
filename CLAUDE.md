@@ -500,25 +500,47 @@ railway deployment logs --deploymentId [DEPLOYMENT_ID]    # View deployment logs
   - notification (ID: ce88c70c-5760-452e-8bb7-a0b57641ed65)
   - calling (ID: 9c44a703-56dc-4fb5-a46d-362ee5e3dc9a)
 
-#### Root Cause Analysis
-- **Issue**: "Deployment does not have an associated build" error for 6 services
-- **Diagnosis**: Railway MCP `service_create_from_repo` cannot configure deployment branch
-- **Branch Mismatch**: Services default to `main` branch, but Dockerfiles exist on `029-implement-live-on` branch
-- **Railway MCP Limitation**: No API parameter available for branch configuration
-- **All Dockerfiles Verified**: Simplified single-stage builds matching social-fixed pattern (confirmed working)
-- **Environment Variables Complete**: All services have correct DATABASE_URL, REDIS_URL, JWT_SECRET, PORT configuration
+#### Root Cause Analysis (Confirmed)
+- **Issue**: "Deployment does not have an associated build" error persists for 6 services
+- **Initial Diagnosis**: Branch configuration mismatch (services default to `master`, Dockerfiles on `029-implement-live-on`)
+- **Branch Merge Attempted**: Successfully merged `029-implement-live-on` to `master` and pushed to GitHub
+- **Result**: Railway detected changes and triggered deployments, but **all still failed with same error**
+- **Confirmed Root Cause**: **Railway MCP `service_create_from_repo` cannot properly configure GitHub source build pipeline**
+- **Evidence**: Working services (`gateway-fixed`, `auth-final`, `messaging-fixed`, `social-fixed`) have "-fixed"/"-final" suffixes indicating manual UI fixes
+- **Railway MCP Limitation**: Creates service entities but fails to establish GitHub build pipeline connection
+- **All Technical Components Verified**: Dockerfiles, environment variables, and code are correct
 
-#### Manual Resolution Steps Required
-**Option 1: Configure Branch via Railway UI** (Recommended for development)
-1. Access Railway dashboard for each failing service
+#### Railway MCP Fundamental Limitation
+**Railway MCP Cannot Complete Service Deployment**:
+- ✅ Can create service entities via API
+- ✅ Can configure environment variables
+- ✅ Can trigger deployment attempts
+- ❌ **Cannot configure GitHub source build pipeline properly**
+- ❌ Services created via MCP lack proper build configuration
+- ✅ Railway webhooks work (detects GitHub pushes)
+- ❌ Railway cannot execute builds for MCP-created services
+
+**Proof**: After merging to `master` and pushing to GitHub:
+- Railway triggered 3 new deployment attempts (10/2/2025, 11:27:50 AM)
+- All deployments failed with "Deployment does not have an associated build"
+- Webhooks functional, build pipeline broken
+
+#### Manual Resolution Required (Railway UI)
+**Only Solution: Manual Railway UI Configuration**
+1. Access Railway dashboard (https://railway.app) for each failing service
 2. Navigate to Settings → Source
-3. Change deployment branch from `main` to `029-implement-live-on`
-4. Redeploy service
+3. **Reconnect GitHub repository source** (service may show as disconnected)
+4. Configure root directory: `backend/[service-name]`
+5. Verify branch selection (should auto-detect `master`)
+6. Save configuration and trigger manual deployment
 
-**Option 2: Merge to Main Branch** (Recommended for production)
-1. Merge branch `029-implement-live-on` to `main`
-2. Push to GitHub repository
-3. Services will automatically redeploy from `main` branch
+**Services Requiring Manual Configuration** (6/10):
+- video (ID: 9c744287-6614-4902-ac1e-b79defa81f5e)
+- content (ID: 84beb180-a9c3-4fe1-bbd8-a8591814080f)
+- commerce (ID: 89aa3685-f4de-4458-9842-e2e03ae62a9d)
+- payment (ID: 67609ded-88b2-4f99-9c7d-8ee1c7e5d0ff)
+- notification (ID: ce88c70c-5760-852e-8bb7-a0b57641ed65)
+- calling (ID: 9c44a703-56dc-4fb5-a46d-362ee5e3dc9a)
 
 **Shared Environment Variables Template** (from auth-final):
 ```

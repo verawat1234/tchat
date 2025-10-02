@@ -1,5 +1,5 @@
 # Simple build for Content Service (matching social-fixed pattern)
-FROM golang:1.23-alpine
+FROM golang:1.24-alpine
 
 # Set working directory
 WORKDIR /app
