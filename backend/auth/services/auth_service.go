@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -202,12 +203,22 @@ func (as *AuthService) SendOTP(ctx context.Context, req *SendOTPRequest) (*SendO
 	// Get remaining attempts for rate limiting
 	remaining, _ := as.rateLimiter.GetRemainingAttempts(ctx, rateLimitKey, 5, 1*time.Hour)
 
-	return &SendOTPResponse{
+	response := &SendOTPResponse{
 		OTPID:               otp.ID,
 		ExpiresAt:           otp.ExpiresAt,
 		RemainingAttempts:   remaining,
 		ResendAvailableIn:   60 * time.Second, // 1 minute resend cooldown
-	}, nil
+	}
+
+	// DEV MODE: Include OTP code in response for development/testing
+	// Check GIN_MODE or default to development if not set
+	ginMode := os.Getenv("GIN_MODE")
+	if ginMode != "release" {
+		response.Code = otpCode
+		log.Printf("DEV MODE: Generated OTP %s for %s", otpCode, req.PhoneNumber)
+	}
+
+	return response, nil
 }
 
 func (as *AuthService) VerifyOTP(ctx context.Context, req *VerifyOTPRequest) (*VerifyOTPResponse, error) {
@@ -906,6 +917,7 @@ type SendOTPResponse struct {
 	ExpiresAt           time.Time     `json:"expires_at"`
 	RemainingAttempts   int           `json:"remaining_attempts"`
 	ResendAvailableIn   time.Duration `json:"resend_available_in"`
+	Code                string        `json:"code,omitempty"` // Only populated in development mode
 }
 
 type VerifyOTPRequest struct {
