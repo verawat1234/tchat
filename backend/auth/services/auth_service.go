@@ -438,8 +438,24 @@ func (as *AuthService) handleTestOTPVerificationSecure(ctx context.Context, req 
 		Success:    true,
 		OTPID:      uuid.New(), // Generate a dummy OTP ID for test mode
 		VerifiedAt: time.Now(),
-		User:       toUserResponse(user),
-		Session:    toSessionResponse(session),
+		User: &UserResponse{
+			ID:          user.ID,
+			PhoneNumber: user.PhoneNumber,
+			Email:       "",
+			Username:    user.DisplayName,
+			FirstName:   user.DisplayName,
+			LastName:    "",
+			Country:     user.CountryCode,
+			Language:    user.Locale,
+			TimeZone:    user.Timezone,
+			Status:      string(user.Status),
+		},
+		Session: &SessionResponse{
+			ID:           session.ID,
+			AccessToken:  session.AccessToken,
+			RefreshToken: session.RefreshToken,
+			ExpiresAt:    session.ExpiresAt,
+		},
 	}, nil
 }
 
