@@ -199,9 +199,17 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
       if (result.request_id) {
         setOtpRequestId(result.request_id);
       }
+
+      // DEV MODE: If OTP code is returned in response, display it to the user
+      if (result.code) {
+        console.log('[OTP] DEV MODE: Received OTP code:', result.code);
+        toast.success(`OTP sent! Code: ${result.code}`, { duration: 10000 });
+      } else {
+        toast.success(successOtpSent.content.replace('{phoneNumber}', sanitizedPhoneNumber));
+      }
+
       setOtpCode('');
       setStep('verify');
-      toast.success(successOtpSent.content.replace('{phoneNumber}', sanitizedPhoneNumber));
     } catch (error: any) {
       console.error('OTP request failed:', error);
       const errorMessage = error?.data?.error?.message || error?.data?.message || 'Failed to send OTP. Please try again.';

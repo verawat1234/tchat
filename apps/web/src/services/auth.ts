@@ -17,6 +17,7 @@ export interface OTPRequestResponse {
   message: string;
   request_id: string;
   expires_in: number;
+  code?: string; // Only present in development mode
 }
 
 export interface OTPVerifyRequest {
