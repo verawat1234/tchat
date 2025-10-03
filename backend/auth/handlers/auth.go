@@ -157,8 +157,37 @@ func (h *AuthHandler) RequestOTP(c *gin.Context) {
 		return
 	}
 
-	// Generate request ID for this OTP request
-	requestID := fmt.Sprintf("req_%d", time.Now().UnixNano())
+	// Call auth service to send OTP
+	serviceReq := &services.SendOTPRequest{
+		PhoneNumber: req.PhoneNumber,
+		Type:        services.OTPTypeLogin,
+		Language:    "en", // Default to English
+		UserAgent:   c.GetHeader("User-Agent"),
+		IPAddress:   c.ClientIP(),
+		Metadata:    map[string]interface{}{
+			"country_code": req.CountryCode,
+		},
+	}
+
+	sendOTPResponse, err := h.authService.SendOTP(c.Request.Context(), serviceReq)
+	if err != nil {
+		log.Printf("SendOTP error: %v", err)
+		// Handle specific error types
+		switch {
+		case strings.Contains(err.Error(), "rate limit"):
+			responses.SendErrorResponse(c, http.StatusTooManyRequests, "RATE_LIMIT_EXCEEDED", err.Error())
+			return
+		case strings.Contains(err.Error(), "user not found"):
+			responses.SendErrorResponse(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found")
+			return
+		default:
+			responses.SendErrorResponse(c, http.StatusInternalServerError, "OTP_SEND_FAILED", "Failed to send OTP")
+			return
+		}
+	}
+
+	// Use the actual OTP UUID as the request_id
+	requestID := sendOTPResponse.OTPID.String()
 
 	// Log successful OTP request
 	middleware.LogInfo(c, "OTP request initiated", gin.H{
@@ -168,16 +197,11 @@ func (h *AuthHandler) RequestOTP(c *gin.Context) {
 		"ip_address":          c.ClientIP(),
 	})
 
-	// For testing purposes, we'll create a mock OTP entry
-	// In production, this would integrate with SMS service
-	log.Printf("OTP Request - Phone: %s, Country: %s, RequestID: %s",
-		req.PhoneNumber, req.CountryCode, requestID)
-
 	response := RequestOTPResponse{
 		Success:   true,
 		Message:   "OTP sent successfully",
 		RequestID: requestID,
-		ExpiresIn: 300, // 5 minutes
+		ExpiresIn: int(time.Until(sendOTPResponse.ExpiresAt).Seconds()),
 	}
 
 	responses.SendSuccessResponse(c, response)
