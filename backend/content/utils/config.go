@@ -1,8 +1,11 @@
 package utils
 
 import (
+	"fmt"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -36,11 +39,15 @@ type DatabaseConfig struct {
 	ConnMaxIdleTime time.Duration
 }
 
-// GetDatabaseURL returns the database connection URL
+// GetDatabaseURL returns the database connection URL in GORM format
 func (c *Config) GetDatabaseURL() string {
 	// Prefer DATABASE_URL if available (Railway standard)
 	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
-		return databaseURL
+		// Parse and convert PostgreSQL URL to GORM DSN format
+		if dsn, err := parsePostgresURL(databaseURL); err == nil {
+			return dsn
+		}
+		// If parsing fails, fall through to constructed URL
 	}
 
 	// Fallback to constructed URL from individual variables
@@ -50,6 +57,29 @@ func (c *Config) GetDatabaseURL() string {
 		" password=" + c.Database.Password +
 		" dbname=" + c.Database.Name +
 		" sslmode=" + c.Database.SSLMode
+}
+
+// parsePostgresURL converts a PostgreSQL URL to GORM DSN format
+// postgresql://user:password@host:port/database -> host=host port=port user=user password=password dbname=database sslmode=require
+func parsePostgresURL(pgURL string) (string, error) {
+	u, err := url.Parse(pgURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse database URL: %w", err)
+	}
+
+	password, _ := u.User.Password()
+	host := u.Hostname()
+	port := u.Port()
+	if port == "" {
+		port = "5432"
+	}
+	dbname := strings.TrimPrefix(u.Path, "/")
+
+	// Construct GORM-compatible DSN
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=require",
+		host, port, u.User.Username(), password, dbname)
+
+	return dsn, nil
 }
 
 // LoadConfig loads configuration from environment variables
