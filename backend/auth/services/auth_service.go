@@ -130,19 +130,18 @@ func (as *AuthService) SendOTP(ctx context.Context, req *SendOTPRequest) (*SendO
 		return nil, fmt.Errorf("rate limit exceeded. Remaining attempts: %d", remaining)
 	}
 
-	// Check if user exists for login type
+	// Check if user exists for login type - verify status if user exists
 	var user *sharedModels.User
 	if req.Type == OTPTypeLogin {
 		user, err = as.userService.GetUserByPhoneNumber(ctx, req.PhoneNumber)
-		if err != nil {
-			as.securityLogger.LogLoginAttempt(ctx, req.PhoneNumber, req.UserAgent, req.IPAddress, false, "user_not_found")
-			return nil, fmt.Errorf("user not found")
+		if err == nil {
+			// User exists - check if active
+			if user.Status != string(sharedModels.UserStatusActive) {
+				as.securityLogger.LogLoginAttempt(ctx, req.PhoneNumber, req.UserAgent, req.IPAddress, false, "user_inactive")
+				return nil, fmt.Errorf("user account is not active")
+			}
 		}
-
-		if user.Status != string(sharedModels.UserStatusActive) {
-			as.securityLogger.LogLoginAttempt(ctx, req.PhoneNumber, req.UserAgent, req.IPAddress, false, "user_inactive")
-			return nil, fmt.Errorf("user account is not active")
-		}
+		// User doesn't exist - that's OK, VerifyOTP will create them later
 	}
 
 	// Generate OTP
