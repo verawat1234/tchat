@@ -77,33 +77,19 @@ const baseQueryWithRetry = retry(
         return result;
       }
 
-      // Only retry on network/server errors, but NOT on auth endpoints with 500 errors
-      // Also don't retry on structured error responses (service unavailable, etc.)
-      const endpoint = typeof args === 'string' ? args : args.url;
-      const isAuthEndpoint = endpoint?.includes('/auth/');
-
-      // Check if this is a structured error response (has error body with code/message)
-      const hasStructuredError = result.error.data &&
-        typeof result.error.data === 'object' &&
-        ('code' in result.error.data || 'error' in result.error.data);
-
+      // Only retry on NETWORK failures (connection lost, timeout)
+      // NEVER retry on server responses (even 500 errors) - they already answered!
       if (
         status === 'FETCH_ERROR' ||
-        status === 'TIMEOUT_ERROR' ||
-        (typeof status === 'number' && status >= 500 && !isAuthEndpoint && !hasStructuredError)
+        status === 'TIMEOUT_ERROR'
       ) {
         throw result.error; // This triggers retry
       }
 
-      // For auth endpoints with 500 errors, don't retry - fail immediately
-      if (isAuthEndpoint && typeof status === 'number' && status >= 500) {
-        console.error(`Auth endpoint ${endpoint} failed with status ${status} - not retrying`);
-        return result;
-      }
-
-      // For structured error responses (service unavailable, etc.), don't retry - fail immediately
-      if (hasStructuredError && typeof status === 'number' && status >= 500) {
-        console.error(`Structured error response from ${endpoint} with status ${status} - not retrying:`, result.error.data);
+      // Any HTTP status code (including 500, 503, etc.) means server responded
+      // Log it and fail immediately - don't retry
+      if (typeof status === 'number') {
+        console.error(`Server responded with status ${status} - not retrying:`, result.error);
         return result;
       }
     }
