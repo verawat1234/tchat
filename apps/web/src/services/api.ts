@@ -3,6 +3,7 @@ import type { RootState } from '../store';
 import { RefreshTokenResponse } from '../types/api';
 import { buildServiceUrl, getServiceConfig } from './serviceConfig';
 import { fallbackDataService } from './fallbackData';
+import { apiConfig } from '../config/apiConfig';
 
 // Service-aware base query that routes to appropriate microservices
 const createServiceAwareBaseQuery = () => {
@@ -34,12 +35,12 @@ const baseQuery: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError> =
 
   // Handle URL routing for service-aware requests
   if (typeof args === 'string') {
-    const fullUrl = serviceConfig.useDirect ? buildServiceUrl(args) : `${import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'}${args}`;
+    const fullUrl = serviceConfig.useDirect ? buildServiceUrl(args) : `${apiConfig.apiUrl}${args}`;
     return baseQueryFn(fullUrl, api, extraOptions);
   } else {
     // For FetchArgs objects
     const endpoint = args.url;
-    const fullUrl = serviceConfig.useDirect ? buildServiceUrl(endpoint) : `${import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'}${endpoint}`;
+    const fullUrl = serviceConfig.useDirect ? buildServiceUrl(endpoint) : `${apiConfig.apiUrl}${endpoint}`;
 
     return baseQueryFn({
       ...args,
@@ -76,13 +77,22 @@ const baseQueryWithRetry = retry(
         return result;
       }
 
-      // Only retry on network/server errors
+      // Only retry on network/server errors, but NOT on auth endpoints with 500 errors
+      const endpoint = typeof args === 'string' ? args : args.url;
+      const isAuthEndpoint = endpoint?.includes('/auth/');
+
       if (
         status === 'FETCH_ERROR' ||
         status === 'TIMEOUT_ERROR' ||
-        (typeof status === 'number' && status >= 500)
+        (typeof status === 'number' && status >= 500 && !isAuthEndpoint)
       ) {
         throw result.error; // This triggers retry
+      }
+
+      // For auth endpoints with 500 errors, don't retry - fail immediately
+      if (isAuthEndpoint && typeof status === 'number' && status >= 500) {
+        console.error(`Auth endpoint ${endpoint} failed with status ${status} - not retrying`);
+        return result;
       }
     }
 
