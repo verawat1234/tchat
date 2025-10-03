@@ -75,7 +75,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   useEffect(() => {
     const loadVideo = async () => {
       try {
-        const response = await fetch(`/api/v1/videos/${videoId}/stream?quality=${quality}`);
+        const response = await fetch(`/api/v1/video/${videoId}/stream?quality=${quality}`);
         if (!response.ok) throw new Error('Failed to load video');
 
         const data = await response.json();
@@ -89,7 +89,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           quality: q,
           resolution: q,
           bitrate: 0,
-          url: `/api/v1/videos/${videoId}/stream?quality=${q}`,
+          url: `/api/v1/video/${videoId}/stream?quality=${q}`,
         })) || []);
 
       } catch (error) {

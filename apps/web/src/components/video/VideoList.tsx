@@ -64,7 +64,7 @@ export const VideoList: React.FC<VideoListProps> = ({
         }
       });
 
-      const response = await fetch(`/api/v1/videos?${queryParams.toString()}`);
+      const response = await fetch(`/api/v1/video?${queryParams.toString()}`);
       if (!response.ok) throw new Error('Failed to load videos');
 
       const data = await response.json();

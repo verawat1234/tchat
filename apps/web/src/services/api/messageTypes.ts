@@ -183,7 +183,7 @@ export interface TopPerformerData {
 
 // Base query configuration
 const baseQuery = fetchBaseQuery({
-  baseUrl: '/api/v1/messages',
+  baseUrl: '/api/v1/messaging',
   prepareHeaders: (headers, { getState }) => {
     // Add authentication token
     const token = (getState() as any)?.auth?.token;

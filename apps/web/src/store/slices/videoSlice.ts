@@ -91,7 +91,7 @@ export const fetchVideo = createAsyncThunk(
   'video/fetchVideo',
   async (videoId: string, { rejectWithValue }) => {
     try {
-      const response = await fetch(`/api/v1/videos/${videoId}`);
+      const response = await fetch(`/api/v1/video/${videoId}`);
       if (!response.ok) throw new Error('Failed to fetch video');
       return await response.json();
     } catch (error) {
@@ -124,7 +124,7 @@ export const fetchVideos = createAsyncThunk(
       queryParams.append('page', String(params.page || 1));
       queryParams.append('limit', String(params.limit || 20));
 
-      const response = await fetch(`/api/v1/videos?${queryParams.toString()}`);
+      const response = await fetch(`/api/v1/video?${queryParams.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch videos');
 
       const data = await response.json();

@@ -178,7 +178,7 @@ export const VideoUpload: React.FC<VideoUploadProps> = ({
       }
 
       // Upload video with progress tracking
-      const response = await fetch('/api/v1/videos', {
+      const response = await fetch('/api/v1/video', {
         method: 'POST',
         body: formData,
         headers: {

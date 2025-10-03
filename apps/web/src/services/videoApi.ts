@@ -1157,7 +1157,7 @@ export async function uploadVideoToBackend(
 
     xhr.addEventListener('error', () => reject(new Error('Upload failed')));
 
-    xhr.open('POST', '/api/v1/videos');
+    xhr.open('POST', '/api/v1/video');
 
     const token = localStorage.getItem('auth_token');
     if (token) {
@@ -1182,7 +1182,7 @@ export async function getBackendStreamUrl(
   available_qualities: string[];
   expires_at: string;
 }> {
-  const response = await fetch(`/api/v1/videos/${videoId}/stream?quality=${quality}&platform=${platform}`);
+  const response = await fetch(`/api/v1/video/${videoId}/stream?quality=${quality}&platform=${platform}`);
   if (!response.ok) throw new Error('Failed to get stream URL');
   return response.json();
 }
@@ -1202,7 +1202,7 @@ export async function syncBackendPlaybackPosition(
   updated_position: number;
   synced_platforms: string[];
 }> {
-  const response = await fetch(`/api/v1/videos/${videoId}/sync`, {
+  const response = await fetch(`/api/v1/video/${videoId}/sync`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1237,7 +1237,7 @@ export async function createBackendSyncSession(
   initial_position: number;
   created_at: string;
 }> {
-  const response = await fetch(`/api/v1/videos/${videoId}/sync/session`, {
+  const response = await fetch(`/api/v1/video/${videoId}/sync/session`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

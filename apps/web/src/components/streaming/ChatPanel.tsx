@@ -79,7 +79,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   // Handle delete message (broadcaster only)
   const handleDeleteMessage = async (messageId: string) => {
     try {
-      const response = await fetch(`/api/v1/streams/${streamId}/chat/${messageId}`, {
+      const response = await fetch(`/api/v1/streaming/${streamId}/chat/${messageId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${localStorage.getItem('auth_token')}`,

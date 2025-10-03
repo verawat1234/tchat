@@ -173,13 +173,13 @@ func (g *Gateway) setupRoutes() {
 		}
 
 		// Messaging service routes
-		messaging := v1.Group("/messages", g.authMiddleware())
+		messaging := v1.Group("/messaging", g.authMiddleware())
 		{
 			messaging.Any("/*path", g.proxyHandler("messaging-service"))
 		}
 
 		// Payment service routes
-		payment := v1.Group("/payments", g.authMiddleware(), g.kycMiddleware(1))
+		payment := v1.Group("/payment", g.authMiddleware(), g.kycMiddleware(1))
 		{
 			payment.Any("/*path", g.proxyHandler("payment-service"))
 		}
@@ -191,9 +191,9 @@ func (g *Gateway) setupRoutes() {
 		}
 
 		// Notification service routes
-		notifications := v1.Group("/notifications", g.authMiddleware())
+		notification := v1.Group("/notification", g.authMiddleware())
 		{
-			notifications.Any("/*path", g.proxyHandler("notification-service"))
+			notification.Any("/*path", g.proxyHandler("notification-service"))
 		}
 
 		// Content service routes
@@ -203,9 +203,9 @@ func (g *Gateway) setupRoutes() {
 		}
 
 		// Video service routes
-		videos := v1.Group("/videos")
+		video := v1.Group("/video")
 		{
-			videos.Any("/*path", g.proxyHandler("video-service"))
+			video.Any("/*path", g.proxyHandler("video-service"))
 		}
 
 		// Channels service routes (also handled by video-service)
@@ -222,9 +222,9 @@ func (g *Gateway) setupRoutes() {
 		}
 
 		// Calling service routes
-		calls := v1.Group("/calls", g.authMiddleware())
+		calling := v1.Group("/calling", g.authMiddleware())
 		{
-			calls.Any("/*path", g.proxyHandler("calling-service"))
+			calling.Any("/*path", g.proxyHandler("calling-service"))
 		}
 
 		// Presence service routes (part of calling service)
@@ -234,9 +234,9 @@ func (g *Gateway) setupRoutes() {
 		}
 
 		// Streaming service routes (port 8094)
-		streams := v1.Group("/streams", g.authMiddleware())
+		streaming := v1.Group("/streaming", g.authMiddleware())
 		{
-			streams.Any("/*path", g.proxyHandler("streaming-service"))
+			streaming.Any("/*path", g.proxyHandler("streaming-service"))
 		}
 
 		// Notification preferences routes (part of streaming service)

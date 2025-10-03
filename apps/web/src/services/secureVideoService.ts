@@ -21,7 +21,7 @@ export class SecureVideoService {
    * Get streaming token from backend
    */
   async getStreamToken(videoId: string, quality: string = 'auto'): Promise<StreamToken> {
-    const response = await fetch(`/api/v1/videos/${videoId}/token?quality=${quality}`, {
+    const response = await fetch(`/api/v1/video/${videoId}/token?quality=${quality}`, {
       method: 'GET',
       credentials: 'include',
       headers: {
@@ -156,7 +156,7 @@ export class SecureVideoService {
    */
   async validateToken(token: StreamToken): Promise<boolean> {
     try {
-      const response = await fetch(`/api/v1/videos/${token.video_id}/validate-token`, {
+      const response = await fetch(`/api/v1/video/${token.video_id}/validate-token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
