@@ -401,50 +401,32 @@ func (as *AuthService) handleTestOTPVerificationSecure(ctx context.Context, req 
 		return nil, fmt.Errorf("failed to check existing OTP: %w", err)
 	}
 
-	// If an OTP exists, check if it's already been verified (prevent reuse)
+	// If an OTP exists, verify it
 	if existingOTP != nil {
 		// Check if OTP is expired
 		if time.Now().After(existingOTP.ExpiresAt) {
 			existingOTP.Status = OTPStatusExpired
 			as.otpRepo.Update(ctx, existingOTP)
-			// Continue to create new test OTP
-		} else if existingOTP.Status == OTPStatusVerified {
-			// CRITICAL: Prevent reuse of already verified test OTP
+			return nil, fmt.Errorf("OTP has expired")
+		}
+
+		// Check if OTP is already verified (prevent reuse)
+		if existingOTP.Status == OTPStatusVerified {
 			as.securityLogger.LogLoginAttempt(ctx, req.PhoneNumber, req.UserAgent, req.IPAddress, false, "test_otp_reuse_attempt")
 			return nil, fmt.Errorf("OTP code has already been used and is no longer valid")
-		} else if existingOTP.Status == OTPStatusPending {
-			// Use existing pending OTP and mark it as verified
+		}
+
+		// Verify the existing OTP
+		if existingOTP.Status == OTPStatusPending {
 			return as.verifyExistingTestOTP(ctx, req, existingOTP)
 		}
+
+		return nil, fmt.Errorf("OTP is not in a valid state for verification")
 	}
 
-	// Create a new test OTP record to track usage and prevent reuse
-	testOTP := &OTP{
-		ID:          uuid.New(),
-		PhoneNumber: req.PhoneNumber,
-		Code:        "123456",
-		HashedCode:  "hashed_123456", // Test hash
-		Type:        OTPTypeRegistration,
-		Status:      OTPStatusPending,
-		MaxAttempts: 3,
-		ExpiresAt:   time.Now().Add(5 * time.Minute),
-		UserAgent:   req.UserAgent,
-		IPAddress:   req.IPAddress,
-		Metadata: map[string]interface{}{
-			"test_mode": true,
-			"created_by": "test_handler",
-		},
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-
-	// Save test OTP to database for tracking
-	if err := as.otpRepo.Create(ctx, testOTP); err != nil {
-		return nil, fmt.Errorf("failed to create test OTP record: %w", err)
-	}
-
-	// Now verify the test OTP using the same secure path as normal OTPs
-	return as.verifyExistingTestOTP(ctx, req, testOTP)
+	// No OTP found - this shouldn't happen in normal flow
+	// User should have called SendOTP first
+	return nil, fmt.Errorf("No OTP request found for this phone number. Please request a new OTP.")
 }
 
 // verifyExistingTestOTP verifies an existing test OTP with atomic single-use enforcement
