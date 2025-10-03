@@ -65,19 +65,7 @@ func main() {
 
 	// Health check endpoints
 	r.GET("/health", healthHandler.BasicHealthCheck)
-    router.GET("/v1/healthcheck", func(c *gin.Context) {
-        c.JSON(http.StatusOK, gin.H{
-            "status":  "ok",
-            "version": "1.0.0",
-        })
-    })
 	r.GET("/health/detailed", healthHandler.DetailedHealthCheck)
-    router.GET("/v1/healthcheck", func(c *gin.Context) {
-        c.JSON(http.StatusOK, gin.H{
-            "status":  "ok",
-            "version": "1.0.0",
-        })
-    })
 	r.GET("/ready", healthHandler.ReadinessCheck)
 	r.GET("/live", healthHandler.LivenessCheck)
 	r.GET("/metrics", healthHandler.MetricsEndpoint)
