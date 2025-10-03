@@ -38,6 +38,12 @@ type DatabaseConfig struct {
 
 // GetDatabaseURL returns the database connection URL
 func (c *Config) GetDatabaseURL() string {
+	// Prefer DATABASE_URL if available (Railway standard)
+	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
+		return databaseURL
+	}
+
+	// Fallback to constructed URL from individual variables
 	return "host=" + c.Database.Host +
 		" port=" + strconv.Itoa(c.Database.Port) +
 		" user=" + c.Database.User +
