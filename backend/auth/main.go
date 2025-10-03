@@ -411,16 +411,25 @@ func (a *App) initRouter() error {
 	// API routes
 	v1 := router.Group("/api/v1")
 	{
-		// Auth routes - registered directly for reliability
+		// Auth middleware
+		authMiddleware := middleware.NewAuthMiddleware(a.config)
+
+		// Public auth routes
 		auth := v1.Group("/auth")
 		{
 			auth.POST("/register", a.authHandlers.RequestOTP)
 			auth.POST("/login", a.authHandlers.RequestOTP)
 			auth.POST("/verify-otp", a.authHandlers.VerifyOTP)
 			auth.POST("/refresh", a.authHandlers.RefreshToken)
-			auth.GET("/me", a.authHandlers.GetCurrentUser)
-			auth.POST("/logout", a.authHandlers.Logout)
 			auth.GET("/health", a.authHealth)
+		}
+
+		// Protected auth routes
+		authProtected := v1.Group("/auth")
+		authProtected.Use(authMiddleware.RequireAuth())
+		{
+			authProtected.GET("/me", a.authHandlers.GetCurrentUser)
+			authProtected.POST("/logout", a.authHandlers.Logout)
 		}
 
 		// Profile routes - temporarily disabled

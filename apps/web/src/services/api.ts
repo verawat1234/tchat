@@ -12,10 +12,18 @@ const createServiceAwareBaseQuery = () => {
   return fetchBaseQuery({
     baseUrl: '', // Will be set dynamically per request
     prepareHeaders: (headers, { getState }) => {
-      const token = (getState() as RootState).auth?.accessToken;
+      // Try Redux state first, fallback to localStorage for race condition safety
+      const reduxToken = (getState() as RootState).auth?.accessToken;
+      const localStorageToken = localStorage.getItem('accessToken');
+      const token = reduxToken || localStorageToken;
+
       if (token) {
         headers.set('authorization', `Bearer ${token}`);
+        console.log('[API] Adding auth header:', token.substring(0, 20) + '...');
+      } else {
+        console.log('[API] No token available in Redux or localStorage');
       }
+
       headers.set('Content-Type', 'application/json');
       return headers;
     },

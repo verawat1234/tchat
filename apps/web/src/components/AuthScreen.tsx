@@ -221,6 +221,8 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
   };
 
   const handleVerify = async () => {
+    console.log('[Auth] handleVerify called! OTP code:', otpCode, 'Request ID:', otpRequestId);
+
     if (!otpCode) {
       toast.error(errorCodeRequired.content);
       return;
@@ -234,6 +236,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
 
     try {
       setLoading(true);
+      console.log('[Auth] About to call verifyOTP mutation...');
 
       // Call the real OTP verification API
       const result = await verifyOTP({
@@ -242,12 +245,28 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
         phone_number: phoneNumber
       }).unwrap();
 
-      // Store tokens in Redux
-      dispatch(setTokens({
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
-        expiresIn: result.expiresIn || 3600
-      }));
+      console.log('[Auth] OTP verification successful:', {
+        hasUser: !!result.user,
+        hasAccessToken: !!result.accessToken,
+        hasRefreshToken: !!result.refreshToken,
+        expiresIn: result.expiresIn
+      });
+
+      // CRITICAL: Save tokens to localStorage BEFORE calling onAuth
+      // This prevents race condition where UserProvider tries to fetch user data
+      // before tokens are available
+      const expiresAt = Date.now() + (result.expiresIn * 1000);
+      localStorage.setItem('accessToken', result.accessToken);
+      localStorage.setItem('refreshToken', result.refreshToken);
+      localStorage.setItem('expiresAt', String(expiresAt));
+
+      console.log('[Auth] Tokens saved to localStorage before onAuth callback:', {
+        accessToken: result.accessToken.substring(0, 30) + '...',
+        expiresAt: new Date(expiresAt).toISOString()
+      });
+
+      // Tokens are automatically stored by verifyOTP.matchFulfilled in authSlice
+      // No need to dispatch setTokens again - it's already in Redux state
 
       // Call the parent callback with user data
       onAuth(result.user);
