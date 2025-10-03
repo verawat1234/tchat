@@ -540,7 +540,7 @@ func (c *Config) GetDatabaseURL() string {
 					// Build GORM-compatible DSN
 					if len(hostPort) == 2 {
 						return fmt.Sprintf(
-							"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+							"host=%s port=%s user=%s password=%s dbname=%s sslmode=require",
 							hostPort[0],
 							hostPort[1],
 							user,
