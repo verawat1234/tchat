@@ -51,9 +51,13 @@ func (r *ScyllaDialogRepository) Create(ctx context.Context, dialog *models.Dial
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	for _, participantID := range dialog.Participants {
+		// Convert google UUIDs to gocql UUIDs
+		gocqlParticipantID := gocql.UUID(participantID)
+		gocqlDialogID := gocql.UUID(dialog.ID)
+
 		if err := r.session.Query(userDialogQuery,
-			participantID,
-			dialog.ID,
+			gocqlParticipantID,
+			gocqlDialogID,
 			dialog.Type.String(),
 			dialog.CreatedAt, // Use creation time as initial last_message_at
 			false,            // is_archived
@@ -120,10 +124,13 @@ func (r *ScyllaDialogRepository) GetByUserID(ctx context.Context, userID uuid.UU
 	query := `SELECT dialog_id, type, last_message_at, is_archived, is_muted, unread_count, created_at, updated_at
 		FROM user_dialogs WHERE user_id = ?`
 
+	// Convert google UUID to gocql UUID for query parameter
+	gocqlUserID := gocql.UUID(userID)
+
 	// Note: ScyllaDB doesn't support COUNT(*) efficiently, so we'll fetch all and count
 	// For production, implement counter tables or use estimates
 	var dialogEntries []struct {
-		DialogID       uuid.UUID
+		DialogID       gocql.UUID
 		Type           string
 		LastMessageAt  time.Time
 		IsArchived     bool
@@ -133,10 +140,10 @@ func (r *ScyllaDialogRepository) GetByUserID(ctx context.Context, userID uuid.UU
 		UpdatedAt      time.Time
 	}
 
-	iter := r.session.Query(query, userID).WithContext(ctx).Iter()
+	iter := r.session.Query(query, gocqlUserID).WithContext(ctx).Iter()
 
 	var entry struct {
-		DialogID       uuid.UUID
+		DialogID       gocql.UUID
 		Type           string
 		LastMessageAt  time.Time
 		IsArchived     bool
@@ -184,7 +191,9 @@ func (r *ScyllaDialogRepository) GetByUserID(ctx context.Context, userID uuid.UU
 	// Fetch full dialog details for paginated results
 	dialogs := make([]*models.Dialog, 0, len(paginatedEntries))
 	for _, entry := range paginatedEntries {
-		dialog, err := r.GetByID(ctx, entry.DialogID)
+		// Convert gocql.UUID to google uuid.UUID
+		dialogID := uuid.UUID(entry.DialogID)
+		dialog, err := r.GetByID(ctx, dialogID)
 		if err != nil {
 			continue // Skip dialogs that couldn't be fetched
 		}
