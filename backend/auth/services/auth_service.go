@@ -795,8 +795,16 @@ func (as *AuthService) validateSendOTPRequest(req *SendOTPRequest) error {
 		req.Language = "en" // Default to English
 	}
 
+	// Extract country code from metadata if available
+	var country models.Country
+	if req.Metadata != nil {
+		if countryCode, ok := req.Metadata["country_code"].(string); ok {
+			country = models.Country(countryCode)
+		}
+	}
+
 	// Validate phone number format
-	if !models.IsValidPhoneNumber(req.PhoneNumber, "") {
+	if !models.IsValidPhoneNumber(req.PhoneNumber, country) {
 		return fmt.Errorf("invalid phone number format")
 	}
 
