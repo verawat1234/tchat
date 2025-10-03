@@ -203,6 +203,24 @@ func (a *App) createTables(session *gocql.Session) error {
 		return fmt.Errorf("failed to create presence table: %w", err)
 	}
 
+	// Create user_dialogs table for efficient user-to-dialogs queries
+	if err := session.Query(`
+		CREATE TABLE IF NOT EXISTS user_dialogs (
+			user_id UUID,
+			dialog_id UUID,
+			type TEXT,
+			last_message_at TIMESTAMP,
+			is_archived BOOLEAN,
+			is_muted BOOLEAN,
+			unread_count INT,
+			created_at TIMESTAMP,
+			updated_at TIMESTAMP,
+			PRIMARY KEY (user_id, last_message_at, dialog_id)
+		) WITH CLUSTERING ORDER BY (last_message_at DESC, dialog_id DESC)
+	`).Exec(); err != nil {
+		return fmt.Errorf("failed to create user_dialogs table: %w", err)
+	}
+
 	log.Println("ScyllaDB tables created successfully")
 	return nil
 }
