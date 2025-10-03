@@ -9,9 +9,11 @@ import { DialogProvider } from "./components/DialogSystem";
 import "./index.css";
 
 // Import service routing tests for development
-if (import.meta.env.DEV) {
-  import('./utils/testServiceRouting');
-}
+// DISABLED: Using Railway services, not localhost services
+// Uncomment only when running all services locally for testing
+// if (import.meta.env.DEV) {
+//   import('./utils/testServiceRouting');
+// }
 
 // Start MSW in development (temporarily disabled for RTK verification)
 // if (import.meta.env.DEV) {
