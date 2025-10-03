@@ -31,16 +31,42 @@ func (r *ScyllaDialogRepository) Create(ctx context.Context, dialog *models.Dial
 		return fmt.Errorf("failed to marshal participants: %w", err)
 	}
 
+	// Insert into dialogs table
 	query := `INSERT INTO dialogs (id, type, participant_ids, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?)`
 
-	return r.session.Query(query,
+	if err := r.session.Query(query,
 		dialog.ID,
 		dialog.Type.String(),
 		string(participantsJSON),
 		dialog.CreatedAt,
 		dialog.UpdatedAt,
-	).WithContext(ctx).Exec()
+	).WithContext(ctx).Exec(); err != nil {
+		return fmt.Errorf("failed to insert dialog: %w", err)
+	}
+
+	// Insert into user_dialogs table for each participant
+	userDialogQuery := `INSERT INTO user_dialogs
+		(user_id, dialog_id, type, last_message_at, is_archived, is_muted, unread_count, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+	for _, participantID := range dialog.Participants {
+		if err := r.session.Query(userDialogQuery,
+			participantID,
+			dialog.ID,
+			dialog.Type.String(),
+			dialog.CreatedAt, // Use creation time as initial last_message_at
+			false,            // is_archived
+			false,            // is_muted
+			0,                // unread_count
+			dialog.CreatedAt,
+			dialog.UpdatedAt,
+		).WithContext(ctx).Exec(); err != nil {
+			return fmt.Errorf("failed to insert user_dialog for participant %s: %w", participantID, err)
+		}
+	}
+
+	return nil
 }
 
 // GetByID retrieves a dialog by its ID
@@ -90,9 +116,82 @@ func (r *ScyllaDialogRepository) GetByID(ctx context.Context, id uuid.UUID) (*mo
 
 // GetByUserID retrieves dialogs for a specific user with filters and pagination
 func (r *ScyllaDialogRepository) GetByUserID(ctx context.Context, userID uuid.UUID, filters services.DialogFilters, pagination services.Pagination) ([]*models.Dialog, int64, error) {
-	// Note: ScyllaDB doesn't support array contains queries efficiently
-	// Would need a separate table: user_dialogs(user_id, dialog_id, ...)
-	return nil, 0, fmt.Errorf("GetByUserID requires a user_dialogs materialized view")
+	// Build query for user_dialogs table
+	query := `SELECT dialog_id, type, last_message_at, is_archived, is_muted, unread_count, created_at, updated_at
+		FROM user_dialogs WHERE user_id = ?`
+
+	// Note: ScyllaDB doesn't support COUNT(*) efficiently, so we'll fetch all and count
+	// For production, implement counter tables or use estimates
+	var dialogEntries []struct {
+		DialogID       uuid.UUID
+		Type           string
+		LastMessageAt  time.Time
+		IsArchived     bool
+		IsMuted        bool
+		UnreadCount    int
+		CreatedAt      time.Time
+		UpdatedAt      time.Time
+	}
+
+	iter := r.session.Query(query, userID).WithContext(ctx).Iter()
+
+	var entry struct {
+		DialogID       uuid.UUID
+		Type           string
+		LastMessageAt  time.Time
+		IsArchived     bool
+		IsMuted        bool
+		UnreadCount    int
+		CreatedAt      time.Time
+		UpdatedAt      time.Time
+	}
+
+	for iter.Scan(&entry.DialogID, &entry.Type, &entry.LastMessageAt, &entry.IsArchived,
+		&entry.IsMuted, &entry.UnreadCount, &entry.CreatedAt, &entry.UpdatedAt) {
+
+		// Apply filters
+		if filters.Type != nil && entry.Type != filters.Type.String() {
+			continue
+		}
+		if filters.IsArchived != nil && entry.IsArchived != *filters.IsArchived {
+			continue
+		}
+		if filters.IsMuted != nil && entry.IsMuted != *filters.IsMuted {
+			continue
+		}
+
+		dialogEntries = append(dialogEntries, entry)
+	}
+
+	if err := iter.Close(); err != nil {
+		return nil, 0, fmt.Errorf("failed to query user_dialogs: %w", err)
+	}
+
+	total := int64(len(dialogEntries))
+
+	// Apply pagination
+	offset := (pagination.Page - 1) * pagination.PageSize
+	end := offset + pagination.PageSize
+	if end > len(dialogEntries) {
+		end = len(dialogEntries)
+	}
+	if offset > len(dialogEntries) {
+		return []*models.Dialog{}, total, nil
+	}
+
+	paginatedEntries := dialogEntries[offset:end]
+
+	// Fetch full dialog details for paginated results
+	dialogs := make([]*models.Dialog, 0, len(paginatedEntries))
+	for _, entry := range paginatedEntries {
+		dialog, err := r.GetByID(ctx, entry.DialogID)
+		if err != nil {
+			continue // Skip dialogs that couldn't be fetched
+		}
+		dialogs = append(dialogs, dialog)
+	}
+
+	return dialogs, total, nil
 }
 
 // Update updates a dialog
