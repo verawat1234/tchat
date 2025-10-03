@@ -670,8 +670,14 @@ func (g *Gateway) restartServiceHandler(c *gin.Context) {
 func corsMiddleware(cfg *config.Config) gin.HandlerFunc {
 	config := cors.DefaultConfig()
 
-	// Allow all origins with wildcard
-	config.AllowAllOrigins = true
+	// Explicitly set allowed origins (cannot use AllowAllOrigins with AllowCredentials)
+	config.AllowOrigins = []string{
+		"http://localhost:3000",
+		"http://localhost:5173",
+		"https://tchat.app",
+		"https://www.tchat.app",
+		"https://gateway-service-production-d78d.up.railway.app",
+	}
 
 	// Allow all common HTTP methods
 	config.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"}

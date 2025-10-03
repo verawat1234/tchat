@@ -45,6 +45,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
   const [otpCode, setOtpCode] = useState('');
   const [step, setStep] = useState<'input' | 'verify'>('input');
   const [loading, setLoading] = useState(false);
+  const [otpRequestId, setOtpRequestId] = useState('');
 
   // Redux hooks
   const dispatch = useDispatch();
@@ -82,47 +83,130 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
   const successOtpSent = useAuthContentWithFallback('auth.success.otp.sent', 'OTP sent to {phoneNumber}');
   const successWelcome = useAuthContentWithFallback('auth.success.welcome', 'Welcome to Telegram SEA!');
 
+  // Supported country codes for Southeast Asia
+  const SUPPORTED_COUNTRY_CODES: { [key: string]: string } = {
+    '+66': 'TH', // Thailand
+    '+62': 'ID', // Indonesia
+    '+63': 'PH', // Philippines
+    '+84': 'VN', // Vietnam
+    '+60': 'MY', // Malaysia
+    '+65': 'SG'  // Singapore
+  };
+
+  // Validate phone number format
+  const validatePhoneNumber = (phone: string): {
+    valid: boolean;
+    error?: string;
+    countryCode?: string;
+    normalizedPhone?: string;
+  } => {
+    const trimmedInput = phone.trim();
+
+    if (!trimmedInput) {
+      return { valid: false, error: errorPhoneRequired.content };
+    }
+
+    // Allow users to type with spaces or dashes and normalize before validation
+    const normalizedPhone = trimmedInput.replace(/[\s-]/g, '');
+
+    // Must start with +
+    if (!normalizedPhone.startsWith('+')) {
+      return {
+        valid: false,
+        error: 'Invalid format. Please use international format (e.g., +66812345678)'
+      };
+    }
+
+    // Find matching country code from supported codes
+    // Sort by length (longest first) to match +60 before +6
+    const sortedCountryCodes = Object.keys(SUPPORTED_COUNTRY_CODES).sort((a, b) => b.length - a.length);
+    let countryCodePrefix = '';
+    let phoneDigits = '';
+
+    for (const code of sortedCountryCodes) {
+      if (normalizedPhone.startsWith(code)) {
+        countryCodePrefix = code;
+        phoneDigits = normalizedPhone.slice(code.length);
+        break;
+      }
+    }
+
+    // Check if country code is supported
+    if (!countryCodePrefix) {
+      return {
+        valid: false,
+        error: `Unsupported country code. Supported: ${Object.keys(SUPPORTED_COUNTRY_CODES).join(', ')}`
+      };
+    }
+
+    // Validate minimum phone number length (at least 8 digits after country code)
+    if (phoneDigits.length < 8) {
+      return {
+        valid: false,
+        error: 'Phone number is too short. Please enter a valid phone number.'
+      };
+    }
+
+    // Validate maximum phone number length (max 12 digits after country code)
+    if (phoneDigits.length > 12) {
+      return {
+        valid: false,
+        error: 'Phone number is too long. Please enter a valid phone number.'
+      };
+    }
+
+    return {
+      valid: true,
+      countryCode: SUPPORTED_COUNTRY_CODES[countryCodePrefix],
+      normalizedPhone,
+    };
+  };
+
   const handleRequestOTP = async () => {
-    if (!phoneNumber) {
-      toast.error(errorPhoneRequired.content);
+    console.log('[OTP] handleRequestOTP called! Phone:', phoneNumber);
+
+    // Validate phone number
+    const validation = validatePhoneNumber(phoneNumber);
+    console.log('[OTP] Validation result:', validation);
+
+    if (!validation.valid) {
+      console.error('[OTP] Validation failed:', validation.error);
+      toast.error(validation.error || errorPhoneRequired.content || 'Invalid phone number');
       return;
     }
+
+    console.log('[OTP] Validation passed! Proceeding with OTP request...');
+
+    const sanitizedPhoneNumber = validation.normalizedPhone || phoneNumber.trim();
+    setPhoneNumber(sanitizedPhoneNumber);
 
     try {
       setLoading(true);
 
-      // Parse phone number to separate country code and phone number
-      const phoneNumberMatch = phoneNumber.match(/^(\+\d{1,3})(\d+)$/);
-      if (!phoneNumberMatch) {
-        toast.error('Invalid phone number format');
-        return;
-      }
-
-      const [, countryCodePrefix, phone] = phoneNumberMatch;
-
-      // Convert country code prefix to country code
-      const countryCodeMap: { [key: string]: string } = {
-        '+66': 'TH',
-        '+62': 'ID',
-        '+63': 'PH',
-        '+84': 'VN',
-        '+60': 'MY',
-        '+65': 'SG'
-      };
-
-      const countryCode = countryCodeMap[countryCodePrefix] || 'TH';
+      console.log('[OTP] Calling requestOTP mutation with:', {
+        phone_number: sanitizedPhoneNumber,
+        country_code: validation.countryCode
+      });
 
       // Call the real OTP request API with correct field names
       const result = await requestOTP({
-        phone_number: phoneNumber,
-        country_code: countryCode
+        phone_number: sanitizedPhoneNumber,
+        country_code: validation.countryCode!
       }).unwrap();
 
+      console.log('[OTP] Request successful, result:', result);
+
+      if (result.requestId) {
+        setOtpRequestId(result.requestId);
+      }
+      setOtpCode('');
       setStep('verify');
-      toast.success(successOtpSent.content.replace('{phoneNumber}', phoneNumber));
+      toast.success(successOtpSent.content.replace('{phoneNumber}', sanitizedPhoneNumber));
     } catch (error: any) {
       console.error('OTP request failed:', error);
-      toast.error(error?.data?.message || 'Failed to send OTP. Please try again.');
+      const errorMessage = error?.data?.error?.message || error?.data?.message || 'Failed to send OTP. Please try again.';
+      toast.error(errorMessage);
+      setOtpRequestId('');
     } finally {
       setLoading(false);
     }
@@ -134,11 +218,18 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
       return;
     }
 
+    if (!otpRequestId) {
+      toast.error('Missing OTP request. Please request a new code.');
+      setStep('input');
+      return;
+    }
+
     try {
       setLoading(true);
 
       // Call the real OTP verification API
       const result = await verifyOTP({
+        requestId: otpRequestId,
         phoneNumber: phoneNumber,
         code: otpCode
       }).unwrap();
@@ -152,6 +243,8 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
 
       // Call the parent callback with user data
       onAuth(result.user);
+
+      setOtpRequestId('');
 
       toast.success(successWelcome.content);
     } catch (error: any) {
@@ -221,7 +314,11 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
 
             <Button
               variant="ghost"
-              onClick={() => setStep('input')}
+              onClick={() => {
+                setStep('input');
+                setOtpCode('');
+                setOtpRequestId('');
+              }}
               className="w-full"
               disabled={isContentLoading}
               aria-label={backButton.content}

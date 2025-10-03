@@ -64,10 +64,10 @@ socialMiddleware.startListening({
 
 // Optimistic updates listener
 socialMiddleware.startListening({
-  actionCreator: socialApi.endpoints.addReaction.initiate,
+  matcher: socialApi.endpoints.addReaction.matchPending,
   effect: async (action, listenerApi) => {
     // Optimistic UI update for reactions
-    const { targetId, targetType, type } = action.arg;
+    const { targetId, targetType, type } = action.meta.arg;
 
     if (targetType === 'post') {
       // Update the post in cache immediately for better UX
