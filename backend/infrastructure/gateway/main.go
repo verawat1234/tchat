@@ -197,20 +197,19 @@ func (g *Gateway) setupRoutes() {
 		}
 
 		// Content service routes
-		content := v1.Group("/content")
+		content := v1.Group("/content", g.authMiddleware())
 		{
 			content.Any("/*path", g.proxyHandler("content-service"))
 		}
 
 		// Video service routes
-		video := v1.Group("/video")
+		video := v1.Group("/video", g.authMiddleware())
 		{
 			video.Any("/*path", g.proxyHandler("video-service"))
 		}
 
 		// Channels service routes (also handled by video-service)
-		v1.GET("/channels", g.proxyHandler("video-service"))
-		channels := v1.Group("/channels")
+		channels := v1.Group("/channels", g.authMiddleware())
 		{
 			channels.Any("/*path", g.proxyHandler("video-service"))
 		}
