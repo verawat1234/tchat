@@ -196,8 +196,8 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
 
       console.log('[OTP] Request successful, result:', result);
 
-      if (result.requestId) {
-        setOtpRequestId(result.requestId);
+      if (result.request_id) {
+        setOtpRequestId(result.request_id);
       }
       setOtpCode('');
       setStep('verify');
@@ -229,9 +229,9 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
 
       // Call the real OTP verification API
       const result = await verifyOTP({
-        requestId: otpRequestId,
-        phoneNumber: phoneNumber,
-        code: otpCode
+        request_id: otpRequestId,
+        code: otpCode,
+        phone_number: phoneNumber
       }).unwrap();
 
       // Store tokens in Redux

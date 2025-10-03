@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auth API Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .test { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+        input { padding: 8px; width: 300px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Railway Gateway Auth API Test</h1>
+    
+    <div class="test">
+        <h3>Test Configuration</h3>
+        <div>
+            <label>Gateway URL:</label><br>
+            <input id="gateway-url" value="https://gateway-service-production-d78d.up.railway.app/api/v1/auth/login">
+        </div>
+        <div>
+            <label>Phone Number:</label><br>
+            <input id="phone" value="+66812345678">
+        </div>
+        <div>
+            <label>Country Code (ISO 2-char):</label><br>
+            <input id="country" value="TH">
+        </div>
+    </div>
+    
+    <div class="test">
+        <button onclick="sendRequest()">Send OTP Request</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+    
+    <div id="results"></div>
+    
+    <script>
+    function clearResults() {
+        document.getElementById('results').innerHTML = '';
+    }
+    
+    async function sendRequest() {
+        const url = document.getElementById('gateway-url').value;
+        const phone = document.getElementById('phone').value;
+        const country = document.getElementById('country').value;
+        
+        const results = document.getElementById('results');
+        results.innerHTML = '<div class="test"><h3>🚀 Sending Request...</h3></div>';
+        
+        const payload = {
+            phone_number: phone,
+            country_code: country
+        };
+        
+        try {
+            console.log('📤 REQUEST:', url);
+            console.log('📦 Payload:', JSON.stringify(payload, null, 2));
+            
+            const startTime = Date.now();
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            });
+            const endTime = Date.now();
+            
+            const data = await response.json();
+            
+            console.log('📥 RESPONSE:', response.status, response.statusText);
+            console.log('📦 Data:', data);
+            
+            const html = `
+                <div class="test ${response.ok ? 'success' : 'error'}">
+                    <h3>${response.ok ? '✅' : '❌'} Response (${endTime - startTime}ms)</h3>
+                    <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                    <p><strong>Request:</strong></p>
+                    <pre>${JSON.stringify(payload, null, 2)}</pre>
+                    <p><strong>Response:</strong></p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                </div>
+            `;
+            
+            results.innerHTML = html;
+            
+        } catch (error) {
+            console.error('❌ ERROR:', error);
+            
+            const html = `
+                <div class="test error">
+                    <h3>❌ Error</h3>
+                    <p><strong>Message:</strong> ${error.message}</p>
+                    <p><strong>Stack:</strong></p>
+                    <pre>${error.stack}</pre>
+                </div>
+            `;
+            
+            results.innerHTML = html;
+        }
+    }
+    
+    // Open console to see network tab
+    console.log('👋 Welcome! Check the Network tab to see request/response details.');
+    console.log('📝 Test configuration:');
+    console.log('   - Gateway URL:', document.getElementById('gateway-url').value);
+    console.log('   - Phone:', document.getElementById('phone').value);
+    console.log('   - Country Code:', document.getElementById('country').value);
+    </script>
+</body>
+</html>

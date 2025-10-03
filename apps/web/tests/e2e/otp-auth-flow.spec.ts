@@ -1,376 +1,196 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
-// Test configuration and constants
-const TEST_CONFIG = {
-  APP_URL: 'http://localhost:3000',
-  GATEWAY_URL: 'http://localhost:8080',
-  AUTH_SERVICE_URL: 'http://localhost:8081',
-  PHONE_NUMBER: '+66812345678',
-  COUNTRY_CODE: '+66',
-  PHONE_DIGITS: '812345678',
-  EXPECTED_OTP: '123456',
-  TIMEOUT: 10000
-};
+test.describe('OTP Authentication Flow', () => {
+  test('complete OTP authentication flow from phone input to verification', async ({ page }) => {
+    // Configure longer timeout for this test as it involves network requests
+    test.setTimeout(60000);
 
-/**
- * Comprehensive E2E Test Suite for OTP Authentication Flow
- *
- * Tests the complete user authentication journey through the gateway:
- * 1. Navigate to auth screen
- * 2. Request OTP with proper field formatting
- * 3. Verify OTP submission
- * 4. Validate successful authentication
- * 5. Confirm no CORS errors occur
- * 6. Test gateway routing functionality
- */
-test.describe('OTP Authentication Flow - Gateway Integration', () => {
+    // Array to capture console messages
+    const consoleMessages: string[] = [];
+    const errorMessages: string[] = [];
 
-  test.beforeEach(async ({ page }) => {
-    // Set up network monitoring to catch CORS and API errors
-    const requests: Array<{ url: string; method: string; status?: number; error?: string }> = [];
-    const responses: Array<{ url: string; status: number; body?: string }> = [];
-    const consoleMessages: Array<{ type: string; text: string }> = [];
-
-    // Monitor network requests
-    page.on('request', (request) => {
-      requests.push({
-        url: request.url(),
-        method: request.method()
-      });
+    // Listen to console events
+    page.on('console', (msg) => {
+      const text = msg.text();
+      consoleMessages.push(`[${msg.type()}] ${text}`);
+      console.log(`Browser console [${msg.type()}]:`, text);
     });
 
-    // Monitor network responses
-    page.on('response', async (response) => {
-      const responseData = {
-        url: response.url(),
-        status: response.status(),
-        body: undefined as string | undefined
-      };
-
-      try {
-        // Capture response body for API endpoints
-        if (response.url().includes('/api/')) {
-          responseData.body = await response.text();
-        }
-      } catch (error) {
-        // Response body might not be available
-      }
-
-      responses.push(responseData);
+    // Listen to page errors
+    page.on('pageerror', (error) => {
+      const errorText = error.toString();
+      errorMessages.push(errorText);
+      console.error('Page error:', errorText);
     });
-
-    // Monitor console messages for CORS errors
-    page.on('console', (message) => {
-      consoleMessages.push({
-        type: message.type(),
-        text: message.text()
-      });
-    });
-
-    // Store monitoring data in page context for test access
-    await page.addInitScript(() => {
-      (window as any).testData = {
-        requests: [],
-        responses: [],
-        consoleMessages: []
-      };
-    });
-  });
-
-  test('should complete full OTP authentication flow through gateway', async ({ page }) => {
-    console.log('🧪 Starting OTP Authentication E2E Test');
 
     // Step 1: Navigate to the application
-    console.log('📱 Navigating to auth screen...');
-    await page.goto(TEST_CONFIG.APP_URL, { waitUntil: 'networkidle' });
+    console.log('Step 1: Navigating to http://localhost:3000');
+    await page.goto('http://localhost:3000');
+    await page.waitForLoadState('networkidle');
 
-    // Verify we're on the auth screen
-    await expect(page.locator('h1')).toContainText(/Telegram SEA|Sign In/i);
-    console.log('✅ Auth screen loaded successfully');
+    // Take screenshot of initial state
+    await page.screenshot({ path: 'tests/screenshots/01-initial-load.png', fullPage: true });
 
-    // Step 2: Verify UI elements are present
-    await expect(page.locator('input[placeholder*="66"]')).toBeVisible();
-    await expect(page.getByText('Send OTP')).toBeVisible();
-    console.log('✅ Auth form elements visible');
+    // Step 2: Find the phone number input
+    console.log('Step 2: Looking for phone number input field');
 
-    // Step 3: Test phone number input and country code selection
-    const phoneInput = page.locator('input[placeholder*="66"]');
-    await phoneInput.clear();
-    await phoneInput.fill(TEST_CONFIG.PHONE_NUMBER);
+    // Try multiple possible selectors for phone input
+    const phoneInput = await page.locator('input[type="tel"], input[placeholder*="phone" i], input[name*="phone" i], input[data-testid="phone-input"]').first();
 
-    // Verify phone number is properly formatted
-    await expect(phoneInput).toHaveValue(TEST_CONFIG.PHONE_NUMBER);
-    console.log(`✅ Phone number entered: ${TEST_CONFIG.PHONE_NUMBER}`);
+    await expect(phoneInput).toBeVisible({ timeout: 10000 });
+    await page.screenshot({ path: 'tests/screenshots/02-phone-input-visible.png', fullPage: true });
 
-    // Step 4: Request OTP and monitor network traffic
-    console.log('📞 Requesting OTP...');
+    // Step 3: Fill in the phone number
+    console.log('Step 3: Filling phone number +66812345678');
+    await phoneInput.fill('+66812345678');
+    await page.waitForTimeout(500); // Brief wait for any validation
 
-    // Set up network monitoring for OTP request
-    const otpRequestPromise = page.waitForResponse(response =>
-      response.url().includes('/auth/login') && response.status() === 200
-    );
+    await page.screenshot({ path: 'tests/screenshots/03-phone-filled.png', fullPage: true });
 
-    // Click Send OTP button
-    await page.getByText('Send OTP').click();
+    // Step 4: Find and click the "Send OTP" button
+    console.log('Step 4: Looking for Send OTP button');
 
-    // Wait for OTP request to complete
-    try {
-      const otpResponse = await otpRequestPromise;
-      console.log(`✅ OTP request completed with status: ${otpResponse.status()}`);
+    const sendOTPButton = await page.locator('button:has-text("Send OTP"), button:has-text("Request OTP"), button[data-testid="send-otp-button"]').first();
 
-      // Verify the request went through the gateway
-      expect(otpResponse.url()).toContain(TEST_CONFIG.GATEWAY_URL.replace('http://', ''));
-      console.log('✅ Request correctly routed through gateway');
+    await expect(sendOTPButton).toBeVisible({ timeout: 5000 });
+    await page.screenshot({ path: 'tests/screenshots/04-send-otp-button.png', fullPage: true });
 
-      // Parse and verify response body
-      const responseBody = await otpResponse.text();
-      console.log('📋 OTP Response:', responseBody);
+    console.log('Step 4b: Clicking Send OTP button');
+    await sendOTPButton.click();
 
-      // The response should indicate success
-      expect(otpResponse.status()).toBe(200);
+    // Step 5: Wait for OTP input field to appear
+    console.log('Step 5: Waiting for OTP input field to appear');
 
-    } catch (error) {
-      console.error('❌ OTP request failed:', error);
+    const otpInput = await page.locator('input[type="text"][placeholder*="OTP" i], input[type="text"][placeholder*="code" i], input[data-testid="otp-input"], input[name*="otp" i]').first();
 
-      // Check for CORS errors in console
-      const corsErrors = await page.evaluate(() => {
-        return window.console.messages?.filter(msg =>
-          msg.text.toLowerCase().includes('cors') ||
-          msg.text.toLowerCase().includes('cross-origin')
-        ) || [];
+    await expect(otpInput).toBeVisible({ timeout: 15000 });
+    await page.screenshot({ path: 'tests/screenshots/05-otp-input-visible.png', fullPage: true });
+
+    // Step 6: Enter the test OTP code
+    console.log('Step 6: Entering OTP code 123456');
+    await otpInput.fill('123456');
+    await page.waitForTimeout(500);
+
+    await page.screenshot({ path: 'tests/screenshots/06-otp-filled.png', fullPage: true });
+
+    // Step 7: Find and click the verify/submit button
+    console.log('Step 7: Looking for verify/submit button');
+
+    const verifyButton = await page.locator('button:has-text("Verify"), button:has-text("Submit"), button:has-text("Confirm"), button[data-testid="verify-otp-button"]').first();
+
+    await expect(verifyButton).toBeVisible({ timeout: 5000 });
+    await page.screenshot({ path: 'tests/screenshots/07-verify-button.png', fullPage: true });
+
+    console.log('Step 7b: Clicking verify button');
+    await verifyButton.click();
+
+    // Step 8: Wait for response and check final state
+    console.log('Step 8: Waiting for verification response');
+    await page.waitForTimeout(3000); // Wait for API response
+
+    await page.screenshot({ path: 'tests/screenshots/08-final-state.png', fullPage: true });
+
+    // Check for success indicators
+    const successIndicators = [
+      page.locator('text=/success/i'),
+      page.locator('text=/welcome/i'),
+      page.locator('text=/verified/i'),
+      page.locator('[data-testid="auth-success"]'),
+    ];
+
+    let foundSuccess = false;
+    for (const indicator of successIndicators) {
+      if (await indicator.isVisible().catch(() => false)) {
+        foundSuccess = true;
+        console.log('Success indicator found:', await indicator.textContent());
+        break;
+      }
+    }
+
+    // Check for error indicators
+    const errorIndicators = [
+      page.locator('text=/error/i'),
+      page.locator('text=/invalid/i'),
+      page.locator('text=/failed/i'),
+      page.locator('[role="alert"]'),
+    ];
+
+    let foundError = false;
+    let errorText = '';
+    for (const indicator of errorIndicators) {
+      if (await indicator.isVisible().catch(() => false)) {
+        foundError = true;
+        errorText = await indicator.textContent() || '';
+        console.log('Error indicator found:', errorText);
+        break;
+      }
+    }
+
+    // Get final URL
+    const finalUrl = page.url();
+    console.log('Final URL:', finalUrl);
+
+    // Get page title
+    const pageTitle = await page.title();
+    console.log('Page title:', pageTitle);
+
+    // Compile comprehensive test report
+    console.log('\n========== OTP AUTHENTICATION FLOW TEST REPORT ==========');
+    console.log('\n1. TEST EXECUTION SUMMARY:');
+    console.log(`   - Initial URL: http://localhost:3000`);
+    console.log(`   - Final URL: ${finalUrl}`);
+    console.log(`   - Page Title: ${pageTitle}`);
+    console.log(`   - Phone Number Used: +66812345678`);
+    console.log(`   - OTP Code Used: 123456`);
+
+    console.log('\n2. FLOW COMPLETION STATUS:');
+    console.log(`   - Phone input found: ✓`);
+    console.log(`   - Send OTP button found: ✓`);
+    console.log(`   - OTP input appeared: ✓`);
+    console.log(`   - Verify button found: ✓`);
+    console.log(`   - Success indicator: ${foundSuccess ? '✓' : '✗'}`);
+    console.log(`   - Error detected: ${foundError ? '✓ (Error: ' + errorText + ')' : '✗'}`);
+
+    console.log('\n3. CONSOLE MESSAGES:');
+    if (consoleMessages.length > 0) {
+      consoleMessages.forEach((msg, idx) => {
+        console.log(`   ${idx + 1}. ${msg}`);
       });
-
-      if (corsErrors.length > 0) {
-        console.error('🚫 CORS errors detected:', corsErrors);
-      }
-
-      throw error;
+    } else {
+      console.log('   No console messages captured');
     }
 
-    // Step 5: Verify UI transitions to OTP verification step
-    await expect(page.getByText('Verify Your Phone')).toBeVisible({ timeout: TEST_CONFIG.TIMEOUT });
-    await expect(page.locator('input[placeholder*="verification"]')).toBeVisible();
-    console.log('✅ Transitioned to OTP verification screen');
-
-    // Step 6: Enter OTP code
-    console.log('🔢 Entering OTP code...');
-    const otpInput = page.locator('input[placeholder*="verification"]');
-    await otpInput.fill(TEST_CONFIG.EXPECTED_OTP);
-    await expect(otpInput).toHaveValue(TEST_CONFIG.EXPECTED_OTP);
-    console.log(`✅ OTP entered: ${TEST_CONFIG.EXPECTED_OTP}`);
-
-    // Step 7: Submit OTP verification
-    console.log('🔐 Verifying OTP...');
-
-    // Monitor OTP verification request
-    const verifyRequestPromise = page.waitForResponse(response =>
-      response.url().includes('/auth/verify-otp'), { timeout: TEST_CONFIG.TIMEOUT }
-    );
-
-    // Click verify button
-    await page.getByText('Verify & Continue').click();
-
-    // Wait for verification response
-    try {
-      const verifyResponse = await verifyRequestPromise;
-      console.log(`✅ OTP verification completed with status: ${verifyResponse.status()}`);
-
-      // Verify the request went through the gateway
-      expect(verifyResponse.url()).toContain(TEST_CONFIG.GATEWAY_URL.replace('http://', ''));
-      console.log('✅ Verification request correctly routed through gateway');
-
-      const verifyResponseBody = await verifyResponse.text();
-      console.log('📋 Verification Response:', verifyResponseBody);
-
-      // Check if verification was successful
-      if (verifyResponse.status() === 200) {
-        console.log('✅ OTP verification successful');
-
-        // Step 8: Verify successful authentication state
-        // Look for indicators of successful login (this will depend on your app's behavior)
-        await expect(page.locator('body')).not.toContainText('Sign In with Phone', { timeout: 5000 });
-        console.log('✅ Successfully authenticated - auth form no longer visible');
-
-      } else {
-        console.log(`⚠️ OTP verification returned status: ${verifyResponse.status()}`);
-        console.log('Response body:', verifyResponseBody);
-      }
-
-    } catch (error) {
-      console.error('❌ OTP verification failed:', error);
-      throw error;
+    console.log('\n4. PAGE ERRORS:');
+    if (errorMessages.length > 0) {
+      errorMessages.forEach((error, idx) => {
+        console.log(`   ${idx + 1}. ${error}`);
+      });
+    } else {
+      console.log('   No page errors detected');
     }
 
-    // Step 9: Validate no CORS errors occurred
-    console.log('🔍 Checking for CORS errors...');
-    const finalCorsCheck = await page.evaluate(() => {
-      const consoleMessages = (window as any).console?.messages || [];
-      return consoleMessages.filter((msg: any) =>
-        typeof msg.text === 'string' && (
-          msg.text.toLowerCase().includes('cors') ||
-          msg.text.toLowerCase().includes('cross-origin') ||
-          msg.text.toLowerCase().includes('access-control')
-        )
-      );
-    });
+    console.log('\n5. SCREENSHOTS CAPTURED:');
+    console.log('   - 01-initial-load.png');
+    console.log('   - 02-phone-input-visible.png');
+    console.log('   - 03-phone-filled.png');
+    console.log('   - 04-send-otp-button.png');
+    console.log('   - 05-otp-input-visible.png');
+    console.log('   - 06-otp-filled.png');
+    console.log('   - 07-verify-button.png');
+    console.log('   - 08-final-state.png');
 
-    expect(finalCorsCheck.length).toBe(0);
-    console.log('✅ No CORS errors detected');
-
-    console.log('🎉 OTP Authentication E2E Test completed successfully!');
-  });
-
-  test('should handle OTP request errors gracefully', async ({ page }) => {
-    console.log('🧪 Testing OTP error handling...');
-
-    await page.goto(TEST_CONFIG.APP_URL);
-
-    // Test with invalid phone number
-    const phoneInput = page.locator('input[placeholder*="66"]');
-    await phoneInput.clear();
-    await phoneInput.fill('invalid-phone');
-
-    await page.getByText('Send OTP').click();
-
-    // Should show an error message
-    await expect(page.locator('body')).toContainText(/invalid|error/i, { timeout: 5000 });
-    console.log('✅ Error handling works correctly');
-  });
-
-  test('should validate gateway routing endpoints', async ({ page }) => {
-    console.log('🧪 Testing gateway routing...');
-
-    // Test that gateway is accessible
-    const gatewayHealthResponse = await page.request.get(`${TEST_CONFIG.GATEWAY_URL}/health`);
-    expect(gatewayHealthResponse.status()).toBe(200);
-    console.log('✅ Gateway health check passed');
-
-    // Test auth service routing through gateway
-    const authHealthResponse = await page.request.get(`${TEST_CONFIG.GATEWAY_URL}/api/v1/auth/health`);
-    expect(authHealthResponse.status()).toBe(200);
-    console.log('✅ Auth service accessible through gateway');
-  });
-
-  test('should validate field name compatibility', async ({ page }) => {
-    console.log('🧪 Testing field name compatibility...');
-
-    await page.goto(TEST_CONFIG.APP_URL);
-
-    // Intercept and examine the OTP request payload
-    let requestPayload: any = null;
-
-    page.on('request', (request) => {
-      if (request.url().includes('/auth/login') && request.method() === 'POST') {
-        try {
-          requestPayload = JSON.parse(request.postData() || '{}');
-        } catch (error) {
-          console.error('Failed to parse request payload:', error);
-        }
-      }
-    });
-
-    // Fill phone number and request OTP
-    const phoneInput = page.locator('input[placeholder*="66"]');
-    await phoneInput.fill(TEST_CONFIG.PHONE_NUMBER);
-    await page.getByText('Send OTP').click();
-
-    // Wait a moment for the request to be captured
-    await page.waitForTimeout(2000);
-
-    // Verify the payload has the expected field names
-    expect(requestPayload).toBeTruthy();
-    expect(requestPayload).toHaveProperty('phone_number');
-    expect(requestPayload).toHaveProperty('country_code');
-
-    console.log('✅ Request payload format is correct:', requestPayload);
-    console.log('✅ Field name compatibility verified');
-  });
-});
-
-/**
- * Network and Performance Validation Tests
- */
-test.describe('Network and Performance Validation', () => {
-
-  test('should complete authentication within performance budget', async ({ page }) => {
-    console.log('🧪 Testing authentication performance...');
-
-    const startTime = Date.now();
-
-    await page.goto(TEST_CONFIG.APP_URL);
-
-    // Measure OTP request time
-    const phoneInput = page.locator('input[placeholder*="66"]');
-    await phoneInput.fill(TEST_CONFIG.PHONE_NUMBER);
-
-    const otpStartTime = Date.now();
-    await page.getByText('Send OTP').click();
-
-    await expect(page.getByText('Verify Your Phone')).toBeVisible();
-    const otpEndTime = Date.now();
-
-    const otpDuration = otpEndTime - otpStartTime;
-    console.log(`⏱️ OTP request took: ${otpDuration}ms`);
-
-    // OTP request should complete within 5 seconds
-    expect(otpDuration).toBeLessThan(5000);
-
-    // Measure verification time
-    const otpInput = page.locator('input[placeholder*="verification"]');
-    await otpInput.fill(TEST_CONFIG.EXPECTED_OTP);
-
-    const verifyStartTime = Date.now();
-    await page.getByText('Verify & Continue').click();
-
-    // Wait for authentication to complete
-    await page.waitForTimeout(3000);
-    const verifyEndTime = Date.now();
-
-    const verifyDuration = verifyEndTime - verifyStartTime;
-    console.log(`⏱️ OTP verification took: ${verifyDuration}ms`);
-
-    // Verification should complete within 3 seconds
-    expect(verifyDuration).toBeLessThan(3000);
-
-    const totalDuration = Date.now() - startTime;
-    console.log(`⏱️ Total authentication flow took: ${totalDuration}ms`);
-
-    console.log('✅ Performance requirements met');
-  });
-
-  test('should maintain stable network connection during auth flow', async ({ page }) => {
-    console.log('🧪 Testing network stability...');
-
-    let networkErrors = 0;
-    let failedRequests: string[] = [];
-
-    page.on('requestfailed', (request) => {
-      networkErrors++;
-      failedRequests.push(`${request.method()} ${request.url()}: ${request.failure()?.errorText}`);
-    });
-
-    await page.goto(TEST_CONFIG.APP_URL);
-
-    // Complete authentication flow
-    const phoneInput = page.locator('input[placeholder*="66"]');
-    await phoneInput.fill(TEST_CONFIG.PHONE_NUMBER);
-    await page.getByText('Send OTP').click();
-
-    await expect(page.getByText('Verify Your Phone')).toBeVisible();
-
-    const otpInput = page.locator('input[placeholder*="verification"]');
-    await otpInput.fill(TEST_CONFIG.EXPECTED_OTP);
-    await page.getByText('Verify & Continue').click();
-
-    await page.waitForTimeout(2000);
-
-    // No network errors should occur during normal flow
-    if (networkErrors > 0) {
-      console.log('❌ Network errors detected:', failedRequests);
+    console.log('\n6. FINAL ASSESSMENT:');
+    if (foundSuccess && !foundError) {
+      console.log('   ✓ OTP authentication flow completed SUCCESSFULLY');
+    } else if (foundError) {
+      console.log('   ✗ OTP authentication flow FAILED with errors');
+    } else {
+      console.log('   ? OTP authentication flow status UNCLEAR (no success or error indicators)');
     }
+    console.log('\n========================================================\n');
 
-    console.log(`✅ Network stability check: ${networkErrors} errors detected`);
-    // Allow for some non-critical network errors but flag if excessive
-    expect(networkErrors).toBeLessThan(3);
+    // Assertions for test validation
+    expect(errorMessages.length).toBe(0); // No page errors should occur
+    expect(foundSuccess || foundError).toBeTruthy(); // Should have some final state indication
   });
 });

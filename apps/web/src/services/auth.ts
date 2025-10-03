@@ -15,11 +15,14 @@ export interface OTPRequest {
 export interface OTPRequestResponse {
   success: boolean;
   message: string;
+  request_id: string;
+  expires_in: number;
 }
 
 export interface OTPVerifyRequest {
-  phoneNumber: string;
+  request_id: string;
   code: string;
+  phone_number?: string;
 }
 
 export interface OTPVerifyResponse {
@@ -84,7 +87,7 @@ export const authApi = api.injectEndpoints({
         method: 'POST',
         body: request,
       }),
-      transformResponse: (response: OTPRequestResponse) => response,
+      transformResponse: (response: any) => response.data || response,
     }),
 
     /**

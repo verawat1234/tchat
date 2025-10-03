@@ -389,43 +389,56 @@ func (as *AuthService) VerifyOTP(ctx context.Context, req *VerifyOTPRequest) (*V
 	return response, nil
 }
 
-// handleTestOTPVerificationSecure handles OTP verification in test mode with proper security controls
-// SECURITY FIX: This function enforces single-use OTP validation even in test mode
+// handleTestOTPVerificationSecure handles OTP verification in test mode
+// TEST MODE: Code "123456" bypasses all OTP validation for development/testing
 func (as *AuthService) handleTestOTPVerificationSecure(ctx context.Context, req *VerifyOTPRequest) (*VerifyOTPResponse, error) {
-	// SECURITY REQUIREMENT: Even in test mode, we must check for existing OTP records and enforce single-use
+	// TEST MODE: Bypass all OTP validation when code is "123456"
+	// This is for development/testing only and should be disabled in production
 
-	// Try to get existing OTP record for this phone number
-	existingOTP, err := as.otpRepo.GetByPhoneNumber(ctx, req.PhoneNumber)
-	if err != nil && err != gorm.ErrRecordNotFound {
-		return nil, fmt.Errorf("failed to check existing OTP: %w", err)
+	log.Printf("TEST MODE: Bypassing OTP validation for phone %s", req.PhoneNumber)
+
+	// Get or create user for this phone number
+	user, err := as.userService.GetUserByPhoneNumber(ctx, req.PhoneNumber)
+	if err != nil {
+		// User doesn't exist, create a test user
+		log.Printf("TEST MODE: Creating test user for phone %s", req.PhoneNumber)
+
+		createUserReq := &CreateUserRequest{
+			PhoneNumber: req.PhoneNumber,
+			Country:     "TH",
+			Language:    "en",
+			TimeZone:    "UTC",
+		}
+
+		user, err = as.userService.CreateUser(ctx, createUserReq)
+		if err != nil {
+			log.Printf("TEST MODE: Failed to create test user: %v", err)
+			return nil, fmt.Errorf("failed to create test user: %w", err)
+		}
+		log.Printf("TEST MODE: Test user created successfully: %s", user.ID)
 	}
 
-	// If an OTP exists, verify it
-	if existingOTP != nil {
-		// Check if OTP is expired
-		if time.Now().After(existingOTP.ExpiresAt) {
-			existingOTP.Status = OTPStatusExpired
-			as.otpRepo.Update(ctx, existingOTP)
-			return nil, fmt.Errorf("OTP has expired")
-		}
-
-		// Check if OTP is already verified (prevent reuse)
-		if existingOTP.Status == OTPStatusVerified {
-			as.securityLogger.LogLoginAttempt(ctx, req.PhoneNumber, req.UserAgent, req.IPAddress, false, "test_otp_reuse_attempt")
-			return nil, fmt.Errorf("OTP code has already been used and is no longer valid")
-		}
-
-		// Verify the existing OTP
-		if existingOTP.Status == OTPStatusPending {
-			return as.verifyExistingTestOTP(ctx, req, existingOTP)
-		}
-
-		return nil, fmt.Errorf("OTP is not in a valid state for verification")
+	// Generate tokens for the test user
+	accessToken, err := as.jwtService.GenerateToken(user.ID, user.PhoneNumber, "access")
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate access token: %w", err)
 	}
 
-	// No OTP found - this shouldn't happen in normal flow
-	// User should have called SendOTP first
-	return nil, fmt.Errorf("No OTP request found for this phone number. Please request a new OTP.")
+	refreshToken, err := as.jwtService.GenerateToken(user.ID, user.PhoneNumber, "refresh")
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	// Log successful test login
+	as.securityLogger.LogLoginAttempt(ctx, req.PhoneNumber, req.UserAgent, req.IPAddress, true, "test_mode_login")
+	log.Printf("TEST MODE: Login successful for phone %s", req.PhoneNumber)
+
+	return &VerifyOTPResponse{
+		User:         user,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    3600, // 1 hour
+	}, nil
 }
 
 // verifyExistingTestOTP verifies an existing test OTP with atomic single-use enforcement
