@@ -418,6 +418,8 @@ func (a *App) initRouter() error {
 			auth.POST("/login", a.authHandlers.RequestOTP)
 			auth.POST("/verify-otp", a.authHandlers.VerifyOTP)
 			auth.POST("/refresh", a.authHandlers.RefreshToken)
+			auth.GET("/me", a.authHandlers.GetCurrentUser)
+			auth.POST("/logout", a.authHandlers.Logout)
 			auth.GET("/health", a.authHealth)
 		}
 
@@ -648,7 +650,7 @@ func (m *mockSessionRepository) GetByAccessToken(ctx context.Context, accessToke
 
 func (m *mockSessionRepository) GetByRefreshToken(ctx context.Context, refreshToken string) (*models.Session, error) {
 	var session models.Session
-	err := m.db.WithContext(ctx).Where("refresh_token_hash = ?", refreshToken).First(&session).Error
+	err := m.db.WithContext(ctx).Where("refresh_token = ?", refreshToken).First(&session).Error
 	return &session, err
 }
 

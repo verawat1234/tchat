@@ -511,6 +511,52 @@ func (c *Config) IsProduction() bool {
 
 // GetDatabaseURL returns the database connection URL
 func (c *Config) GetDatabaseURL() string {
+	// Check if DATABASE_URL is set (Railway/Heroku-style connection string)
+	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
+		// Parse postgres:// URL and convert to GORM-compatible DSN
+		// Example: postgresql://user:pass@host:5432/dbname -> host=host port=5432 user=user password=pass dbname=dbname sslmode=disable
+		if strings.HasPrefix(databaseURL, "postgresql://") || strings.HasPrefix(databaseURL, "postgres://") {
+			// Remove postgresql:// or postgres:// prefix
+			dbURL := strings.TrimPrefix(databaseURL, "postgresql://")
+			dbURL = strings.TrimPrefix(dbURL, "postgres://")
+
+			// Split credentials and host
+			parts := strings.Split(dbURL, "@")
+			if len(parts) == 2 {
+				// Extract user:password
+				credentials := parts[0]
+				userPass := strings.Split(credentials, ":")
+
+				// Extract host:port/database
+				hostPart := parts[1]
+				hostAndDB := strings.Split(hostPart, "/")
+
+				if len(userPass) == 2 && len(hostAndDB) == 2 {
+					user := userPass[0]
+					password := userPass[1]
+					hostPort := strings.Split(hostAndDB[0], ":")
+					dbname := hostAndDB[1]
+
+					// Build GORM-compatible DSN
+					if len(hostPort) == 2 {
+						return fmt.Sprintf(
+							"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+							hostPort[0],
+							hostPort[1],
+							user,
+							password,
+							dbname,
+						)
+					}
+				}
+			}
+		}
+
+		// If parsing failed, return the URL as-is (GORM might handle it)
+		return databaseURL
+	}
+
+	// Fall back to building from individual environment variables
 	return fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		c.Database.Host,
