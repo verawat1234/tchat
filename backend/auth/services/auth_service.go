@@ -418,26 +418,28 @@ func (as *AuthService) handleTestOTPVerificationSecure(ctx context.Context, req 
 		log.Printf("TEST MODE: Test user created successfully: %s", user.ID)
 	}
 
-	// Generate tokens for the test user
-	accessToken, err := as.jwtService.GenerateToken(user.ID, user.PhoneNumber, "access")
+	// Create session for the test user
+	session, err := as.sessionService.CreateSession(ctx, &CreateSessionRequest{
+		UserID:     user.ID,
+		UserAgent:  req.UserAgent,
+		IPAddress:  req.IPAddress,
+		DeviceInfo: req.DeviceInfo,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate access token: %w", err)
-	}
-
-	refreshToken, err := as.jwtService.GenerateToken(user.ID, user.PhoneNumber, "refresh")
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
 	// Log successful test login
 	as.securityLogger.LogLoginAttempt(ctx, req.PhoneNumber, req.UserAgent, req.IPAddress, true, "test_mode_login")
 	log.Printf("TEST MODE: Login successful for phone %s", req.PhoneNumber)
 
+	// Return response in the correct format
 	return &VerifyOTPResponse{
-		User:         user,
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		ExpiresIn:    3600, // 1 hour
+		Success:    true,
+		OTPID:      uuid.New(), // Generate a dummy OTP ID for test mode
+		VerifiedAt: time.Now(),
+		User:       toUserResponse(user),
+		Session:    toSessionResponse(session),
 	}, nil
 }
 
