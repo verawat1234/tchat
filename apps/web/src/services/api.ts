@@ -1,4 +1,4 @@
-import { createApi, fetchBaseQuery, BaseQueryFn, FetchArgs, FetchBaseQueryError, retry } from '@reduxjs/toolkit/query/react';
+import { createApi, fetchBaseQuery, BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query/react';
 import type { RootState } from '../store';
 import { RefreshTokenResponse } from '../types/api';
 import { buildServiceUrl, getServiceConfig } from './serviceConfig';
@@ -49,68 +49,14 @@ const baseQuery: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError> =
   }
 };
 
-// Enhanced retry logic with exponential backoff
-const baseQueryWithRetry = retry(
-  async (args, api, extraOptions) => {
-    const result = await baseQuery(args, api, extraOptions);
-
-    // Only retry on network errors, timeouts, and 5xx server errors
-    // Don't retry on CORS, 4xx client errors, or parsing errors
-    if (result.error) {
-      const { status } = result.error as FetchBaseQueryError;
-      const errorDetails = result.error as FetchBaseQueryError & { error?: string };
-      const errorMessage = typeof errorDetails.error === 'string' ? errorDetails.error : '';
-      const isLikelyCorsError = status === 'FETCH_ERROR' && /cors|failed to fetch/i.test(errorMessage);
-
-      // Log CORS and client errors but don't retry
-      if (
-        status === 'PARSING_ERROR' ||
-        status === 'CUSTOM_ERROR' ||
-        (typeof status === 'number' && status >= 400 && status < 500)
-      ) {
-        console.warn(`API error (${status}) - not retrying:`, result.error);
-        return result; // Return error result without retrying
-      }
-
-      if (isLikelyCorsError) {
-        console.warn('CORS or fetch error detected - not retrying:', result.error);
-        return result;
-      }
-
-      // Only retry on NETWORK failures (connection lost, timeout)
-      // NEVER retry on server responses (even 500 errors) - they already answered!
-      if (
-        status === 'FETCH_ERROR' ||
-        status === 'TIMEOUT_ERROR'
-      ) {
-        throw result.error; // This triggers retry
-      }
-
-      // Any HTTP status code (including 500, 503, etc.) means server responded
-      // Log it and fail immediately - don't retry
-      if (typeof status === 'number') {
-        console.error(`Server responded with status ${status} - not retrying:`, result.error);
-        return result;
-      }
-    }
-
-    return result;
-  },
-  {
-    maxRetries: 2, // Reduced retries
-    backoff: (attempt) => {
-      // Exponential backoff: 1s, 2s, 4s
-      return Math.min(1000 * Math.pow(2, attempt), 10000);
-    },
-  }
-);
-
+// No retry logic - let users refresh manually
+// Automatic retries cause infinite loops and hide real errors
 const baseQueryWithReauth: BaseQueryFn<
   string | FetchArgs,
   unknown,
   FetchBaseQueryError
 > = async (args, api, extraOptions) => {
-  let result = await baseQueryWithRetry(args, api, extraOptions);
+  let result = await baseQuery(args, api, extraOptions);
 
   // Handle fallback data for development when endpoints are not available
   if (result.error && import.meta.env.DEV) {
