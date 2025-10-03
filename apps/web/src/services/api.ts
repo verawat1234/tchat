@@ -78,13 +78,19 @@ const baseQueryWithRetry = retry(
       }
 
       // Only retry on network/server errors, but NOT on auth endpoints with 500 errors
+      // Also don't retry on structured error responses (service unavailable, etc.)
       const endpoint = typeof args === 'string' ? args : args.url;
       const isAuthEndpoint = endpoint?.includes('/auth/');
+
+      // Check if this is a structured error response (has error body with code/message)
+      const hasStructuredError = result.error.data &&
+        typeof result.error.data === 'object' &&
+        ('code' in result.error.data || 'error' in result.error.data);
 
       if (
         status === 'FETCH_ERROR' ||
         status === 'TIMEOUT_ERROR' ||
-        (typeof status === 'number' && status >= 500 && !isAuthEndpoint)
+        (typeof status === 'number' && status >= 500 && !isAuthEndpoint && !hasStructuredError)
       ) {
         throw result.error; // This triggers retry
       }
@@ -92,6 +98,12 @@ const baseQueryWithRetry = retry(
       // For auth endpoints with 500 errors, don't retry - fail immediately
       if (isAuthEndpoint && typeof status === 'number' && status >= 500) {
         console.error(`Auth endpoint ${endpoint} failed with status ${status} - not retrying`);
+        return result;
+      }
+
+      // For structured error responses (service unavailable, etc.), don't retry - fail immediately
+      if (hasStructuredError && typeof status === 'number' && status >= 500) {
+        console.error(`Structured error response from ${endpoint} with status ${status} - not retrying:`, result.error.data);
         return result;
       }
     }
