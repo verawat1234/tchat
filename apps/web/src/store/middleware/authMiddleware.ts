@@ -25,16 +25,25 @@ authMiddleware.startListening({
   effect: async (action, listenerApi) => {
     console.log('[Auth Middleware] verifyOTP fulfilled - saving tokens to localStorage');
     const { payload } = action;
-    const expiresAt = Date.now() + (payload.expiresIn * 1000);
+
+    // transformResponse in auth.ts converts backend response to camelCase
+    const { accessToken, refreshToken, expiresIn } = payload;
+
+    if (!accessToken || !refreshToken) {
+      console.error('[Auth Middleware] Missing tokens in response:', payload);
+      return;
+    }
+
+    const expiresAt = Date.now() + (expiresIn * 1000);
 
     // Save tokens directly to localStorage
-    localStorage.setItem('accessToken', payload.accessToken);
-    localStorage.setItem('refreshToken', payload.refreshToken);
+    localStorage.setItem('accessToken', accessToken);
+    localStorage.setItem('refreshToken', refreshToken);
     localStorage.setItem('expiresAt', String(expiresAt));
 
     console.log('[Auth Middleware] Tokens saved:', {
-      accessToken: payload.accessToken.substring(0, 30) + '...',
-      refreshToken: payload.refreshToken.substring(0, 30) + '...',
+      accessToken: accessToken.substring(0, 30) + '...',
+      refreshToken: refreshToken.substring(0, 30) + '...',
       expiresAt: new Date(expiresAt).toISOString(),
     });
   },

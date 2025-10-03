@@ -127,7 +127,18 @@ export const authApi = api.injectEndpoints({
         body: request,
       }),
       invalidatesTags: ['User', 'Auth'],
-      transformResponse: (response: OTPVerifyResponse) => response,
+      transformResponse: (response: any): OTPVerifyResponse => {
+        // Backend returns snake_case nested in data, convert to camelCase
+        const expiresAt = new Date(response.data.expires_at).getTime();
+        const expiresIn = Math.floor((expiresAt - Date.now()) / 1000);
+
+        return {
+          user: response.data.user,
+          accessToken: response.data.access_token,
+          refreshToken: response.data.refresh_token,
+          expiresIn: expiresIn,
+        };
+      },
     }),
 
     /**
